@@ -1,0 +1,192 @@
+diff -ru vlc-2.1.4.orig/modules/video_output/msw/common.c vlc-2.1.4/modules/video_output/msw/common.c
+--- vlc-2.1.4.orig/modules/video_output/msw/common.c	2014-02-14 19:40:50.000000000 +0200
++++ vlc-2.1.4/modules/video_output/msw/common.c	2014-03-05 18:06:31.276224805 +0200
+@@ -80,6 +80,8 @@
+     var_Create(vd, "video-deco", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+     var_Create(vd, "disable-screensaver", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+ 
++    var_Create(vd, "video-bgcolor", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
++
+     /* */
+     sys->event = EventThreadCreate(vd);
+     if (!sys->event)
+diff -ru vlc-2.1.2.orig/modules/video_output/msw/events.c vlc-2.1.2/modules/video_output/msw/events.c
+--- vlc-2.1.2.orig/modules/video_output/msw/events.c	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/video_output/msw/events.c	2014-01-14 17:04:29.000000000 +0200
+@@ -62,6 +62,8 @@
+ #define WM_VLC_HIDE_MOUSE   (WM_APP + 0)
+ #define WM_VLC_CHANGE_TEXT  (WM_APP + 1)
+ 
++static int WebFullscreenCallback(vlc_object_t *, char const *, vlc_value_t, vlc_value_t, void *);
++
+ struct event_thread_t
+ {
+     vout_display_t *vd;
+@@ -104,6 +106,9 @@
+     HICON vlc_icon;
+ 
+     bool has_moved;
++    
++    HBRUSH hvideobg;        // for bg color
++    bool b_web_fullscreen;  // for plugin
+ };
+ 
+ static int  DirectXCreateWindow( event_thread_t * );
+@@ -474,6 +474,15 @@
+     p_event->button_pressed = 0;
+     p_event->psz_title = NULL;
+     p_event->source = vd->source;
++
++    vlc_value_t val;
++    if( var_Get( vd->p_libvlc, "web-fullscreen", &val ) == VLC_SUCCESS )
++        p_event->b_web_fullscreen = val.b_bool;
++    else
++        p_event->b_web_fullscreen = false;
++
++    var_AddCallback(vd->p_libvlc, "web-fullscreen" , WebFullscreenCallback, p_event);
++
+     vout_display_PlacePicture(&p_event->place, &vd->source, vd->cfg, false);
+ 
+     _sntprintf( p_event->class_main, sizeof(p_event->class_main)/sizeof(*p_event->class_main),
+@@ -485,6 +485,8 @@
+ 
+ void EventThreadDestroy( event_thread_t *p_event )
+ {
++    var_DelCallback(p_event->vd->p_libvlc, "web-fullscreen" , WebFullscreenCallback, p_event);
++
+     free( p_event->psz_title );
+     vlc_cond_destroy( &p_event->wait );
+     vlc_mutex_destroy( &p_event->lock );
+@@ -535,6 +540,39 @@
+         p_event->vlc_icon = ExtractIcon( hInstance, vlc_path, 0 );
+     }
+ 
++    p_event->hvideobg = (HBRUSH)GetStockObject(BLACK_BRUSH);
++    char* p_color = var_GetNonEmptyString( vd->p_libvlc, "video-bgcolor" );
++  	if( p_color ) {
++        int colorlen = strlen(p_color);
++        char allowed[] = "#0123456789abcdefABCDEF";
++        if(((colorlen==7 && p_color[0]=='#') || colorlen==6) && (strspn(p_color, allowed)==colorlen)) {
++            char c0,c1;
++
++            if(colorlen==7) {
++                p_color[0]='0';
++                c0 = p_color[1];
++                c1 = p_color[2];
++                p_color[1] = p_color[5];
++                p_color[2] = p_color[6];
++                p_color[5] = c0;
++                p_color[6] = c1;
++            }
++            else {
++                c0 = p_color[0];
++                c1 = p_color[1];
++                p_color[0] = p_color[4];
++                p_color[1] = p_color[5];
++                p_color[4] = c0;
++                p_color[5] = c1;
++            }
++
++            DWORD dw;
++            sscanf(p_color, "%x", &dw);
++            p_event->hvideobg = CreateSolidBrush( RGB( GetRValue(dw), GetGValue(dw), GetBValue(dw) ) );
++        }
++        free(p_color);
++    }
++
+     /* Fill in the window class structure */
+     wc.style         = CS_OWNDC|CS_DBLCLKS;          /* style: dbl click */
+     wc.lpfnWndProc   = (WNDPROC)DirectXEventProc;       /* event handler */
+@@ -544,7 +582,8 @@
+     wc.hIcon         = p_event->vlc_icon;       /* load the vlc big icon */
+     wc.hCursor       = p_event->is_cursor_hidden ? p_event->cursor_empty :
+                                                    p_event->cursor_arrow;
+-    wc.hbrBackground = GetStockObject(BLACK_BRUSH);  /* background color */
++    //wc.hbrBackground = GetStockObject(BLACK_BRUSH);  /* background color */
++    wc.hbrBackground = p_event->hvideobg;    //
+     wc.lpszMenuName  = NULL;                                  /* no menu */
+     wc.lpszClassName = p_event->class_main;       /* use a special class */
+ 
+@@ -707,6 +746,8 @@
+         vout_display_DeleteWindow( vd, p_event->parent_window );
+     p_event->hwnd = NULL;
+ 
++    DeleteObject(p_event->hvideobg);
++
+     HINSTANCE hInstance = GetModuleHandle(NULL);
+     UnregisterClass( p_event->class_video, hInstance );
+     UnregisterClass( p_event->class_main, hInstance );
+@@ -781,6 +822,23 @@
+         return 0;
+     }
+ 
++    if( hwnd == p_event->hwnd && message == WM_PAINT )
++	{
++    	PAINTSTRUCT paintstruct;
++		HDC hdc;
++	    RECT rect;
++			
++	    hdc = BeginPaint( p_event->hwnd, &paintstruct );
++			
++	    GetClientRect(p_event->hwnd, &rect);
++		if( p_event->b_web_fullscreen )
++	        FillRect(hdc, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
++		else
++            FillRect(hdc, &rect, (HBRUSH)(p_event->hvideobg));
++	
++		EndPaint(p_event->hwnd, &paintstruct);
++	}
++
+     if( hwnd == p_event->hvideownd )
+     {
+ #ifdef MODULE_NAME_IS_directdraw
+@@ -864,7 +922,7 @@
+         }
+         break;
+ 
+-    case WM_PAINT:
++    //case WM_PAINT:
+     case WM_NCPAINT:
+     case WM_ERASEBKGND:
+         return DefWindowProc(hwnd, message, wParam, lParam);
+@@ -1118,3 +1187,16 @@
+     p_event->b_ready = false;
+ }
+ 
++static int WebFullscreenCallback(vlc_object_t *object, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data)
++{
++    vout_display_t *vd = (vout_display_t *)object;
++	event_thread_t *p_event = (event_thread_t *)p_data;
++	VLC_UNUSED(psz_cmd);
++    VLC_UNUSED(oldval);
++	
++	vlc_mutex_lock( &p_event->lock );
++    p_event->b_web_fullscreen = newval.b_bool;
++    vlc_mutex_unlock( &p_event->lock );
++
++    return VLC_SUCCESS;
++}
+diff -ru vlc-2.1.2.orig/modules/video_output/msw/glwin32.c vlc-2.1.2/modules/video_output/msw/glwin32.c
+--- vlc-2.1.2.orig/modules/video_output/msw/glwin32.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/video_output/msw/glwin32.c	2014-01-14 17:08:03.000000000 +0200
+@@ -53,7 +53,7 @@
+
+     add_integer("gpu-affinity", -1, HW_GPU_AFFINITY_TEXT, HW_GPU_AFFINITY_TEXT, true)
+
+-    set_capability("vout display", 160)
++    set_capability("vout display", 250) //160)
+     add_shortcut("glwin32", "opengl")
+     set_callbacks(Open, Close)
+ vlc_module_end()
+@@ -78,6 +78,11 @@
+     vout_display_t *vd = (vout_display_t *)object;
+     vout_display_sys_t *sys;
+ 
++    OSVERSIONINFO winVer;
++    winVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
++    if(GetVersionEx(&winVer) && winVer.dwMajorVersion < 6 && !object->b_force)
++        return VLC_EGENERIC;
++
+     /* Allocate structure */
+     vd->sys = sys = calloc(1, sizeof(*sys));
+     if (!sys)

@@ -1,0 +1,19 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs/errors.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs/errors.hpp	2014-01-17 15:07:34.794987350 +0200
+@@ -31,6 +31,7 @@
+ class QCheckBox;
+ class QGridLayout;
+ class QTextEdit;
++class QTextBrowser;
+ 
+ class ErrorsDialog : public QVLCDialog, public Singleton<ErrorsDialog>
+ {
+@@ -45,7 +46,7 @@
+     void add( bool, const QString&, const QString& );
+ 
+     QCheckBox *stopShowing;
+-    QTextEdit *messages;
++    QTextBrowser *messages;
+ private slots:
+     void close();
+     void clear();

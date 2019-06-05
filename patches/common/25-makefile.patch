@@ -1,0 +1,11 @@
+--- a/lib/Makefile.am	2019-06-03 01:54:13.596419000 +0300
++++ b/lib/Makefile.am.new	2019-06-03 02:01:11.560261594 +0300
+@@ -72,7 +72,7 @@
+ 					 -Wc,--static -Wc,-static-libgcc
+ endif
+ if HAVE_OS2
+-libvlc_la_LDFLAGS += -avoid-version
++libtsplayer_la_LDFLAGS += -avoid-version
+ endif
+ 
+ pkgconfig_DATA = libvlc.pc

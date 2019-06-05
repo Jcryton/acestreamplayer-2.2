@@ -1,0 +1,261 @@
+diff -ru vlc-2.1.5.orig/configure.ac vlc-2.1.5/configure.ac
+--- vlc-2.1.5.orig/configure.ac	2014-02-27 17:17:45.000000000 +0200
++++ vlc-2.1.5/configure.ac	2014-10-28 13:01:22.240133209 +0200
+@@ -2,14 +2,14 @@
+ 
+ AC_COPYRIGHT([Copyright 2002-2018 VLC authors and VideoLAN])
+ 
+-AC_INIT(vlc, 2.2.8)
++AC_INIT(acestreamplayer, 2.2.8)
+ VERSION_MAJOR=2
+ VERSION_MINOR=2
+ VERSION_REVISION=8
+ VERSION_EXTRA=0
+ VERSION_DEV=
+ 
+-PKGDIR="vlc"
++PKGDIR="acestreamplayer"
+ AC_SUBST(PKGDIR)
+ 
+ CONFIGURE_LINE="`echo "$0 $ac_configure_args" | sed -e 's/\\\/\\\\\\\/g'`"
+@@ -155,8 +155,8 @@
+     CPPFLAGS="${CPPFLAGS} ${ARCH_flag}"
+     OBJCFLAGS="${OBJCFLAGS} -D_INTL_REDIRECT_MACROS -std=gnu99 ${ARCH_flag}"
+     LDFLAGS="${LDFLAGS} -Wl,-headerpad_max_install_names ${ARCH_flag}"
+-    VLC_ADD_LIBS([libvlc vlc],[-Wl,-undefined,dynamic_lookup,-framework,AppKit])
++    VLC_ADD_LIBS([libtsplayer acestreamplayer],[-Wl,-undefined,dynamic_lookup,-framework,AppKit])
+-    VLC_ADD_LIBS([libvlccore],[-Wl,-framework,CoreFoundation,-framework,CoreServices])
++    VLC_ADD_LIBS([libtsplayercore],[-Wl,-framework,CoreFoundation,-framework,CoreServices])
+
+     AC_EGREP_CPP(yes,
+             [#import <TargetConditionals.h>
+@@ -209,6 +209,8 @@
+     case "${host_os}" in
+       *mingw32*)
+         SYS=mingw32
++        CC="$CC -static-libgcc"
++        CXX="$CXX -static-libgcc -static-libstdc++"
+         ;;
+       *cygwin*)
+         dnl Check if we are using the mno-cygwin mode in which case we are
+@@ -225,8 +227,8 @@
+         # DEP, ASLR, NO SEH
+         LDFLAGS="${LDFLAGS} -Wl,--nxcompat -Wl,--no-seh -Wl,--dynamicbase"
+ 
+-        VLC_ADD_LIBS([libvlccore],[-lwinmm])
+-        VLC_ADD_LDFLAGS([vlc],[-mwindows])
++        VLC_ADD_LIBS([libtsplayercore],[-lwinmm])
++        VLC_ADD_LDFLAGS([acestreamplayer],[-mwindows])
+         VLC_ADD_LIBS([win32text],[-lgdi32])
+         VLC_ADD_LIBS([vcdx],[-lwinmm])
+         AC_CHECK_PROGS(U2D, [unix2dos todos], unix2dos)
+@@ -440,7 +442,7 @@
+     VLC_SAVE_FLAGS
+     AC_CHECK_LIB(mingwex,opendir,
+         AC_CHECK_LIB(mingw32,opendir,,
+-            [VLC_ADD_LIBS([libvlccore],[-lmingwex])])
++            [VLC_ADD_LIBS([libtsplayercore],[-lmingwex])])
+     )
+     VLC_RESTORE_FLAGS
+ 
+@@ -698,19 +700,19 @@
+   VLC_RESTORE_FLAGS
+ 
+   AC_CHECK_LIB(rt, clock_nanosleep, [
+-    VLC_ADD_LIBS([libvlccore],[-lrt])
++    VLC_ADD_LIBS([libtsplayercore],[-lrt])
+   ], [
+     AC_CHECK_FUNC(nanosleep,,[
+       AC_CHECK_LIB(rt,nanosleep, [
+-        VLC_ADD_LIBS([libvlccore],[-lrt])
++        VLC_ADD_LIBS([libtsplayercore],[-lrt])
+       ], [
+         AC_CHECK_LIB(posix4,nanosleep, [
+-          VLC_ADD_LIBS([libvlccore],[-lposix4])
++          VLC_ADD_LIBS([libtsplayercore],[-lposix4])
+         ])
+       ])
+     ])
+     dnl HP/UX port
+-    AC_CHECK_LIB(rt,sem_init, [VLC_ADD_LIBS([libvlccore],[-lrt])])
++    AC_CHECK_LIB(rt,sem_init, [VLC_ADD_LIBS([libtsplayercore],[-lrt])])
+   ])
+ ])
+ AC_SUBST(LIBPTHREAD)
+@@ -1064,7 +1066,7 @@
+ dnl
+ dnl  default modules
+ dnl
+-ALIASES="${ALIASES} cvlc rvlc"
++ALIASES="${ALIASES} cacestreamplayer racestreamplayer"
+ 
+ dnl
+ dnl  Accelerated modules
+@@ -1389,7 +1391,7 @@
+               [Define to 1 if AltiVec inline assembly is available.])
+     AS_IF([test "${ac_cv_altivec_inline}" != "yes"], [
+       ALTIVEC_CFLAGS="${ac_cv_altivec_inline}"
+-      VLC_ADD_CFLAGS([libvlccore],[${ac_cv_altivec_inline}])
++      VLC_ADD_CFLAGS([libtsplayercore],[${ac_cv_altivec_inline}])
+     ])
+     have_altivec="yes"
+   ])
+@@ -1410,7 +1412,7 @@
+   AS_IF([test "${ac_cv_c_altivec}" != "no"], [
+     CPPFLAGS="${CPPFLAGS} ${ac_cv_c_altivec}"
+     AC_DEFINE(CAN_COMPILE_C_ALTIVEC, 1, [Define to 1 if C AltiVec extensions are available.])
+-    VLC_ADD_CFLAGS([libvlccore],[${ac_cv_c_altivec}])
++    VLC_ADD_CFLAGS([libtsplayercore],[${ac_cv_c_altivec}])
+     ALTIVEC_CFLAGS="$ALTIVEC_FLAGS ${ac_cv_c_altivec} ${ac_cv_c_altivec_abi}"
+     VLC_ADD_CFLAGS([deinterlace],[${ac_cv_c_altivec} ${ac_cv_c_altivec_abi}])
+     have_altivec="yes"
+@@ -1423,7 +1425,7 @@
+     [AC_TRY_LINK([],,ac_cv_ld_altivec=yes,ac_cv_ld_altivec=no)])
+   VLC_RESTORE_FLAGS
+   AS_IF([test "${ac_cv_ld_altivec}" != "no"], [
+-    VLC_ADD_LIBS([libvlccore],[-Wl,-framework,vecLib])
++    VLC_ADD_LIBS([libtsplayercore],[-Wl,-framework,vecLib])
+   ])
+ ])
+ AC_SUBST(ALTIVEC_CFLAGS)
+@@ -3655,7 +3668,7 @@
+ ])
+ AS_IF([test "${enable_qt}" != "no"], [
+   VLC_ADD_PLUGIN([qt4])
+-  ALIASES="${ALIASES} qvlc"
++  ALIASES="${ALIASES} qacestreamplayer"
+
+  AC_LANG_PUSH([C++])
+  VLC_SAVE_FLAGS
+@@ -3749,7 +3762,7 @@
+     enable_skins2="no"
+   ], [
+     VLC_ADD_PLUGIN([skins2])
+-    ALIASES="${ALIASES} svlc"
++    ALIASES="${ALIASES} sacestreamplayer"
+     enable_skins2="yes"
+   ])
+ ])
+@@ -3828,7 +3841,7 @@
+     VLC_ADD_PLUGIN([ncurses])
+     VLC_ADD_CFLAGS([ncurses],[${NCURSES_CFLAGS}])
+     VLC_ADD_LIBS([ncurses],[${NCURSES_LIBS}])
+-    ALIASES="${ALIASES} nvlc"
++    ALIASES="${ALIASES} nacestreamplayer"
+   ], [
+     AS_IF([test -n "${enable_ncurses}"], [
+       AC_MSG_ERROR([${NCURSES_PKG_ERRORS}.])
+@@ -4006,11 +4019,70 @@
+   then
+     AC_MSG_ERROR([libgcrypt is required for update checking system])
+   fi
+-  VLC_ADD_LIBS([libvlccore], [${GCRYPT_LIBS}])
+-  VLC_ADD_CFLAGS([libvlccore], [${GCRYPT_CFLAGS}])
++  VLC_ADD_LIBS([libtsplayercore], [${GCRYPT_LIBS}])
++  VLC_ADD_CFLAGS([libtsplayercore], [${GCRYPT_CFLAGS}])
+   AC_DEFINE([UPDATE_CHECK], 1, [Define if you want to use the VLC update mechanism])
+ fi
+ 
++dnl ---------------------------------------------------------------------------------------
++dnl   P2P_access 
++dnl ---------------------------------------------------------------------------------------
++VLC_ADD_PLUGIN([p2p_access])
++AS_IF([test -n "$SOCKET_LIBS"], [
++  VLC_ADD_LIBS([p2p_access],[${SOCKET_LIBS}])
++])
++if test "${have_libgcrypt}" != "yes"
++then
++    AC_MSG_ERROR([libgcrypt is required for p2p_access])
++fi
++VLC_ADD_LIBS([p2p_access],[${GCRYPT_LIBS}])
++VLC_ADD_CFLAGS([p2p_access], [${GCRYPT_CFLAGS}])
++if test "${enable_sqlite}" != "yes"
++  then
++    AC_MSG_ERROR([sqlite3 is required for p2p_access])
++fi
++
++dnl ---------------------------------------------------------------------------------------
++dnl   TorrentStream Alias 
++dnl ---------------------------------------------------------------------------------------
++AC_ARG_ENABLE(torrentstream,
++  [  --enable-torrentstream  build as TorrentStream not ACEStream])
++if test "${enable_torrentstream}" = "yes"
++then
++  CODENAME="Torrent Stream"
++  AC_DEFINE([TORRENT_STREAM], 1, [Define to 1 for build as TorrentStream])
++  AM_CONDITIONAL(TORRENT_STREAM, 1)
++else
++  CODENAME="Ace Stream"
++  AM_CONDITIONAL(TORRENT_STREAM, 0)
++fi
++
++dnl ---------------------------------------------------------------------------------------
++dnl   Key header
++dnl ---------------------------------------------------------------------------------------
++if test -f "${srcdir}/bin/key.h"
++then
++  AC_DEFINE([KEY_HEADER], 1, [Define to 1 for use key from key.h])
++  AM_CONDITIONAL(KEY_HEADER, 1)
++else
++  AM_CONDITIONAL(KEY_HEADER, 0)
++fi
++
++dnl ---------------------------------------------------------------------------------------
++dnl   SQLite
++dnl ---------------------------------------------------------------------------------------
++AC_ARG_ENABLE(sqlite, [  --enable-sqlite   SQLite support (default enabled) ])
++if test "${enable_sqlite}" != "no"
++  then
++  AC_CHECK_HEADERS(sqlite3.h, [
++    VLC_ADD_PLUGIN([sqlite])
++    VLC_ADD_LIBS([sqlite], [-lsqlite3])
++  ], [
++    AC_MSG_ERROR([sqlite3 is required for the p2p_access])
++  ])
++fi
++
++
+ dnl
+ dnl Growl notification plugin
+ dnl
+@@ -4081,7 +4153,7 @@
+ dnl
+ dnl  the VLC binary
+ dnl
+-AC_ARG_ENABLE(vlc,
++AC_ARG_ENABLE(acestreamplayer,
+   [  --enable-vlc            build the VLC media player (default enabled)])
+ AM_CONDITIONAL(BUILD_VLC, [test "${enable_vlc}" != "no"])
+ 
+@@ -4182,6 +4254,8 @@
+   modules/video_output/Makefile
+   modules/visualization/Makefile
+   modules/hw/vdpau/Makefile
++  modules/p2p_access/Makefile
++  modules/sqlite/Makefile
+ ])
+ 
+ AM_COND_IF([HAVE_WIN32], [
+@@ -4234,9 +4308,9 @@
+ architecture          : ${ARCH}
+ optimizations         : ${enable_optimizations}"
+ if test "${enable_vlc}" != "no"; then
+-echo "vlc aliases           :${ALIASES}"
++echo "acestreamplayer aliases           :${ALIASES}"
+ else
+-echo "build vlc executable  : no"
++echo "build acestreamplayer executable  : no"
+ fi
+ echo "
+ To build vlc and its plugins, type \`$MAKE', or \`./compile' if you like nice colors."diff -ru vlc-2.1.2.orig/make-alias vlc-2.1.2/make-alias
+--- vlc-2.1.2.orig/make-alias	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/make-alias	2014-01-17 12:18:52.780078327 +0200
+@@ -7,7 +7,7 @@
+ 
+ cat > "$OUT.tmp" << EOF
+ #! /bin/sh
+-exec $bindir/`echo "$program_prefix"vlc"$program_suffix" | sed -e "$transform"` -I "$IFACE" "\$@"
++exec $bindir/`echo "$program_prefix"acestreamplayer"$program_suffix" | sed -e "$transform"` -I "$IFACE" "\$@"
+ EOF
+ 
+ chmod +x "$OUT.tmp"

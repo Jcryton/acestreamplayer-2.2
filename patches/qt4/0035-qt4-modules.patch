@@ -1,0 +1,220 @@
+--- vlc-2.1.4.orig/modules/gui/qt4/input_manager.hpp	2014-02-21 15:59:56.000000000 +0200
++++ vlc-2.1.4/modules/gui/qt4/input_manager.hpp	2014-04-11 13:08:13.750100524 +0300
+@@ -37,8 +37,13 @@
+ 
+ #include <QObject>
+ #include <QEvent>
++#include <QStringList>
++
++#include "acewebbrowser/loaditem.hpp"
++
+ class QSignalMapper;
+ 
++
+ enum { NORMAL,    /* loop: 0, repeat: 0 */
+        REPEAT_ONE,/* loop: 0, repeat: 1 */
+        REPEAT_ALL,/* loop: 1, repeat: 0 */
+@@ -69,9 +74,18 @@
+         RandomChanged,
+         LoopOrRepeatChanged, /* 20 */
+         EPGEvent,
++        P2PUpdateSaveableCmd,
++        P2PLivePos,
++        P2PShowQualitiesOnAppendCmd,
++        P2PUpdateInfo,
++        P2PUpdateStatus,
++        P2PUpdateError,
++        NothingToPlayCmd,
++        PLIndexChanged,
++        
+     /*    SignalChanged, */
+ 
+-        FullscreenControlToggle = QEvent::User + IMEventTypeOffset + 50,
++        FullscreenControlToggle = QEvent::User + IMEventTypeOffset + 50,
+         FullscreenControlShow,
+         FullscreenControlHide,
+         FullscreenControlPlanHide,
+@@ -120,11 +134,68 @@
+     int i_parent;
+ };
+ 
++enum OtherEventsTypes
++{
++    OtherAdParamsUpdate_Type = QEvent::User + OtherEventTypeOffset + 1,
++    OtherLoadUrl_Type,
++    OtherClearLoadUrl_Type,
++};
++
++class LoadUrlEvent : public QEvent
++{
++public:
++    LoadUrlEvent(AceWebBrowser::LoadItem _item)
++        : QEvent((QEvent::Type)(OtherLoadUrl_Type)), item(_item) {}
++
++    AceWebBrowser::LoadItem item;
++};
++
++class ClearLoadUrlEvent : public QEvent
++{
++public:
++    ClearLoadUrlEvent(AceWebBrowser::BrowserType _type)
++        : QEvent((QEvent::Type)(OtherClearLoadUrl_Type)), type(_type) {}
++
++    AceWebBrowser::BrowserType type;
++};
++
++class AdParamsEvent : public QEvent
++{
++public:
++    AdParamsEvent( int t, QString a, QString b, int c, QString d, bool e )
++        : QEvent( (QEvent::Type)(t) ), url(a), text(b), skipoffset(c), noadurl(d), is_percent(e) {}
++
++
++    QString url;
++    QString text;
++    int skipoffset;
++    QString noadurl;
++    bool is_percent;
++};
++
+ class InputManager : public QObject
+ {
+     Q_OBJECT
+     friend class MainInputManager;
+ 
++    struct AdParams {
++        void reset() {
++            url = "";
++            visit_text = "";
++            unableads_url = "";
++            skip_offset = -1;
++            is_percent_offset = 0;
++            enable_skip = false;
++        }
++
++        QString url;
++        QString visit_text;
++        QString unableads_url;
++        int skip_offset;
++        bool is_percent_offset;
++        bool enable_skip;
++    };
++
+ public:
+     InputManager( QObject *, intf_thread_t * );
+     virtual ~InputManager();
+@@ -138,6 +209,8 @@
+     }
+ 
+     int playingStatus();
++    bool isAd();
++    bool isP2P();
+     bool hasAudio();
+     bool hasVideo() { return hasInput() && b_video; }
+     bool hasVisualisation();
+@@ -147,6 +220,10 @@
+     QString getName() { return oldName; }
+     static const QString decodeArtURL( input_item_t *p_item );
+ 
++    void checkQualityList( input_item_t* );
++    QString getVisitUrl() { return m_ad_params.url; }
++    QString getDisableUrl() { return m_ad_params.unableads_url; }
++
+ private:
+     intf_thread_t  *p_intf;
+     input_thread_t *p_input;
+@@ -160,6 +237,11 @@
+     bool            b_video;
+     mtime_t         timeA, timeB;
+ 
++    float m_cached_volume;
++    AdParams m_ad_params;
++    bool m_is_ad;
++    bool m_first_time_pos_changed;
++    
+     void customEvent( QEvent * );
+ 
+     void addCallbacks();
+@@ -182,6 +264,9 @@
+     void UpdateRecord();
+     void UpdateProgramEvent();
+     void UpdateEPG();
++    
++    void UpdateLivePos();
++    void firstAdPosProcess();
+ 
+ public slots:
+     void setInput( input_thread_t * ); ///< Our controlled input changed
+@@ -208,6 +293,14 @@
+     /* A to B Loop */
+     void setAtoB();
+ 
++    void liveSeekEvent( int );
++    void changeQuality( int );
++    void UpdateSaveable();
++    void setAdParams(QString, QString, int, QString, bool);
++    void skipAd();
++    
++    void dropCachedVolume();
++
+ private slots:
+     void AtoBLoop( float, int64_t, int );
+ 
+@@ -248,6 +341,23 @@
+     /// Program Event changes
+     void encryptionChanged( bool );
+     void epgChanged();
++    
++    void disableSeekOnSliderDrag( bool );
++    void enableSliderLiveStreamMode( bool );
++    void enableLiveStreamButton( bool );
++    void updateLiveStreamButton( bool );
++    void updateSliderLiveStreamPos( int, int, int, int, int, int, int ); // update slider
++    void liveSeekOccured();
++    void enableQualitiesButton( QStringList, int );
++    void enableSaveButton(bool);
++
++    void inputIsAdvertisement(bool);
++    void setDisableAdButtonEnable(bool);
++    void setVisitAdButtonEnable(bool);
++    void setVisitAdButtonText(QString);
++    void setWaitForAd(int);
++    
++    void notifyStateChanged(int, bool);
+ };
+ 
+ class MainInputManager : public QObject, public Singleton<MainInputManager>
+@@ -287,7 +397,13 @@
+     QVLCBool random, repeat, loop;
+     QVLCFloat volume;
+     QVLCBool mute;
+-
++    
++    bool b_show_qualities_button_on_append;
++    void updateInfo();
++    void updateStatus();
++    void updateError();
++    void processAppendItem( int, int );
++    
+ public slots:
+     void togglePlayPause();
+     void play();
+@@ -318,6 +434,18 @@
+     void randomChanged( bool );
+     void repeatLoopChanged( int );
+     void leafBecameParent( int );
++
++    void setAdParams(QString,QString,int,QString,bool);
++    void p2pInfoChanged( const QString& );
++    void p2pStatusChanged( const QString& );
++    void p2pErrorChanged( const QString& );
++    void nothingToPlay();
++    
++    void loadUrlEvent(const AceWebBrowser::LoadItem &item);
++    void clearLoadUrlEvent(AceWebBrowser::BrowserType type);
++    
++    void userPauseAction();
++    void userStopAction();
+ };
+ 
+ #endif

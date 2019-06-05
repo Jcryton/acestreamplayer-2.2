@@ -1,0 +1,179 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/playlist/views.cpp	2013-07-19 13:48:07.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/playlist/views.cpp	2014-01-20 11:19:50.897698667 +0200
+@@ -273,10 +273,92 @@
+     return QSize( 0, height );
+ }
+ 
++static QRect getActiveRect( const QStyleOptionViewItem &option )
++{
++	QStyleOptionButton checkboxStyle;
++	QRect checkboxRect = QApplication::style()->subElementRect( QStyle::SE_CheckBoxIndicator, &checkboxStyle);
++	QPoint checkboxPoint( option.rect.x() + option.rect.width()/2 - checkboxRect.width()/2
++			, option.rect.y() + option.rect.height()/2 - checkboxRect.height()/2 );
++	return QRect(checkboxPoint, checkboxRect.size());
++}
++
++static QRect getSaveRect( const QStyleOptionViewItem &option, QFont f )
++{
++	QFontMetrics fm(f);
++    QString txt = qtr("Save");
++	QSize sz = fm.size(Qt::TextSingleLine, txt);
++    QSize sz_point = fm.size(Qt::TextSingleLine, ".");
++    sz.setWidth( sz.width() + sz_point.width()*3 );
++	QPoint lblPoint;
++	if(sz.width() > option.rect.width()) {
++		lblPoint.setX(option.rect.x()); lblPoint.setY(option.rect.y());
++		sz.setWidth(option.rect.width()); sz.setHeight(option.rect.height());
++	}
++	else {
++		lblPoint.setX(option.rect.x() + option.rect.width()/2 - sz.width()/2);
++		lblPoint.setY(option.rect.y() + option.rect.height()/2 - sz.height()/2);
++	}
++	return QRect(lblPoint, sz);
++}
+ 
+ void PlTreeViewItemDelegate::paint( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const
+ {
+-    if ( index.data( PLModel::IsCurrentRole ).toBool() )
++    int metadata = PLModel::columnToMeta( index.column() );
++    
++    QStyleOptionViewItem myoptions = option;
++    if( index.data( PLModel::IsCurrentRole ).toBool() )
++    {
++        myoptions.font.setBold( true );
++    }
++    
++    if(metadata == COLUMN_ACTIVE) {
++		paintBackground( painter, myoptions, index );
++
++		QString value = index.model()->data( index, Qt::DisplayRole ).toString();
++		if( value != "" ) {
++			QStyleOptionButton checkboxStyle;
++			checkboxStyle.rect = getActiveRect(myoptions);
++			if( value == "1" )
++				checkboxStyle.state = QStyle ::State_On|QStyle::State_Enabled;
++			else
++				checkboxStyle.state = QStyle ::State_Off|QStyle::State_Enabled;
++			QApplication::style()->drawControl( QStyle ::CE_CheckBox, &checkboxStyle, painter );
++		}
++		else
++			AbstractPlViewItemDelegate::paint( painter, myoptions, index );
++	}
++	else if( metadata == COLUMN_SAVE ) {
++		paintBackground( painter, myoptions, index );
++
++		QString value = index.model()->data( index, Qt::DisplayRole ).toString();
++		if(value != "") {
++			painter->save();
++			if( myoptions.state & QStyle::State_Selected )
++				painter->setPen( myoptions.palette.color( QPalette::HighlightedText ) );
++			else
++				painter->setPen( myoptions.palette.color( QPalette::Link ) );
++
++			QTextOption textOpt( Qt::AlignVCenter | Qt::AlignHCenter );
++			textOpt.setWrapMode( QTextOption::NoWrap );
++
++			QFont f( index.data( Qt::FontRole ).value<QFont>() );
++			f.setUnderline( true );
++			painter->setFont( f );
++
++			QFontMetrics fm( painter->fontMetrics() );
++
++			QRect rectText = getSaveRect(myoptions, f);
++            QString txt = qtr("Save");
++			painter->drawText( rectText, fm.elidedText(txt, Qt::ElideRight, rectText.width()), textOpt );
++			painter->restore();
++		}
++		else
++			AbstractPlViewItemDelegate::paint(painter, myoptions, index);
++	}
++	else
++		AbstractPlViewItemDelegate::paint(painter, myoptions, index);
++    
++    /*if ( index.data( PLModel::IsCurrentRole ).toBool() )
+     {
+         QStyleOptionViewItem myoptions = option;
+         myoptions.font.setBold( true );
+@@ -285,7 +367,63 @@
+     else
+     {
+         AbstractPlViewItemDelegate::paint( painter, option, index );
+-    }
++    }*/
++}
++
++void PlTreeViewItemDelegate::paintBackground( QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index ) const
++{
++	painter->save();
++	QRect r = option.rect.adjusted( 0, 0, -1, -1);
++	if(option.state & QStyle::State_Selected) {
++		painter->setBrush(option.palette.color(QPalette::Highlight));
++		painter->setPen(option.palette.color(QPalette::Highlight));
++		painter->drawRect(r);
++	}
++	else if(index.data(PLModel::IsCurrentRole).toBool()) {
++		painter->setBrush(QBrush(Qt::gray));
++		painter->setPen(QColor(Qt::gray));
++        painter->drawRect(r);
++	}
++	painter->restore();
++}
++
++bool PlTreeViewItemDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index)
++{
++	int metadata = PLModel::columnToMeta( index.column() );
++
++	if(event->type() == QEvent::KeyPress) {
++		QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
++		if( keyEvent->modifiers() != Qt::NoModifier || ( keyEvent->key() != Qt::Key_Space && keyEvent->key() != Qt::Key_Select ) )
++			return QStyledItemDelegate::editorEvent(event, model, option, index);
++
++		return model->setData( index, QVariant("toggleactive"), Qt::EditRole );
++	}
++	else if( metadata == COLUMN_ACTIVE ) {
++		QString value = index.model()->data(index, Qt::DisplayRole).toString();
++		if( value != "" ) {
++			if( event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick ) {
++				QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
++				if( mouseEvent->button() != Qt::LeftButton || !getActiveRect(option).contains( mouseEvent->pos() ) )
++					return QStyledItemDelegate::editorEvent( event, model, option, index );
++				if(event->type() == QEvent::MouseButtonDblClick)
++					return true;
++
++				return model->setData(index, QVariant("toggleactive"), Qt::EditRole);
++			}
++		}
++	}
++	else if( metadata == COLUMN_SAVE ) {
++		QString value = index.model()->data(index, Qt::DisplayRole).toString();
++		if( value != "" ) {
++			if( event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick ) {
++				QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
++				QFont f(index.data( Qt::FontRole ).value<QFont>());
++				if( mouseEvent->button()==Qt::LeftButton && getSaveRect(option, f).contains( mouseEvent->pos() ) )
++					return model->setData(index, QVariant(value), Qt::EditRole);
++			}
++		}
++	}
++	return QStyledItemDelegate::editorEvent(event, model, option, index);
+ }
+ 
+ static inline void plViewStartDrag( QAbstractItemView *view, const Qt::DropActions & supportedActions )
+@@ -458,7 +596,7 @@
+     QAbstractItemView::dragMoveEvent( event );
+ }
+ 
+-void PlTreeView::keyPressEvent( QKeyEvent *event )
++/*void PlTreeView::keyPressEvent( QKeyEvent *event )
+ {
+     //If the space key is pressed, override the standard list behaviour to allow pausing
+     //to proceed.
+@@ -467,7 +605,7 @@
+     //Otherwise, just do as usual.
+     else
+         QTreeView::keyPressEvent( event );
+-}
++}*/
+ 
+ #include <QHBoxLayout>
+ PicFlowView::PicFlowView( PLModel *p_model, QWidget *parent ) : QAbstractItemView( parent )

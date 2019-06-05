@@ -1,0 +1,37 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs/open.cpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs/open.cpp	2014-01-17 14:24:51.734985079 +0200
+@@ -84,6 +84,7 @@
+     discOpenPanel    = new DiscOpenPanel( this, p_intf );
+     netOpenPanel     = new NetOpenPanel( this, p_intf );
+     captureOpenPanel = new CaptureOpenPanel( this, p_intf );
++    cidOpenPanel = new ContentIdOpenPanel( this, p_intf );
+ 
+     /* Insert the tabs */
+     ui.Tab->insertTab( OPEN_FILE_TAB, fileOpenPanel, QIcon( ":/type/file-asym" ),
+@@ -94,6 +95,8 @@
+                        qtr( "&Network" ) );
+     ui.Tab->insertTab( OPEN_CAPTURE_TAB, captureOpenPanel,
+                        QIcon( ":/type/capture-card" ), qtr( "Capture &Device" ) );
++    ui.Tab->insertTab( OPEN_CONTENT_ID_TAB, cidOpenPanel,
++                       QIcon( ":/type/acestream" ), qtr( P2P_PRODUCT_NAME ) );
+ 
+     /* Hide the Slave input widgets */
+     ui.slaveLabel->hide();
+@@ -141,6 +144,8 @@
+              this, updateMRL( const QStringList&, const QString& ) );
+     CONNECT( captureOpenPanel, mrlUpdated( const QStringList&, const QString& ),
+              this, updateMRL( const QStringList&, const QString& ) );
++    CONNECT( cidOpenPanel, mrlUpdated( const QStringList&, const QString& ),
++             this, updateMRL( const QStringList&, const QString& ) );
+ 
+     CONNECT( fileOpenPanel, methodChanged( const QString& ),
+              this, newCachingMethod( const QString& ) );
+@@ -150,6 +155,8 @@
+              this, newCachingMethod( const QString& ) );
+     CONNECT( captureOpenPanel, methodChanged( const QString& ),
+              this, newCachingMethod( const QString& ) );
++    CONNECT( cidOpenPanel, methodChanged( const QString& ),
++             this, newCachingMethod( const QString& ) );
+ 
+     /* Advanced frame Connects */
+     CONNECT( ui.slaveCheckbox, toggled( bool ), this, updateMRL() );

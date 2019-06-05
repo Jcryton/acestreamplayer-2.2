@@ -1,0 +1,3819 @@
+diff -aurN a/modules/gui/qt4/components/playlist/ml_item.cpp b/modules/gui/qt4/components/playlist/ml_item.cpp
+--- a/modules/gui/qt4/components/playlist/ml_item.cpp	1970-01-01 03:00:00.000000000 +0300
++++ b/modules/gui/qt4/components/playlist/ml_item.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -0,0 +1,307 @@
++/*****************************************************************************
++ * ml_item.cpp: the media library's result item
++ *****************************************************************************
++ * Copyright (C) 2008-2011 the VideoLAN Team and AUTHORS
++ * $Id: 372993a42731810ab04105c686924506af1cf074 $
++ *
++ * Authors: Antoine Lejeune <phytos@videolan.org>
++ *          Jean-Philippe André <jpeg@videolan.org>
++ *          Rémi Duraffort <ivoire@videolan.org>
++ *          Adrien Maglo <magsoft@videolan.org>
++ *          Srikanth Raju <srikiraju#gmail#com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
++ *****************************************************************************/
++
++#ifdef HAVE_CONFIG_H
++# include <config.h>
++#endif
++
++#ifdef MEDIA_LIBRARY
++
++#include <QDateTime>
++#include <QUrl>
++#include <QFileInfo>
++#include "ml_item.hpp"
++#include <assert.h>
++
++
++/**
++ * @brief Compare the attribute 'meta' between medias a and b.
++ * @param a
++ * @param b
++ * @param meta
++ * @note If a->meta < b->meta, return -1
++ *       If a->meta == b->meta, return 0
++ *       If a->meta > b->meta, return +1
++ * @note If a->meta == NULL and b->meta != NULL (strings), then b>a
++ */
++static int compareMeta( ml_media_t *a, ml_media_t *b, ml_select_e meta )
++{
++    bool i_ret = 0;
++#   define scomp(c) i_ret = ((a->c&&b->c&&*a->c&&*b->c) ?\
++                     strcasecmp(a->c,b->c) : \
++                     (a->c&&*a->c?-1:(b->c&&*b->c?1:0))); break;
++#   define icomp(c) i_ret = (a->c<b->c?-1:(a->c==b->c?0:1)); break;
++    if ( a == b ) return 0;
++    vlc_mutex_lock( &a->lock );
++    vlc_mutex_lock( &b->lock );
++    switch( meta )
++    {
++    case ML_ALBUM: scomp( psz_album );
++    case ML_ALBUM_ID: icomp( i_album_id );
++        //case ML_ARTIST: scomp( psz_artist );
++        //case ML_ARTIST_ID: icomp( i_artist_id );
++    case ML_COVER: scomp( psz_cover );
++    case ML_DURATION: icomp( i_duration );
++    case ML_EXTRA: scomp( psz_extra );
++    case ML_GENRE: scomp( psz_genre );
++    case ML_ID: icomp( i_id );
++    case ML_LAST_PLAYED: icomp( i_last_played );
++    case ML_ORIGINAL_TITLE: scomp( psz_orig_title );
++    case ML_PLAYED_COUNT: icomp( i_played_count );
++        // case ML_ROLE:  0;
++    case ML_SCORE: icomp( i_score );
++    case ML_TITLE: scomp( psz_title );
++    case ML_TRACK_NUMBER: icomp( i_track_number );
++    case ML_TYPE: icomp( i_type );
++    case ML_URI: scomp( psz_uri );
++    case ML_VOTE: icomp( i_vote );
++    case ML_YEAR: icomp( i_year );
++    default:
++        break;
++    }
++#   undef scomp
++#   undef icomp
++    vlc_mutex_unlock( &a->lock );
++    vlc_mutex_unlock( &b->lock );
++    return i_ret;
++}
++
++
++MLItem::MLItem( const MLModel *p_model,
++                            intf_thread_t* _p_intf,
++                            ml_media_t *p_media,
++                            MLItem *p_parent )
++        : p_intf( _p_intf ), model( p_model )
++{
++    parentItem = p_parent;
++    if( p_media )
++        ml_gc_incref( p_media );
++    media = p_media;
++    p_ml = ml_Get( _p_intf );
++}
++
++MLItem::~MLItem()
++{
++    // Free private data
++    if( this->media )
++        ml_gc_decref( this->media );
++    if( !children.isEmpty() )
++        clearChildren();
++}
++
++AbstractPLItem* MLItem::child( int row ) const
++{
++    if( row < 0 || row >= childCount() ) return NULL;
++    else return children.at( row );
++}
++
++void MLItem::delChild( int row )
++{
++    if( !childCount() ) return; // assert ?
++    AbstractPLItem *item =
++            children.takeAt( ( row!=-1 ) ? row : ( children.count()-1 ) );
++    assert( item );
++    delete item;
++}
++
++input_item_t* MLItem::inputItem()
++{
++    return ml_CreateInputItem( p_ml,  id() );
++}
++
++/**
++ * @brief Get a QVariant representing the data on a column
++ * @param column
++ * @return The QVariant may be formed of a int, QString
++ *         Use toString() to print it on the screen, except for pixmaps
++ */
++QVariant MLItem::data( int column ) const
++{
++    ml_select_e type = model->columnType( column );
++    ml_person_t *p_people = NULL, *p_person = NULL;
++    QString qsz_return;
++#define sreturn(a) if(media->a) return qfu(media->a); break
++    switch( type )
++    {
++        case ML_ALBUM: sreturn( psz_album );
++        case ML_ALBUM_ID: return media->i_album_id;
++        case ML_ARTIST:
++            p_people = ml_GetPersonsFromMedia( p_ml, media, ML_PERSON_ARTIST );
++            p_person = p_people;
++            while( p_person )
++            {
++                if( !EMPTY_STR( p_person->psz_name ) )
++                {
++                    qsz_return.isEmpty() ? qsz_return = qfu( p_person->psz_name ) :
++                        qsz_return.append( "," ).append( qfu( p_person->psz_name ) );
++                }
++                p_person = p_person->p_next;
++            }
++            ml_FreePeople( p_people );
++            return qsz_return;
++            break;
++        case ML_COVER: sreturn( psz_cover );
++        case ML_DURATION:
++            return QTime().addSecs( media->i_duration/1000000 ).toString( "HH:mm:ss" );
++        case ML_EXTRA: sreturn( psz_extra );
++        case ML_GENRE: sreturn( psz_genre );
++        case ML_ID: return media->i_id;
++        case ML_LAST_PLAYED:
++        {
++            if( media->i_last_played > 0 )
++            {
++                QDateTime time( QDate(1970,1,1) );
++                return time.addSecs( qint64( media->i_last_played ) );
++            }
++            else
++                return QString();
++        }
++        case ML_ORIGINAL_TITLE: sreturn( psz_orig_title );
++        case ML_PLAYED_COUNT: return media->i_played_count;
++        // case ML_ROLE: return qtr( "Role" );
++        case ML_SCORE: return media->i_score ? media->i_score : QVariant();
++        case ML_TITLE:
++        {
++            vlc_mutex_lock( &media->lock );
++            qsz_return = qfu( media->psz_title );
++            vlc_mutex_unlock( &media->lock );
++            /* If no title, return filename */
++            if( ! qsz_return.isEmpty() )
++                return qsz_return;
++            else
++            {
++                vlc_mutex_lock( &media->lock );
++                QFileInfo p_file = QFileInfo( qfu( media->psz_uri ) );
++                vlc_mutex_unlock( &media->lock );
++                return p_file.fileName().isEmpty() ? p_file.absoluteFilePath()
++                    : p_file.fileName();
++            }
++        }
++        case ML_TRACK_NUMBER: return media->i_track_number ? media->i_track_number : QVariant();
++        case ML_TYPE:
++        {
++            QString txt;
++            if( media->i_type & ML_AUDIO )
++                txt = "Audio";
++            if( media->i_type & ML_VIDEO )
++                txt = "Video";
++            if( media->i_type & ML_STREAM )
++            {
++                if( txt.isEmpty() ) txt = "Stream";
++                else txt += " stream";
++            }
++            if( media->i_type & ML_REMOVABLE )
++            {
++                if( txt.isEmpty() ) txt = "Removable media";
++                else txt += " (removable media)";
++            }
++            if( media->i_type & ML_NODE )
++            {
++                if( txt.isEmpty() ) txt = "Playlist";
++                else txt += " (Playlist)";
++            }
++            if( txt.isEmpty() )
++                txt = qtr( "Unknown" );
++            return txt;
++        }
++        case ML_URI: sreturn( psz_uri );
++        case ML_VOTE: return media->i_vote ? media->i_vote : QVariant();
++        case ML_YEAR: return media->i_year ? media->i_year : QVariant();
++        default: return QVariant();
++    }
++#   undef sreturn
++    return QVariant();
++}
++
++bool MLItem::setData( ml_select_e meta, const QVariant &data )
++{
++#   define setmeta(a) ml_LockMedia(media); free(media->a);                  \
++    media->a = strdup( qtu(data.toString()) ); ml_UnlockMedia( media );     \
++    goto update;
++    switch( meta )
++    {
++        /* String values */
++        case ML_ALBUM: setmeta( psz_album );
++        case ML_ARTIST: ml_DeletePersonTypeFromMedia( media, ML_PERSON_ARTIST );
++                        ml_CreateAppendPersonAdv( &media->p_people,
++                                ML_PERSON_ARTIST, (char*)qtu(data.toString()), 0 );
++                        return ml_UpdateSimple( p_ml, ML_MEDIA, NULL, id(),
++                                ML_PEOPLE, ML_PERSON_ARTIST, qtu( data.toString() ) ) == VLC_SUCCESS;
++        case ML_EXTRA: setmeta( psz_extra );
++        case ML_GENRE: setmeta( psz_genre );
++        case ML_ORIGINAL_TITLE: setmeta( psz_orig_title );
++        case ML_TITLE: setmeta( psz_title );
++update:
++            return ml_UpdateSimple( p_ml, ML_MEDIA, NULL, id(),
++                                    meta, qtu( data.toString() ) ) == VLC_SUCCESS;
++
++        /* Modifiable integers */
++        case ML_TRACK_NUMBER:
++        case ML_YEAR:
++            return ml_UpdateSimple( p_ml, ML_MEDIA, NULL, id(),
++                                    meta, data.toInt() ) == VLC_SUCCESS;
++
++        // TODO case ML_VOTE:
++
++        /* Non modifiable meta */
++        default:
++            return false;
++    }
++#   undef setmeta
++}
++
++int MLItem::id() const
++{
++    return media->i_id;
++}
++
++ml_media_t* MLItem::getMedia() const
++{
++    return media;
++}
++
++QUrl MLItem::getUri() const
++{
++    QString uri;
++    vlc_mutex_lock( &media->lock );
++    uri = QString( media->psz_uri );
++    vlc_mutex_unlock( &media->lock );
++    if ( uri.isEmpty() ) return QUrl(); // This should be rootItem
++
++    QUrl url( uri );
++    if ( url.scheme().isEmpty() ) url.setScheme( "file" );
++    return url;
++}
++
++bool MLItem::operator<( MLItem* item )
++{
++     int ret = compareMeta( getMedia(), item->getMedia(), ML_ALBUM );
++     if( ret == -1 )
++         return true;
++     else return false;
++}
++#endif
+diff -aurN a/modules/gui/qt4/components/playlist/ml_item.hpp b/modules/gui/qt4/components/playlist/ml_item.hpp
+--- a/modules/gui/qt4/components/playlist/ml_item.hpp	1970-01-01 03:00:00.000000000 +0300
++++ b/modules/gui/qt4/components/playlist/ml_item.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -0,0 +1,78 @@
++/*****************************************************************************
++ * ml_item.hpp: the media library's result item
++ *****************************************************************************
++ * Copyright (C) 2008-2011 the VideoLAN Team and AUTHORS
++ * $Id: 48f11616a17ac273933d48f86db7dde6f38aef99 $
++ *
++ * Authors: Antoine Lejeune <phytos@videolan.org>
++ *          Jean-Philippe André <jpeg@videolan.org>
++ *          Rémi Duraffort <ivoire@videolan.org>
++ *          Adrien Maglo <magsoft@videolan.org>
++ *          Srikanth Raju <srikiraju#gmail#com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
++ *****************************************************************************/
++
++#ifndef _MEDIA_LIBRARY_MLITEM_H
++#define _MEDIA_LIBRARY_MLITEM_H
++
++#ifdef HAVE_CONFIG_H
++# include <config.h>
++#endif
++
++#ifdef MEDIA_LIBRARY
++
++#include <vlc_common.h>
++#include <vlc_interface.h>
++#include <vlc_media_library.h>
++
++#include "playlist_item.hpp"
++#include "ml_model.hpp"
++#include "qt4.hpp"
++
++class MLModel;
++
++class MLItem : public AbstractPLItem
++{
++    friend class MLModel;
++
++public:
++    MLItem( const MLModel *p_model, intf_thread_t *_p_intf,
++            ml_media_t *p_media, MLItem *p_parent );
++    virtual ~MLItem();
++    bool operator<( MLItem* item );
++
++private:
++    /* AbstractPLItem */
++    int id() const;
++    input_item_t *inputItem();
++    AbstractPLItem* child( int row ) const;
++
++    /* Local */
++    void delChild( int row );
++    QVariant data( int column ) const;
++    bool setData( ml_select_e meta, const QVariant &data );
++    // Media structure connections
++    ml_media_t* getMedia() const;
++    QUrl getUri() const;
++
++    ml_media_t* media;
++    intf_thread_t* p_intf;
++    const MLModel *model;
++    media_library_t* p_ml;
++};
++
++#endif
++#endif
+diff -aurN a/modules/gui/qt4/components/playlist/ml_model.cpp b/modules/gui/qt4/components/playlist/ml_model.cpp
+--- a/modules/gui/qt4/components/playlist/ml_model.cpp	1970-01-01 03:00:00.000000000 +0300
++++ b/modules/gui/qt4/components/playlist/ml_model.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -0,0 +1,629 @@
++/*****************************************************************************
++ * ml_model.cpp: the media library's model
++ *****************************************************************************
++ * Copyright (C) 2008-2011 the VideoLAN Team and AUTHORS
++ * $Id: e98be71c697ac323c83065117e0d7e200376c991 $
++ *
++ * Authors: Antoine Lejeune <phytos@videolan.org>
++ *          Jean-Philippe André <jpeg@videolan.org>
++ *          Rémi Duraffort <ivoire@videolan.org>
++ *          Adrien Maglo <magsoft@videolan.org>
++ *          Srikanth Raju <srikiraju#gmail#com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
++ *****************************************************************************/
++
++#ifdef HAVE_CONFIG_H
++# include <config.h>
++#endif
++
++#ifdef MEDIA_LIBRARY
++
++#include <QUrl>
++#include <QMenu>
++#include <QMimeData>
++#include "ml_item.hpp"
++#include "ml_model.hpp"
++#include "dialogs/playlist.hpp"
++#include "components/playlist/sorting.h"
++#include "dialogs_provider.hpp"
++#include "input_manager.hpp"                            /* THEMIM */
++
++#include <assert.h>
++#include <vlc_intf_strings.h>
++
++static int mediaAdded( vlc_object_t *p_this, char const *psz_var,
++                                  vlc_value_t oldval, vlc_value_t newval,
++                                  void *data );
++static int mediaDeleted( vlc_object_t *p_this, char const *psz_var,
++                                  vlc_value_t oldval, vlc_value_t newval,
++                                  void *data );
++static int mediaUpdated( vlc_object_t *p_this, char const *psz_var,
++                                  vlc_value_t oldval, vlc_value_t newval,
++                                  void *data );
++
++/**
++ * @brief Definition of the result item model for the result tree
++ * @param parent the parent Qt object
++ */
++MLModel::MLModel( intf_thread_t* _p_intf, QObject *parent )
++        :VLCModel( _p_intf, parent )
++{
++    p_ml = ml_Get( p_intf );
++    if ( !p_ml ) return;
++
++    vlc_array_t *p_result_array = vlc_array_new();
++    if ( p_result_array )
++    {
++        ml_Find( p_ml, p_result_array, ML_MEDIA );
++        insertResultArray( p_result_array );
++        ml_DestroyResultArray( p_result_array );
++        vlc_array_destroy( p_result_array );
++    }
++
++    var_AddCallback( p_ml, "media-added", mediaAdded, this );
++    var_AddCallback( p_ml, "media-deleted", mediaDeleted, this );
++    var_AddCallback( p_ml, "media-meta-change", mediaUpdated, this );
++}
++
++/**
++ * @brief Simple destructor for the model
++ */
++MLModel::~MLModel()
++{
++    if ( !p_ml ) return;
++    var_DelCallback( p_ml, "media-meta-change", mediaUpdated, this );
++    var_DelCallback( p_ml, "media-deleted", mediaDeleted, this );
++    var_DelCallback( p_ml, "media-added", mediaAdded, this );
++}
++
++void MLModel::clear()
++{
++    int rows = rowCount();
++    if( rows > 0 )
++    {
++        beginRemoveRows( createIndex( 0, 0 ), 0, rows-1 );
++        items.clear();
++        endRemoveRows();
++        emit layoutChanged();
++    }
++}
++
++QModelIndex MLModel::index( int row, int column,
++                                  const QModelIndex &parent ) const
++{
++    if( parent.isValid() || row >= items.count() )
++        return QModelIndex();
++    else
++    {
++        QModelIndex idx = createIndex( row, column, items.value( row ) );
++        return idx;
++    }
++}
++
++QModelIndex MLModel::parent(const QModelIndex & ) const
++{
++    return QModelIndex();
++}
++
++/**
++ * @brief Return the index of currently playing item
++ */
++QModelIndex MLModel::currentIndex() const
++{
++    input_thread_t *p_input_thread = THEMIM->getInput();
++    if( !p_input_thread ) return QModelIndex();
++
++    /*TODO: O(n) not good */
++    input_item_t* p_iitem = input_GetItem( p_input_thread );
++    foreach( MLItem* item, items )
++    {
++        if( !QString::compare( item->getUri().toString(),
++                    QString::fromAscii( p_iitem->psz_uri ) ) )
++            return index( items.indexOf( item ), 0 );
++    }
++    return QModelIndex();
++}
++/**
++ * @brief This returns the type of data shown in the specified column
++ * @param column must be valid
++ * @return The type, or ML_END in case of error
++ */
++ml_select_e MLModel::columnType( int logicalindex ) const
++{
++    if( logicalindex < 0 || logicalindex >= columnCount() ) return ML_END;
++    return meta_to_mlmeta( columnToMeta( logicalindex ) );
++}
++
++QVariant MLModel::headerData( int section, Qt::Orientation orientation,
++                                    int role ) const
++{
++    if (orientation == Qt::Horizontal && role == Qt::DisplayRole)
++        return QVariant( qfu( psz_column_title( columnToMeta( section ) ) ) );
++    else
++        return QVariant();
++}
++
++Qt::ItemFlags MLModel::flags(const QModelIndex &index) const
++{
++    if( !index.isValid() )
++        return 0;
++
++    if( isEditable( index ) )
++        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled
++                | Qt::ItemIsEditable;
++    else
++        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled;
++}
++
++bool MLModel::isEditable( const QModelIndex &index ) const
++{
++    if( !index.isValid() )
++        return false;
++
++    ml_select_e type = columnType( index.column() );
++    switch( type )
++    {
++    // Read-only members: not editable
++    case ML_ALBUM_ID:
++    case ML_ARTIST_ID:
++    case ML_DURATION:
++    case ML_ID:
++    case ML_LAST_PLAYED:
++    case ML_PLAYED_COUNT:
++    case ML_TYPE:
++        return false;
++    // Read-write members: editable
++    case ML_ALBUM:
++    case ML_ARTIST:
++    case ML_COVER:
++    case ML_EXTRA:
++    case ML_GENRE:
++    case ML_ORIGINAL_TITLE:
++    // case ML_ROLE:
++    case ML_SCORE:
++    case ML_TITLE:
++    case ML_TRACK_NUMBER:
++    case ML_URI:
++    case ML_VOTE:
++    case ML_YEAR:
++        return true;
++    default:
++        return false;
++    }
++}
++
++QMimeData* MLModel::mimeData( const QModelIndexList &indexes ) const
++{
++    QList< QUrl > urls;
++    QList< int > rows;
++    foreach( QModelIndex idx, indexes )
++    {
++        if( rows.contains( idx.row() ) )
++            continue;
++        rows.append( idx.row() );
++        MLItem* item = static_cast<MLItem*>( idx.internalPointer() );
++        urls.append( item->getUri() );
++    }
++    QMimeData *data = new QMimeData;
++    data->setUrls( urls );
++    return data;
++}
++
++int MLModel::rowCount( const QModelIndex & parent ) const
++{
++    if( !parent.isValid() )
++        return items.count();
++    return 0;
++}
++
++void MLModel::remove( MLItem *item )
++{
++    int row = items.indexOf( item );
++    remove( createIndex( row, 0 ) );
++}
++
++void MLModel::doDelete( QModelIndexList list )
++{
++    for (int i = 0; i < list.count(); ++i)
++    {
++        int id = itemId( list.at(i) );
++        ml_DeleteSimple( p_ml, id );
++    }
++}
++
++void MLModel::remove( QModelIndex idx )
++{
++    if( !idx.isValid() )
++        return;
++    else
++    {
++        beginRemoveRows( createIndex( 0, 0 ), idx.row(), idx.row() );
++        items.removeAt( idx.row() );
++        endRemoveRows();
++    }
++}
++
++int MLModel::itemId( const QModelIndex &index ) const
++{
++    return getItem( index )->id();
++}
++
++input_item_t * MLModel::getInputItem( const QModelIndex &index ) const
++{
++    return getItem( index )->inputItem();
++}
++
++QVariant MLModel::data( const QModelIndex &index, const int role ) const
++{
++    if( index.isValid() )
++    {
++        if( role == Qt::DisplayRole || role == Qt::EditRole )
++        {
++            MLItem *it = static_cast<MLItem*>( index.internalPointer() );
++            if( !it ) return QVariant();
++            QVariant tmp = it->data( index.column() );
++            return tmp;
++        }
++        else if( role == IsLeafNodeRole )
++            return QVariant( true );
++        else if( role == IsCurrentsParentNodeRole )
++            return QVariant( false );
++    }
++    return QVariant();
++}
++
++bool MLModel::setData( const QModelIndex &idx, const QVariant &value,
++                             int role )
++{
++    if( role != Qt::EditRole || !idx.isValid() ) return false;
++    MLItem *media = static_cast<MLItem*>( idx.internalPointer() );
++    media->setData( columnType( idx.column() ), value );
++    emit dataChanged( idx, idx );
++    return true;
++}
++
++/**
++ * @brief Insert a media to the model in a given row
++ * @param p_media the media to append
++ * @param row the future row for this media, -1 to append at the end
++ * @param bSignal signal Qt that the model has been modified,
++ *                should NOT be used by the user
++ * @return a VLC error code
++ */
++int MLModel::insertMedia( ml_media_t *p_media, int row,
++                                bool bSignal )
++{
++    // Some checks
++    if( !p_media || row < -1 || row > rowCount() )
++        return VLC_EGENERIC;
++
++    if( row == -1 )
++        row = rowCount();
++
++    if( bSignal )
++        beginInsertRows( createIndex( -1, -1 ), row, row );
++
++    // Create and insert the item
++    MLItem *item = new MLItem( this, p_intf, p_media, NULL );
++    items.append( item );
++
++    if( bSignal )
++        endInsertRows();
++
++    return VLC_SUCCESS;
++}
++
++/**
++ * @brief Append a media to the model
++ * @param p_media the media to append
++ * @return see insertMedia
++ * @note Always signals. Do not use in a loop.
++ */
++int MLModel::appendMedia( ml_media_t *p_media )
++{
++    return insertMedia( p_media, -1, true );
++}
++
++/**
++ * @brief Insert all medias from an array to the model
++ * @param p_media_array the medias to append
++ * @return see insertMedia
++ * @note if bSignal==true, then it signals only once
++ */
++int MLModel::insertMediaArray( vlc_array_t *p_media_array,
++                                     int row, bool bSignal )
++{
++    int i_ok = VLC_SUCCESS;
++    int count = vlc_array_count( p_media_array );
++
++    if( !count )
++        return i_ok;
++
++    if( row == -1 )
++        row = rowCount();
++
++    // Signal Qt that we will insert rows
++    if( bSignal )
++        beginInsertRows( createIndex( -1, -1 ), row, row + count-1 );
++
++    // Loop
++    for( int i = 0; i < count; ++i )
++    {
++        i_ok = insertMedia( (ml_media_t*)
++            vlc_array_item_at_index( p_media_array, i ), row + i, false );
++        if( i_ok != VLC_SUCCESS )
++            break;
++    }
++
++    if( bSignal )
++        endInsertRows();
++
++    return i_ok;
++}
++
++/**
++ * @brief Insert the media contained in a result to the model
++ * @param p_result the media to append is p_result->value.p_media
++ * @param row the future row for this media
++ * @param bSignal signal Qt that the model has been modified,
++ *                should NOT be used by the user
++ * @return a VLC error code
++ */
++int MLModel::insertResult( const ml_result_t *p_result, int row,
++                                 bool bSignal )
++{
++    if( !p_result || p_result->type != ML_TYPE_MEDIA )
++        return VLC_EGENERIC;
++    else
++        return insertMedia( p_result->value.p_media, row, bSignal );
++}
++
++/**
++ * @brief Append the media contained in a result to the model
++ * @param p_result the media to append is p_result->value.p_media
++ * @param row the future row for this media
++ * @return a VLC error code
++ * @note Always signals. Do not use in a loop.
++ */
++inline int MLModel::appendResult( const ml_result_t *p_result )
++{
++    return insertResult( p_result, -1, true );
++}
++
++/**
++ * @brief Insert all medias from a result array to the model
++ * @param p_result_array the medias to append
++ * @return see insertMedia
++ * @note if bSignal==true, then it signals only once
++ *       not media or NULL items are skipped
++ */
++int MLModel::insertResultArray( vlc_array_t *p_result_array,
++                                      int row, bool bSignal )
++{
++    int i_ok = VLC_SUCCESS;
++    int count = vlc_array_count( p_result_array );
++
++    if( !count )
++        return i_ok;
++
++    if( row == -1 )
++        row = rowCount();
++
++    // Signal Qt that we will insert rows
++    if( bSignal )
++        beginInsertRows( createIndex( -1, -1 ), row, row + count-1 );
++
++    // Loop and insert
++    for( int i = 0; i < count; ++i )
++    {
++        ml_result_t *p_result = (ml_result_t*)
++                        vlc_array_item_at_index( p_result_array, i );
++        if( !p_result || p_result->type != ML_TYPE_MEDIA )
++            continue;
++        i_ok = insertMedia( p_result->value.p_media, row + i, false );
++        if( i_ok != VLC_SUCCESS )
++            break;
++    }
++    // Signal we're done
++    if( bSignal )
++        endInsertRows();
++
++    return i_ok;
++}
++
++/** **************************************************************************
++ * \brief Add a media to the playlist
++ *
++ * \param id the item id
++ * @todo this code must definitely be done by the ML core
++ *****************************************************************************/
++static void AddItemToPlaylist( int i_media_id, bool bPlay, media_library_t* p_ml,
++        bool bRenew )
++{
++
++    input_item_t *p_item = ml_CreateInputItem( p_ml, i_media_id );
++    if( !p_item )
++    {
++        msg_Dbg( p_ml, "unable to create input item for media %d",
++                 i_media_id );
++        return;
++    }
++    playlist_t *p_playlist = pl_Get( p_ml );
++    playlist_item_t *p_playlist_item = NULL;
++
++    playlist_Lock( p_playlist );
++    if( !bRenew )
++    {
++        p_playlist_item = playlist_ItemGetByInput( p_playlist, p_item );
++    }
++
++    if( !p_playlist_item || p_playlist_item->i_id == 1 )
++    {
++        playlist_AddInput( p_playlist, p_item,
++                           PLAYLIST_APPEND,
++                           PLAYLIST_END, true, true );
++
++        p_playlist_item = playlist_ItemGetByInput( p_playlist, p_item );
++    }
++    playlist_Unlock( p_playlist );
++
++    if( !p_playlist_item || p_playlist_item->i_id == 1 )
++    {
++        msg_Dbg( p_ml, "could not find playlist item %s (%s:%d)",
++                 p_item->psz_name, __FILE__, __LINE__ );
++        return;
++    }
++
++    /* Auto play item */
++    if( bPlay ) // || p_playlist->status.i_status == PLAYLIST_STOPPED )
++    {
++        playlist_Control( p_playlist, PLAYLIST_VIEWPLAY, false,
++                          NULL, p_playlist_item );
++    }
++    vlc_gc_decref( p_item );
++}
++
++void MLModel::activateItem( const QModelIndex &index )
++{
++    play( index );
++}
++
++void MLModel::play( const QModelIndex &idx )
++{
++    if( !idx.isValid() )
++        return;
++    MLItem *item = static_cast< MLItem* >( idx.internalPointer() );
++    if( !item )
++        return;
++    AddItemToPlaylist( item->id(), true, p_ml, true );
++}
++
++QString MLModel::getURI( const QModelIndex &index ) const
++{
++    return QString();
++}
++
++void MLModel::actionSlot( QAction *action )
++{
++    QString name;
++    QStringList mrls;
++    QModelIndex index;
++    playlist_item_t *p_item;
++
++    actionsContainerType a = action->data().value<actionsContainerType>();
++    switch ( a.action )
++    {
++
++    case actionsContainerType::ACTION_PLAY:
++        play( a.indexes.first() );
++        break;
++
++    case actionsContainerType::ACTION_ADDTOPLAYLIST:
++        break;
++
++    case actionsContainerType::ACTION_REMOVE:
++        doDelete( a.indexes );
++        break;
++
++    case actionsContainerType::ACTION_SORT:
++        break;
++    }
++}
++
++QModelIndex MLModel::rootIndex() const
++{
++    // FIXME
++    return QModelIndex();
++}
++
++bool MLModel::isTree() const
++{
++    // FIXME ?
++    return false;
++}
++
++bool MLModel::canEdit() const
++{
++    /* can always insert */
++    return true;
++}
++
++bool MLModel::isCurrentItem( const QModelIndex &index, playLocation where ) const
++{
++    Q_UNUSED( index );
++    if ( where == IN_MEDIALIBRARY )
++        return true;
++    return false;
++}
++
++QModelIndex MLModel::getIndexByMLID( int id ) const
++{
++    for( int i = 0; i < rowCount( ); i++ )
++    {
++        QModelIndex idx = index( i, 0 );
++        MLItem *item = static_cast< MLItem* >( idx.internalPointer() );
++        if( item->id() == id )
++            return idx;
++    }
++    return QModelIndex();
++}
++
++static int mediaAdded( vlc_object_t *p_this, char const *psz_var,
++                                  vlc_value_t oldval, vlc_value_t newval,
++                                  void *data )
++{
++    VLC_UNUSED( psz_var ); VLC_UNUSED( oldval );
++
++    int ret = VLC_SUCCESS;
++    media_library_t *p_ml = ( media_library_t* )p_this;
++    MLModel* p_model = ( MLModel* )data;
++    vlc_array_t* p_result = vlc_array_new();
++    ret = ml_FindMedia( p_ml, p_result, ML_ID, newval.i_int );
++    if( ret != VLC_SUCCESS )
++    {
++        vlc_array_destroy( p_result );
++        return VLC_EGENERIC;
++    }
++    p_model->insertResultArray( p_result );
++    ml_DestroyResultArray( p_result );
++    vlc_array_destroy( p_result );
++    return VLC_SUCCESS;
++}
++
++static int mediaDeleted( vlc_object_t *p_this, char const *psz_var,
++                                  vlc_value_t oldval, vlc_value_t newval,
++                                  void *data )
++{
++    VLC_UNUSED( p_this ); VLC_UNUSED( psz_var ); VLC_UNUSED( oldval );
++
++    MLModel* p_model = ( MLModel* )data;
++    QModelIndex remove_idx = p_model->getIndexByMLID( newval.i_int );
++    if( remove_idx.isValid() )
++        p_model->remove( remove_idx );
++    return VLC_SUCCESS;
++}
++
++static int mediaUpdated( vlc_object_t *p_this, char const *psz_var,
++                                  vlc_value_t oldval, vlc_value_t newval,
++                                  void *data )
++{
++    VLC_UNUSED( p_this ); VLC_UNUSED( psz_var ); VLC_UNUSED( oldval );
++    VLC_UNUSED( newval ); VLC_UNUSED( data );
++
++    return VLC_SUCCESS;
++}
++
++#endif
+diff -aurN a/modules/gui/qt4/components/playlist/ml_model.hpp b/modules/gui/qt4/components/playlist/ml_model.hpp
+--- a/modules/gui/qt4/components/playlist/ml_model.hpp	1970-01-01 03:00:00.000000000 +0300
++++ b/modules/gui/qt4/components/playlist/ml_model.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -0,0 +1,124 @@
++/*****************************************************************************
++ * ml_model.hpp ML model
++ *****************************************************************************
++ * Copyright (C) 2008-2011 the VideoLAN Team and AUTHORS
++ * $Id: 3b4653273c8d6890bf50c8e944ef2adacd9bd02f $
++ *
++ * Authors: Antoine Lejeune <phytos@videolan.org>
++ *          Jean-Philippe André <jpeg@videolan.org>
++ *          Rémi Duraffort <ivoire@videolan.org>
++ *          Adrien Maglo <magsoft@videolan.org>
++ *          Srikanth Raju <srikiraju#gmail#com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
++ *****************************************************************************/
++
++#ifndef _MEDIA_LIBRARY_MLMODEL_H
++#define _MEDIA_LIBRARY_MLMODEL_H
++
++#ifdef HAVE_CONFIG_H
++# include <config.h>
++#endif
++
++#ifdef MEDIA_LIBRARY
++#include <vlc_common.h>
++#include <vlc_interface.h>
++#include <vlc_media_library.h>
++
++#include "components/playlist/vlc_model.hpp"
++#include "ml_item.hpp"
++#include "qt4.hpp"
++
++class MLItem;
++
++/** *************************************************************************
++ * \brief Tree model for the result list
++ ****************************************************************************/
++class MLModel : public VLCModel
++{
++    Q_OBJECT;
++
++public:
++    // Basic QAbstractItemModel implementation
++    MLModel( intf_thread_t *_p_intf, QObject *parent = NULL );
++    virtual ~MLModel();
++
++    virtual int itemId( const QModelIndex & ) const;
++    virtual input_item_t *getInputItem( const QModelIndex &index ) const;
++
++    QVariant data( const QModelIndex &idx, const int role = Qt::DisplayRole ) const;
++    bool setData( const QModelIndex &idx, const QVariant &value,
++                  int role = Qt::EditRole );
++    ml_select_e columnType( int column ) const;
++
++    QModelIndex index( int row, int column,
++                       const QModelIndex & parent = QModelIndex() ) const;
++    virtual QModelIndex currentIndex() const;
++    int rowCount( const QModelIndex & parent = QModelIndex() ) const;
++
++    QModelIndex parent( const QModelIndex& ) const;
++    QVariant headerData( int, Qt::Orientation, int ) const;
++    Qt::ItemFlags flags( const QModelIndex& ) const;
++    bool isEditable( const QModelIndex& ) const;
++
++    // Drag and drop: MIME data
++    QMimeData* mimeData( const QModelIndexList & indexes ) const;
++
++    // Custom functions
++    int insertMedia( ml_media_t *p_media, int row = -1,
++                     bool bSignal = true );
++    int appendMedia( ml_media_t *p_media );
++    int insertMediaArray( vlc_array_t *p_media_array, int row = -1,
++                          bool bSignal = true );
++
++    int insertResult( const ml_result_t *p_result, int row = -1,
++                      bool bSignal = true );
++    inline int appendResult( const ml_result_t *p_result );
++    int insertResultArray( vlc_array_t *p_result_array, int row = -1,
++                           bool bSignal = true );
++
++    virtual void doDelete( QModelIndexList list );
++    void remove( QModelIndex idx );
++
++    void clear();
++    void play( const QModelIndex &idx );
++    virtual QString getURI( const QModelIndex &index ) const;
++    virtual QModelIndex rootIndex() const;
++    virtual bool isTree() const;
++    virtual bool canEdit() const;
++    virtual bool isCurrentItem( const QModelIndex &index, playLocation where ) const;
++    QModelIndex getIndexByMLID( int id ) const;
++
++public slots:
++    void activateItem( const QModelIndex &index );
++    virtual void actionSlot( QAction *action );
++
++protected:
++    void remove( MLItem *item );
++    inline MLItem *getItem( QModelIndex index ) const
++    {
++        if( index.isValid() )
++            return static_cast<MLItem*>( index.internalPointer() );
++        else return NULL;
++    }
++
++private:
++    QList< MLItem* > items;
++    media_library_t* p_ml;
++
++};
++
++#endif
++#endif
+diff -aurN a/modules/gui/qt4/components/playlist/playlist.cpp b/modules/gui/qt4/components/playlist/playlist.cpp
+--- a/modules/gui/qt4/components/playlist/playlist.cpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/playlist.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -30,6 +30,7 @@
+ #include "components/playlist/standardpanel.hpp"  /* MainView */
+ #include "components/playlist/selector.hpp"       /* PLSelector */
+ #include "components/playlist/playlist_model.hpp" /* PLModel */
++#include "components/playlist/ml_model.hpp"       /* MLModel */
+ #include "components/interface_widgets.hpp"       /* CoverArtLabel */
+ 
+ #include "util/searchlineedit.hpp"
+@@ -94,8 +95,12 @@
+     setMinimumWidth( 400 );
+ 
+     PLModel *model = PLModel::getPLModel( p_intf );
+-
+-    mainView = new StandardPLPanel( this, p_intf, p_root, selector, model );
++#ifdef MEDIA_LIBRARY
++    MLModel *mlmodel = new MLModel( p_intf, this );
++    mainView = new StandardPLPanel( this, p_intf, p_root, selector, model, mlmodel );
++#else
++    mainView = new StandardPLPanel( this, p_intf, p_root, selector, model, NULL );
++#endif
+ 
+     /* Location Bar */
+     locationBar = new LocationBar( model );
+@@ -223,15 +228,20 @@
+ 
+ void PlaylistWidget::changeView( const QModelIndex& index )
+ {
++    searchEdit->clear();
+     locationBar->setIndex( index );
+ }
+ 
++void PlaylistWidget::clearPlaylist()
++{
++    PLModel::getPLModel( p_intf )->clearPlaylist();
++}
+ #include <QSignalMapper>
+ #include <QMenu>
+ #include <QPainter>
+-LocationBar::LocationBar( VLCModel *m )
++LocationBar::LocationBar( PLModel *m )
+ {
+-    setModel( m );
++    model = m;
+     mapper = new QSignalMapper( this );
+     CONNECT( mapper, mapped( int ), this, invoke( int ) );
+ 
+@@ -262,7 +272,7 @@
+         actions.append( action );
+         CONNECT( btn, clicked(), action, trigger() );
+ 
+-        mapper->setMapping( action, model->itemId( i, PLAYLIST_ID ) );
++        mapper->setMapping( action, model->itemId( i ) );
+         CONNECT( action, triggered(), mapper, map() );
+ 
+         first = false;
+@@ -288,7 +298,7 @@
+ 
+ void LocationBar::invoke( int i_id )
+ {
+-    QModelIndex index = model->indexByPLID( i_id, 0 );
++    QModelIndex index = model->index( i_id, 0 );
+     emit invoked ( index );
+ }
+ 
+diff -aurN a/modules/gui/qt4/components/playlist/playlist.hpp b/modules/gui/qt4/components/playlist/playlist.hpp
+--- a/modules/gui/qt4/components/playlist/playlist.hpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/playlist.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -77,6 +77,7 @@
+     virtual void closeEvent( QCloseEvent * );
+ private slots:
+     void changeView( const QModelIndex& index );
++    void clearPlaylist();
+ 
+     friend class PlaylistDialog;
+ };
+@@ -118,16 +119,14 @@
+     bool b_arrow;
+ };
+ 
+-class VLCModel;
++class PLModel;
+ class QHBoxLayout;
+-
+ class LocationBar : public QWidget
+ {
+     Q_OBJECT
+ public:
+-    LocationBar( VLCModel * );
++    LocationBar( PLModel * );
+     void setIndex( const QModelIndex & );
+-    void setModel( VLCModel * _model ) { model = _model; };
+     virtual QSize sizeHint() const;
+ protected:
+     virtual void resizeEvent ( QResizeEvent * event );
+@@ -135,7 +134,7 @@
+ private:
+     void layOut( const QSize& size );
+ 
+-    VLCModel *model;
++    PLModel *model;
+     QSignalMapper *mapper;
+     QWidgetList buttons;
+     QList<QAction*> actions;
+diff -aurN a/modules/gui/qt4/components/playlist/playlist_item.cpp b/modules/gui/qt4/components/playlist/playlist_item.cpp
+--- a/modules/gui/qt4/components/playlist/playlist_item.cpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/playlist_item.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -41,12 +41,6 @@
+     children.clear();
+ }
+ 
+-void AbstractPLItem::removeChild( AbstractPLItem *item )
+-{
+-    children.removeOne( item );
+-    delete item;
+-}
+-
+ /*
+    Playlist item is just a wrapper, an abstraction of the playlist_item
+    in order to be managed by PLModel
+@@ -57,8 +51,8 @@
+ void PLItem::init( playlist_item_t *_playlist_item, PLItem *parent )
+ {
+     parentItem = parent;          /* Can be NULL, but only for the rootItem */
+-    i_playlist_id = _playlist_item->i_id;           /* Playlist item specific id */
+-    p_input = _playlist_item->p_input;
++    i_id       = _playlist_item->i_id;           /* Playlist item specific id */
++    p_input    = _playlist_item->p_input;
+     vlc_gc_incref( p_input );
+ }
+ 
+@@ -83,19 +77,10 @@
+     children.clear();
+ }
+ 
+-int PLItem::id( int type )
++void PLItem::removeChild( PLItem *item )
+ {
+-    switch( type )
+-    {
+-    case INPUTITEM_ID:
+-        return inputItem()->i_id;
+-    case PLAYLIST_ID:
+-        return i_playlist_id;
+-    default:
+-    case MLMEDIA_ID:
+-        assert( 0 );
+-        return -1;
+-    }
++    children.removeOne( item );
++    delete item;
+ }
+ 
+ void PLItem::takeChildAt( int index )
+@@ -113,7 +98,7 @@
+     return 0;
+ }
+ 
+-bool PLItem::operator< ( AbstractPLItem& other )
++bool PLItem::operator< ( PLItem& other )
+ {
+     AbstractPLItem *item1 = this;
+     while( item1->parentItem )
+@@ -132,26 +117,3 @@
+     }
+     return false;
+ }
+-
+-QUrl PLItem::getURI() const
+-{
+-    QString uri;
+-    vlc_mutex_lock( &p_input->lock );
+-    uri = QString( p_input->psz_uri );
+-    vlc_mutex_unlock( &p_input->lock );
+-    return QUrl( uri );
+-}
+-
+-QString PLItem::getTitle() const
+-{
+-    QString title;
+-    char *fb_name = input_item_GetTitle( p_input );
+-    if( EMPTY_STR( fb_name ) )
+-    {
+-        free( fb_name );
+-        fb_name = input_item_GetName( p_input );
+-    }
+-    title = qfu(fb_name);
+-    free(fb_name);
+-    return title;
+-}
+diff -aurN a/modules/gui/qt4/components/playlist/playlist_item.hpp b/modules/gui/qt4/components/playlist/playlist_item.hpp
+--- a/modules/gui/qt4/components/playlist/playlist_item.hpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/playlist_item.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -29,21 +29,11 @@
+ #endif
+ 
+ #include <QList>
+-#include <QString>
+-#include <QUrl>
+-
+-enum
+-{
+-    INPUTITEM_ID = 1,
+-    PLAYLIST_ID,
+-    MLMEDIA_ID
+-};
+ 
+ class AbstractPLItem
+ {
+     friend class PLItem; /* super ugly glue stuff */
+     friend class MLItem;
+-    friend class VLCModel;
+     friend class PLModel;
+     friend class MLModel;
+ 
+@@ -51,7 +41,7 @@
+     virtual ~AbstractPLItem() {}
+ 
+ protected:
+-    virtual int id( int type ) = 0;
++    virtual int id() const = 0;
+     int childCount() const { return children.count(); }
+     int indexOf( AbstractPLItem *item ) const { return children.indexOf( item ); };
+     int lastIndexOf( AbstractPLItem *item ) const { return children.lastIndexOf( item ); };
+@@ -60,10 +50,7 @@
+     void insertChild( AbstractPLItem *item, int pos = -1 ) { children.insert( pos, item ); }
+     void appendChild( AbstractPLItem *item ) { insertChild( item, children.count() ); } ;
+     virtual AbstractPLItem *child( int id ) const = 0;
+-    void removeChild( AbstractPLItem *item );
+     void clearChildren();
+-    virtual QUrl getURI() const = 0;
+-    virtual QString getTitle() const = 0;
+ 
+     QList<AbstractPLItem *> children;
+     AbstractPLItem *parentItem;
+@@ -76,24 +63,23 @@
+ public:
+     virtual ~PLItem();
+     bool hasSameParent( PLItem *other ) { return parent() == other->parent(); }
+-    bool operator< ( AbstractPLItem& );
++    bool operator< ( PLItem& );
+ 
+ private:
+     /* AbstractPLItem */
+-    int id( int type );
++    int id() const { return i_id; };
+     input_item_t *inputItem() { return p_input; }
+     AbstractPLItem *child( int id ) const { return children.value( id ); };
+-    virtual QUrl getURI() const;
+-    virtual QString getTitle() const;
+ 
+     /* Local */
+     PLItem( playlist_item_t *, PLItem *parent );
+     int row();
++    void removeChild( PLItem * );
+     void takeChildAt( int );
+ 
+     PLItem( playlist_item_t * );
+     void init( playlist_item_t *, PLItem * );
+-    int i_playlist_id;
++    int i_id;
+     input_item_t *p_input;
+ };
+ 
+diff -aurN a/modules/gui/qt4/components/playlist/playlist_model.cpp b/modules/gui/qt4/components/playlist/playlist_model.cpp
+--- a/modules/gui/qt4/components/playlist/playlist_model.cpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/playlist_model.cpp	2019-06-01 21:37:35.877366057 +0300
+@@ -30,19 +30,21 @@
+ #include "qt4.hpp"
+ #include "components/playlist/playlist_model.hpp"
+ #include "input_manager.hpp"                            /* THEMIM */
+-#include "util/qt_dirs.hpp"
+-#include "recents.hpp"                                  /* Open:: */
+ 
+ #include <vlc_intf_strings.h>                           /* I_DIR */
+ 
++#include "pixmaps/types/type_unknown.xpm"
+ #include "sorting.h"
+ 
+ #include <assert.h>
++#include <QIcon>
+ #include <QFont>
+ #include <QTimer>
+ #include <QAction>
+ #include <QBuffer>
+ 
++QIcon PLModel::icons[ITEM_TYPE_NUMBER];
++
+ /*************************************************************************
+  * Playlist model implementation
+  *************************************************************************/
+@@ -54,19 +56,35 @@
+                   : VLCModel( _p_intf, parent )
+ {
+     p_playlist        = _p_playlist;
++    i_cached_id       = -1;
++    i_cached_input_id = -1;
+ 
+     rootItem          = NULL; /* PLItem rootItem, will be set in rebuild( ) */
+     latestSearch      = QString();
+ 
++    /* Icons initialization */
++#define ADD_ICON(type, x) icons[ITEM_TYPE_##type] = QIcon( x )
++    ADD_ICON( UNKNOWN , QPixmap( type_unknown_xpm ) );
++    ADD_ICON( FILE, ":/type/file" );
++    ADD_ICON( DIRECTORY, ":/type/directory" );
++    ADD_ICON( DISC, ":/type/disc" );
++    ADD_ICON( CDDA, ":/type/cdda" );
++    ADD_ICON( CARD, ":/type/capture-card" );
++    ADD_ICON( NET, ":/type/net" );
++    ADD_ICON( PLAYLIST, ":/type/playlist" );
++    ADD_ICON( NODE, ":/type/node" );
++#undef ADD_ICON
++
+     rebuild( p_root );
+     DCONNECT( THEMIM->getIM(), metaChanged( input_item_t *),
+               this, processInputItemUpdate( input_item_t *) );
+-    DCONNECT( THEMIM, inputChanged( ),
+-              this, processInputItemUpdate( ) );
++    DCONNECT( THEMIM, inputChanged( input_thread_t * ),
++              this, processInputItemUpdate( input_thread_t* ) );
+     CONNECT( THEMIM, playlistItemAppended( int, int ),
+              this, processItemAppend( int, int ) );
+     CONNECT( THEMIM, playlistItemRemoved( int ),
+              this, processItemRemoval( int ) );
++    CONNECT( &insertBufferCommitTimer, timeout(), this, commitBufferedRowInserts() );
+ }
+ 
+ PLModel::~PLModel()
+@@ -89,7 +107,7 @@
+     {
+         PL_LOCK;
+         playlist_item_t *plItem =
+-            playlist_ItemGetById( p_playlist, item->i_playlist_id );
++            playlist_ItemGetById( p_playlist, item->i_id );
+ 
+         if ( plItem && ( plItem->i_children > -1 ) )
+             flags |= Qt::ItemIsDropEnabled;
+@@ -224,7 +242,7 @@
+         playlist_item_t *p_item = playlist_ItemGetByInput( p_playlist, p_input );
+         if( !p_item ) continue;
+ 
+-        PLItem *item = findByInputId( rootItem, p_input->i_id );
++        PLItem *item = findByInput( rootItem, p_input->i_id );
+         if( !item ) continue;
+ 
+         /* Better not try to move a node into itself.
+@@ -269,13 +287,20 @@
+     free( pp_items );
+ }
+ 
++/* remove item with its id */
++void PLModel::removeItem( int i_id )
++{
++    PLItem *item = findById( rootItem, i_id );
++    removeItem( item );
++}
++
+ void PLModel::activateItem( const QModelIndex &index )
+ {
+     assert( index.isValid() );
+     const PLItem *item = getItem( index );
+     assert( item );
+     PL_LOCK;
+-    playlist_item_t *p_item = playlist_ItemGetById( p_playlist, item->i_playlist_id );
++    playlist_item_t *p_item = playlist_ItemGetById( p_playlist, item->i_id );
+     activateItem( p_item );
+     PL_UNLOCK;
+ }
+@@ -288,7 +313,7 @@
+     playlist_item_t *p_parent = p_item;
+     while( p_parent )
+     {
+-        if( p_parent->i_id == rootItem->id( PLAYLIST_ID ) ) break;
++        if( p_parent->i_id == rootItem->id() ) break;
+         p_parent = p_parent->p_parent;
+     }
+     if( p_parent )
+@@ -322,7 +347,7 @@
+                         break;
+                 }
+             }
+-            return artUrl;
++            return QVariant( artUrl );
+         }
+         else
+         {
+@@ -332,25 +357,51 @@
+         }
+         return QVariant( returninfo );
+     }
+-    else if( role == Qt::DecorationRole )
++    else if( role == Qt::DecorationRole && index.column() == 0  )
+     {
+-        switch( columnToMeta(index.column()) )
+-        {
+-        case COLUMN_TITLE:
+-            /* Used to segfault here because i_type wasn't always initialized */
+-            return QVariant( icons[item->inputItem()->i_type] );
+-        case COLUMN_COVER:
+-            /* !warn: changes tree item line height. Otherwise, override
+-             * delegate's sizehint */
+-            return getArtPixmap( index, QSize(16,16) );
+-        default:
+-            return QVariant();
+-        }
++        /* Used to segfault here because i_type wasn't always initialized */
++        return QVariant( PLModel::icons[item->inputItem()->i_type] );
+     }
+     else if( role == Qt::FontRole )
+     {
+         return QVariant( QFont() );
+     }
++    else if( role == Qt::ToolTipRole )
++    {
++        int i_art_policy = var_GetInteger( p_playlist, "album-art" );
++        QString artUrl;
++        /* FIXME: Skip, as we don't want the pixmap and do not know the cached art file */
++        if ( i_art_policy == ALBUM_ART_ALL )
++            artUrl = getArtUrl( index );
++        if ( artUrl.isEmpty() ) artUrl = ":/noart";
++        QString duration = qtr( "unknown" );
++        QString name;
++        PL_LOCK;
++        input_item_t *p_item = item->inputItem();
++        if ( !p_item )
++        {
++            PL_UNLOCK;
++            return QVariant();
++        }
++        if ( p_item->i_duration > 0 )
++        {
++            char *psz = psz_column_meta( item->inputItem(), COLUMN_DURATION );
++            duration = qfu( psz );
++            free( psz );
++        }
++        name = qfu( p_item->psz_name );
++        PL_UNLOCK;
++        QPixmap image = getArtPixmap( index, QSize( 128, 128 ) );
++        QByteArray bytes;
++        QBuffer buffer( &bytes );
++        buffer.open( QIODevice::WriteOnly );
++        image.save(&buffer, "BMP"); /* uncompressed, see qpixmap#reading-and-writing-image-files */
++        return QVariant( QString("<img width=\"128\" height=\"128\" align=\"left\" src=\"data:image/bmp;base64,%1\"/><div><b>%2</b><br/>%3</div>")
++                         .arg( bytes.toBase64().constData() )
++                         .arg( name )
++                         .arg( qtr("Duration") + ": " + duration )
++                        );
++    }
+     else if( role == Qt::BackgroundRole && isCurrent( index ) )
+     {
+         return QVariant( QBrush( Qt::gray ) );
+@@ -361,7 +412,16 @@
+     }
+     else if( role == IsLeafNodeRole )
+     {
+-        return QVariant( isLeaf( index ) );
++        QVariant isLeaf;
++        PL_LOCK;
++        playlist_item_t *plItem =
++            playlist_ItemGetById( p_playlist, item->i_id );
++
++        if( plItem )
++            isLeaf = plItem->i_children == -1;
++
++        PL_UNLOCK;
++        return isLeaf;
+     }
+     else if( role == IsCurrentsParentNodeRole )
+     {
+@@ -385,24 +445,72 @@
+     return isParent( index, current.parent() );
+ }
+ 
+-bool PLModel::isLeaf( const QModelIndex &index ) const
++bool PLModel::isCurrent( const QModelIndex &index ) const
+ {
+-    bool b_isLeaf = false;
+-    PL_LOCK;
+-    playlist_item_t *plItem =
+-        playlist_ItemGetById( p_playlist, itemId( index, PLAYLIST_ID ) );
++    return getItem( index )->inputItem() == THEMIM->currentInputItem();
++}
+ 
+-    if( plItem )
+-        b_isLeaf = plItem->i_children == -1;
+-    PL_UNLOCK;
+-    return b_isLeaf;
++int PLModel::itemId( const QModelIndex &index ) const
++{
++    return getItem( index )->id();
++}
++
++input_item_t * PLModel::getInputItem( const QModelIndex &index ) const
++{
++    return getItem( index )->inputItem();
++}
++
++QString PLModel::getURI( const QModelIndex &index ) const
++{
++    QString uri;
++    input_item_t *p_item = getItem( index )->inputItem();
++    /* no PL lock as item gets refcount +1 from PLItem, which only depends of events */
++    vlc_mutex_lock( &p_item->lock );
++    uri = qfu( p_item->psz_uri );
++    vlc_mutex_unlock( &p_item->lock );
++    return uri;
++}
++
++QString PLModel::getTitle( const QModelIndex &index ) const
++{
++    QString title;
++    input_item_t *p_item = getItem( index )->inputItem();
++    char *fb_name = input_item_GetTitle( p_item );
++    if( EMPTY_STR( fb_name ) )
++    {
++        free( fb_name );
++        fb_name = input_item_GetName( p_item );
++    }
++    title = qfu(fb_name);
++    free(fb_name);
++    return title;
+ }
+ 
+-PLItem* PLModel::getItem( const QModelIndex & index ) const
++bool PLModel::isCurrentItem( const QModelIndex &index, playLocation where ) const
+ {
+-    PLItem *item = static_cast<PLItem *>( VLCModel::getItem( index ) );
+-    if ( item == NULL ) item = rootItem;
+-    return item;
++    if ( where == IN_PLAYLIST )
++    {
++        return itemId( index ) == THEPL->p_playing->i_id;
++    }
++    else if ( where == IN_MEDIALIBRARY )
++    {
++        return THEPL->p_media_library &&
++                itemId( index ) == THEPL->p_media_library->i_id;
++    }
++    return false;
++}
++
++QVariant PLModel::headerData( int section, Qt::Orientation orientation,
++                              int role ) const
++{
++    if (orientation != Qt::Horizontal || role != Qt::DisplayRole)
++        return QVariant();
++
++    int meta_col = columnToMeta( section );
++
++    if( meta_col == COLUMN_END ) return QVariant();
++
++    return QVariant( qfu( psz_column_title( meta_col ) ) );
+ }
+ 
+ QModelIndex PLModel::index( const int row, const int column, const QModelIndex &parent )
+@@ -417,24 +525,19 @@
+         return QModelIndex();
+ }
+ 
+-QModelIndex PLModel::indexByPLID( const int i_plid, const int c ) const
++QModelIndex PLModel::index( const int i_id, const int c )
+ {
+-    return index( findByPLId( rootItem, i_plid ), c );
+-}
+-
+-QModelIndex PLModel::indexByInputItemID( const int i_inputitem_id, const int c ) const
+-{
+-    return index( findByInputId( rootItem, i_inputitem_id ), c );
++    return index( findById( rootItem, i_id ), c );
+ }
+ 
+ QModelIndex PLModel::rootIndex() const
+ {
+-    return index( findByPLId( rootItem, rootItem->id( PLAYLIST_ID ) ), 0 );
++    return index( findById( rootItem, rootItem->id() ), 0 );
+ }
+ 
+ bool PLModel::isTree() const
+ {
+-    return ( ( rootItem && rootItem->id( PLAYLIST_ID ) != p_playlist->p_playing->i_id )
++    return ( ( rootItem && rootItem->id() != p_playlist->p_playing->i_id )
+              || var_InheritBool( p_intf, "playlist-tree" ) );
+ }
+ 
+@@ -453,7 +556,7 @@
+ {
+     input_thread_t *p_input_thread = THEMIM->getInput();
+     if( !p_input_thread ) return QModelIndex();
+-    PLItem *item = findByInputId( rootItem, input_GetItem( p_input_thread )->i_id );
++    PLItem *item = findByInput( rootItem, input_GetItem( p_input_thread )->i_id );
+     return index( item, 0 );
+ }
+ 
+@@ -485,40 +588,40 @@
+ }
+ 
+ /************************* Lookups *****************************/
+-PLItem *PLModel::findByPLId( PLItem *root, int i_plitemid ) const
++PLItem *PLModel::findById( PLItem *root, int i_id ) const
+ {
+-    return findInner( root, i_plitemid, false );
++    return findInner( root, i_id, false );
+ }
+ 
+-PLItem *PLModel::findByInputId( PLItem *root, int i_input_itemid ) const
++PLItem *PLModel::findByInput( PLItem *root, int i_id ) const
+ {
+-    PLItem *result = findInner( root, i_input_itemid, true );
++    PLItem *result = findInner( root, i_id, true );
+     return result;
+ }
+ 
+-PLItem * PLModel::findInner( PLItem *root, int i_id, bool b_isinputid ) const
++PLItem * PLModel::findInner( PLItem *root, int i_id, bool b_input ) const
+ {
+     if( !root ) return NULL;
+ 
+-    if( !b_isinputid && root->id( PLAYLIST_ID ) == i_id )
++    if( !b_input && root->id() == i_id )
+         return root;
+ 
+-    else if( b_isinputid && root->id( INPUTITEM_ID ) == i_id )
++    else if( b_input && root->inputItem()->i_id == i_id )
+         return root;
+ 
+     QList<AbstractPLItem *>::iterator it = root->children.begin();
+     while ( it != root->children.end() )
+     {
+         PLItem *item = static_cast<PLItem *>(*it);
+-        if( !b_isinputid && item->id( PLAYLIST_ID ) == i_id )
++        if( !b_input && item->id() == i_id )
+             return item;
+ 
+-        else if( b_isinputid && item->id( INPUTITEM_ID ) == i_id )
++        else if( b_input && item->inputItem()->i_id == i_id )
+             return item;
+ 
+         if( item->childCount() )
+         {
+-            PLItem *childFound = findInner( item, i_id, b_isinputid );
++            PLItem *childFound = findInner( item, i_id, b_input );
+             if( childFound )
+                 return childFound;
+         }
+@@ -527,24 +630,6 @@
+     return NULL;
+ }
+ 
+-PLModel::pl_nodetype PLModel::getPLRootType() const
+-{
+-    /* can't rely on rootitem as it depends on view / rebuild() */
+-    AbstractPLItem *plitem = rootItem;
+-
+-    while( plitem->parent() ) plitem = plitem->parent();
+-
+-    switch( plitem->id( PLAYLIST_ID ) )
+-    {
+-    case 2:
+-        return ROOTTYPE_CURRENT_PLAYING;
+-    case 3:
+-        return ROOTTYPE_MEDIA_LIBRARY;
+-    default:
+-        return ROOTTYPE_OTHER;
+-    }
+-}
+-
+ bool PLModel::canEdit() const
+ {
+     return (
+@@ -560,51 +645,131 @@
+ /************************* Updates handling *****************************/
+ 
+ /**** Events processing ****/
+-void PLModel::processInputItemUpdate( )
++void PLModel::processInputItemUpdate( input_thread_t *p_input )
+ {
+-    input_thread_t *p_input = THEMIM->getInput();
+     if( !p_input ) return;
+ 
+-    if( p_input && !( p_input->b_dead || !vlc_object_alive( p_input ) ) )
+-    {
+-        PLItem *item = findByInputId( rootItem, input_GetItem( p_input )->i_id );
+-        if( item ) emit currentIndexChanged( index( item, 0 ) );
+-
+-        processInputItemUpdate( input_GetItem( p_input ) );
+-    }
++    PLItem *item = findByInput( rootItem, input_GetItem( p_input )->i_id );
++    if( item ) emit currentIndexChanged( index( item, 0 ) );
++    processInputItemUpdate( input_GetItem( p_input ) );
+ }
+ 
+ void PLModel::processInputItemUpdate( input_item_t *p_item )
+ {
+     if( !p_item ||  p_item->i_id <= 0 ) return;
+-    PLItem *item = findByInputId( rootItem, p_item->i_id );
++    PLItem *item = findByInput( rootItem, p_item->i_id );
+     if( item )
+         updateTreeItem( item );
+ }
+ 
+-void PLModel::processItemRemoval( int i_pl_itemid )
++void PLModel::processItemRemoval( int i_id )
+ {
+-    if( i_pl_itemid <= 0 ) return;
+-    removeItem( findByPLId( rootItem, i_pl_itemid ) );
++    if( i_id <= 0 ) return;
++    removeItem( i_id );
+ }
+ 
+-void PLModel::processItemAppend( int i_pl_itemid, int i_pl_itemidparent )
++void PLModel::commitBufferedRowInserts()
++{
++    PLItem *toemit = NULL;
++    insertBufferCommitTimer.stop();
++    insertBufferMutex.lock();
++    if ( !insertBuffer.isEmpty() )
++    {
++        beginInsertRows( index( insertBufferRoot, 0 ), insertbuffer_firstrow, insertbuffer_lastrow );
++        foreach (PLItem *item, insertBuffer)
++        {
++            insertBufferRoot->insertChild( item, insertbuffer_firstrow++ );
++            if( item->inputItem() == THEMIM->currentInputItem() )
++                toemit = item;
++        }
++        endInsertRows();
++        insertBuffer.clear();
++    }
++    insertBufferMutex.unlock();
++    if ( toemit )
++        emit currentIndexChanged( index( toemit, 0 ) );
++}
++
++/*
++    Tries to agregate linear inserts of single row. Sends
++    more efficient updates notifications to views and then
++    avoids the flickering effect.
++*/
++void PLModel::bufferedRowInsert( PLItem *item, PLItem *parent, int pos )
++{
++    insertBufferMutex.lock();
++    if ( ! insertBuffer.isEmpty() )
++    {
++        /* Check if we're doing linear insert */
++        if ( parent != insertBufferRoot || pos != insertbuffer_lastrow + 1 )
++        {
++            insertBufferMutex.unlock();
++            commitBufferedRowInserts();
++            bufferedRowInsert( item, parent, pos );
++            return;
++        }
++    }
++
++    if ( insertBuffer.isEmpty() )
++    {
++        insertBuffer << item;
++        insertBufferRoot = parent;
++        insertbuffer_firstrow = pos;
++        insertbuffer_lastrow = pos;
++    } else {
++        insertBuffer << item;
++        insertbuffer_lastrow++;
++    }
++    insertBufferMutex.unlock();
++
++    /* Schedule commit */
++    if ( ! insertBufferCommitTimer.isActive() )
++    {
++        insertBufferCommitTimer.setSingleShot( true );
++        insertBufferCommitTimer.start( 100 );
++    }
++}
++
++bool PLModel::isBufferedForInsert( PLItem *parent, int i_item )
++{
++    bool b_return = false;
++    insertBufferMutex.lock();
++    if ( parent == insertBufferRoot )
++    {
++        foreach (PLItem *item, insertBuffer)
++            if ( item->i_id == i_item )
++            {
++                b_return = true;
++                break;
++            }
++    }
++    insertBufferMutex.unlock();
++    return b_return;
++}
++
++void PLModel::processItemAppend( int i_item, int i_parent )
+ {
+     playlist_item_t *p_item = NULL;
+     PLItem *newItem = NULL;
+     int pos;
+ 
+     /* Find the Parent */
+-    PLItem *nodeParentItem = findByPLId( rootItem, i_pl_itemidparent );
++    PLItem *nodeParentItem = findById( rootItem, i_parent );
++    if( !nodeParentItem )
++    { /* retry as it might have been in buffer */
++        commitBufferedRowInserts();
++        nodeParentItem = findById( rootItem, i_parent );
++    }
+     if( !nodeParentItem ) return;
+ 
+     /* Search for an already matching children */
+-    foreach( AbstractPLItem *existing, nodeParentItem->children )
+-        if( existing->id( PLAYLIST_ID ) == i_pl_itemid ) return;
++    if ( isBufferedForInsert( nodeParentItem, i_item ) ) return;
++    foreach( const AbstractPLItem *existing, nodeParentItem->children )
++        if( existing->id() == i_item ) return;
+ 
+     /* Find the child */
+     PL_LOCK;
+-    p_item = playlist_ItemGetById( p_playlist, i_pl_itemid );
++    p_item = playlist_ItemGetById( p_playlist, i_item );
+     if( !p_item || p_item->i_flags & PLAYLIST_DBL_FLAG )
+     {
+         PL_UNLOCK; return;
+@@ -617,25 +782,26 @@
+     PL_UNLOCK;
+ 
+     /* We insert the newItem (children) inside the parent */
+-    beginInsertRows( index( nodeParentItem, 0 ), pos, pos );
+-    nodeParentItem->insertChild( newItem, pos );
+-    endInsertRows();
+-    if ( newItem->inputItem() == THEMIM->currentInputItem() )
+-        emit currentIndexChanged( index( newItem, 0 ) );
++    bufferedRowInsert( newItem, nodeParentItem, pos );
+ 
+     if( latestSearch.isEmpty() ) return;
+-    filter( latestSearch, index( rootItem, 0), false /*FIXME*/ );
++    search( latestSearch, index( rootItem, 0), false /*FIXME*/ );
+ }
+ 
+ void PLModel::rebuild( playlist_item_t *p_root )
+ {
++    commitBufferedRowInserts();
++    /* Invalidate cache */
++    i_cached_id = i_cached_input_id = -1;
++
+     beginResetModel();
+ 
+-    PL_LOCK;
+     if( rootItem ) rootItem->clearChildren();
++
++    PL_LOCK;
+     if( p_root ) // Can be NULL
+     {
+-        if ( rootItem ) delete rootItem;
++        delete rootItem;
+         rootItem = new PLItem( p_root );
+     }
+     assert( rootItem );
+@@ -650,6 +816,7 @@
+ 
+ void PLModel::takeItem( PLItem *item )
+ {
++    commitBufferedRowInserts();
+     assert( item );
+     PLItem *parent = static_cast<PLItem*>(item->parent());
+     assert( parent );
+@@ -662,6 +829,7 @@
+ 
+ void PLModel::insertChildren( PLItem *node, QList<PLItem*>& items, int i_pos )
+ {
++    commitBufferedRowInserts();
+     assert( node );
+     int count = items.count();
+     if( !count ) return;
+@@ -677,6 +845,10 @@
+ void PLModel::removeItem( PLItem *item )
+ {
+     if( !item ) return;
++    commitBufferedRowInserts();
++
++    i_cached_id = -1;
++    i_cached_input_id = -1;
+ 
+     if( item->parent() ) {
+         int i = item->parent()->indexOf( item );
+@@ -697,7 +869,7 @@
+ /* This function must be entered WITH the playlist lock */
+ void PLModel::updateChildren( PLItem *root )
+ {
+-    playlist_item_t *p_node = playlist_ItemGetById( p_playlist, root->id( PLAYLIST_ID ) );
++    playlist_item_t *p_node = playlist_ItemGetById( p_playlist, root->id() );
+     updateChildren( p_node, root );
+ }
+ 
+@@ -764,7 +936,7 @@
+ /******* Volume III: Sorting and searching ********/
+ void PLModel::sort( const int column, Qt::SortOrder order )
+ {
+-    sort( QModelIndex(), indexByPLID( rootItem->id( PLAYLIST_ID ), 0 ) , column, order );
++    sort( QModelIndex(), index( rootItem->id(), 0 ) , column, order );
+ }
+ 
+ void PLModel::sort( QModelIndex caller, QModelIndex rootIndex, const int column, Qt::SortOrder order )
+@@ -772,13 +944,15 @@
+     msg_Dbg( p_intf, "Sorting by column %i, order %i", column, order );
+ 
+     int meta = columnToMeta( column );
+-    if( meta == COLUMN_END || meta == COLUMN_COVER ) return;
++    if( meta == COLUMN_END ) return;
+ 
+     PLItem *item = ( rootIndex.isValid() ) ? getItem( rootIndex )
+                                            : rootItem;
+     if( !item ) return;
+ 
+-    int i_root_id = item->id( PLAYLIST_ID );
++    int i_root_id = item->id();
++
++    commitBufferedRowInserts();
+ 
+     QModelIndex qIndex = index( item, 0 );
+     int count = item->childCount();
+@@ -802,6 +976,8 @@
+         }
+     }
+ 
++    i_cached_id = i_cached_input_id = -1;
++
+     if( count )
+     {
+         beginInsertRows( qIndex, 0, count - 1 );
+@@ -815,15 +991,17 @@
+     else if( currentIndex().isValid() ) emit currentIndexChanged( currentIndex() );
+ }
+ 
+-void PLModel::filter( const QString& search_text, const QModelIndex & idx, bool b_recursive )
++void PLModel::search( const QString& search_text, const QModelIndex & idx, bool b_recursive )
+ {
+     latestSearch = search_text;
+ 
++    commitBufferedRowInserts();
++
+     /** \todo Fire the search with a small delay ? */
+     PL_LOCK;
+     {
+         playlist_item_t *p_root = playlist_ItemGetById( p_playlist,
+-                                            itemId( idx, PLAYLIST_ID ) );
++                                                        itemId( idx ) );
+         assert( p_root );
+         playlist_LiveSearchUpdate( p_playlist, p_root, qtu( search_text ),
+                                    b_recursive );
+@@ -847,7 +1025,7 @@
+     rebuild();
+ }
+ 
+-void PLModel::removeAll()
++void PLModel::clearPlaylist()
+ {
+     if( rowCount() < 1 ) return;
+ 
+@@ -860,6 +1038,26 @@
+     doDelete(l);
+ }
+ 
++void PLModel::ensureArtRequested( const QModelIndex &index )
++{
++    if ( index.isValid() && hasChildren( index ) )
++    {
++        int i_art_policy = var_GetInteger( p_playlist, "album-art" );
++        if ( i_art_policy != ALBUM_ART_ALL ) return;
++        int nbnodes = rowCount( index );
++        QModelIndex child;
++        for( int row = 0 ; row < nbnodes ; row++ )
++        {
++            child = index.child( row, 0 );
++            bool b_forced;
++            b_forced = true;
++            if ( child.isValid() && getArtUrl( child ).isEmpty() )
++                THEMIM->getIM()->requestArtUpdate( getItem( child )->inputItem(), b_forced);
++        }
++    }
++}
++
++
+ void PLModel::createNode( QModelIndex index, QString name )
+ {
+     if( name.isEmpty() || !index.isValid() ) return;
+@@ -867,46 +1065,40 @@
+     PL_LOCK;
+     index = index.parent();
+     if ( !index.isValid() ) index = rootIndex();
+-    playlist_item_t *p_item = playlist_ItemGetById( p_playlist, itemId( index, PLAYLIST_ID ) );
++    playlist_item_t *p_item = playlist_ItemGetById( p_playlist, itemId( index ) );
+     if( p_item )
+         playlist_NodeCreate( p_playlist, qtu( name ), p_item, PLAYLIST_END, 0, NULL );
+     PL_UNLOCK;
+ }
+ 
+-void PLModel::renameNode( QModelIndex index, QString name )
+-{
+-    if( name.isEmpty() || !index.isValid() ) return;
+-
+-    PL_LOCK;
+-    if ( !index.isValid() ) index = rootIndex();
+-    input_item_t* p_input = this->getInputItem( index );
+-    input_item_SetName( p_input, qtu( name ) );
+-    playlist_t *p_playlist = THEPL;
+-    input_item_WriteMeta( VLC_OBJECT(p_playlist), p_input );
+-    PL_UNLOCK;
+-}
+-
+-bool PLModel::action( QAction *action, const QModelIndexList &indexes )
++void PLModel::actionSlot( QAction *action )
+ {
++    QString name;
++    QStringList mrls;
+     QModelIndex index;
+-    actionsContainerType a = action->data().value<actionsContainerType>();
+ 
++    actionsContainerType a = action->data().value<actionsContainerType>();
+     switch ( a.action )
+     {
+ 
+-    case ACTION_PLAY:
+-        if ( !indexes.empty() && indexes.first().isValid() )
++    case actionsContainerType::ACTION_PLAY:
++        PL_LOCK;
+         {
+-            activateItem( indexes.first() );
+-            return true;
++            if ( a.indexes.first().isValid() )
++            {
++                playlist_item_t *p_item = playlist_ItemGetById( p_playlist,
++                                             itemId( a.indexes.first() ) );
++                activateItem( p_item );
++            }
+         }
++        PL_UNLOCK;
+         break;
+ 
+-    case ACTION_ADDTOPLAYLIST:
++    case actionsContainerType::ACTION_ADDTOPLAYLIST:
+         PL_LOCK;
+-        foreach( const QModelIndex &currentIndex, indexes )
++        foreach( QModelIndex currentIndex, a.indexes )
+         {
+-            playlist_item_t *p_item = playlist_ItemGetById( THEPL, itemId( currentIndex, PLAYLIST_ID ) );
++            playlist_item_t *p_item = playlist_ItemGetById( THEPL, itemId( currentIndex ) );
+             if( !p_item ) continue;
+ 
+             playlist_NodeAddCopy( THEPL, p_item,
+@@ -914,90 +1106,21 @@
+                                   PLAYLIST_END );
+         }
+         PL_UNLOCK;
+-        return true;
++        break;
+ 
+-    case ACTION_REMOVE:
+-        doDelete( indexes );
+-        return true;
++    case actionsContainerType::ACTION_REMOVE:
++        doDelete( a.indexes );
++        break;
+ 
+-    case ACTION_SORT:
+-        if ( indexes.empty() ) break;
+-        index = indexes.first().parent();
++    case actionsContainerType::ACTION_SORT:
++        index = a.indexes.first().parent();
+         if( !index.isValid() ) index = rootIndex();
+-        sort( indexes.first(), index,
++        sort( a.indexes.first(), index,
+               a.column > 0 ? a.column - 1 : -a.column - 1,
+               a.column > 0 ? Qt::AscendingOrder : Qt::DescendingOrder );
+-        return true;
+-
+-    case ACTION_CLEAR:
+-        removeAll();
+-        return true;
+-
+-    case ACTION_ENQUEUEFILE:
+-        foreach( const QString &uri, a.uris )
+-            Open::openMRL( p_intf, uri.toLatin1().constData(),
+-                           false, getPLRootType() == ROOTTYPE_CURRENT_PLAYING );
+-        return true;
+-
+-    case ACTION_ENQUEUEDIR:
+-        if( a.uris.isEmpty() ) break;
+-
+-        Open::openMRL( p_intf, a.uris.first().toLatin1().constData(),
+-                       false, getPLRootType() == ROOTTYPE_CURRENT_PLAYING );
+-
+-        return true;
+-
+-    case ACTION_ENQUEUEGENERIC:
+-        foreach( const QString &uri, a.uris )
+-        {
+-            QStringList options = a.options.split( " :" );
+-            Open::openMRLwithOptions( p_intf, uri, &options, false );
+-        }
+-        return true;
+-
+-    default:
+         break;
+-    }
+-    return false;
+-}
+ 
+-bool PLModel::isSupportedAction( actions action, const QModelIndex &index ) const
+-{
+-    switch ( action )
+-    {
+-    case ACTION_ADDTOPLAYLIST:
+-        /* Only if we are not already in Current Playing */
+-        if ( getPLRootType() == ROOTTYPE_CURRENT_PLAYING ) return false;
+-        if( index.isValid() && index != rootIndex() )
+-            return ( itemId( index, PLAYLIST_ID ) != THEPL->p_playing->i_id );
+-    case ACTION_SORT:
+-        return rowCount();
+-    case ACTION_PLAY:
+-    case ACTION_STREAM:
+-    case ACTION_SAVE:
+-    case ACTION_INFO:
+-    case ACTION_REMOVE:
+-        return index.isValid() && index != rootIndex();
+-    case ACTION_EXPLORE:
+-        if( index.isValid() )
+-            return getURI( index ).startsWith( "file://" );
+-    case ACTION_CREATENODE:
+-        return ( canEdit() && isTree() );
+-    case ACTION_RENAMENODE:
+-        return ( index != rootIndex() ) && !isLeaf( index );
+-        break;
+-    case ACTION_CLEAR:
+-        return rowCount() && canEdit();
+-    case ACTION_ENQUEUEFILE:
+-    case ACTION_ENQUEUEDIR:
+-    case ACTION_ENQUEUEGENERIC:
+-        return canEdit();
+-    case ACTION_SAVETOPLAYLIST:
+-        return rowCount() > 0;
+-    default:
+-        return false;
+     }
+-    return false;
+ }
+ 
+ /******************* Drag and Drop helper class ******************/
+diff -aurN a/modules/gui/qt4/components/playlist/playlist_model.hpp b/modules/gui/qt4/components/playlist/playlist_model.hpp
+--- a/modules/gui/qt4/components/playlist/playlist_model.hpp	2019-06-01 21:37:59.317549658 +0300
++++ b/modules/gui/qt4/components/playlist/playlist_model.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -41,7 +41,8 @@
+ #include <QAbstractItemModel>
+ #include <QVariant>
+ #include <QModelIndex>
+-#include <QAction>
++#include <QTimer>
++#include <QMutex>
+ 
+ class PLItem;
+ class PLSelector;
+@@ -56,7 +57,7 @@
+              playlist_item_t *, QObject *parent = 0 );
+     virtual ~PLModel();
+ 
+-    /* Qt main PLModel */
++    /* Qt4 main PLModel */
+     static PLModel* getPLModel( intf_thread_t *p_intf )
+     {
+         if(!p_intf->p_sys->pl_model )
+@@ -74,6 +75,8 @@
+ 
+     /* Data structure */
+     virtual QVariant data( const QModelIndex &index, const int role ) const;
++    virtual QVariant headerData( int section, Qt::Orientation orientation,
++                         int role = Qt::DisplayRole ) const;
+     virtual int rowCount( const QModelIndex &parent = QModelIndex() ) const;
+     virtual Qt::ItemFlags flags( const QModelIndex &index ) const;
+     virtual QModelIndex index( const int r, const int c, const QModelIndex &parent ) const;
+@@ -89,29 +92,36 @@
+     /* Sort */
+     virtual void sort( const int column, Qt::SortOrder order = Qt::AscendingOrder );
+ 
+-    /*** VLCModelSubInterface subclassing ***/
+-    virtual void rebuild( playlist_item_t * p = NULL );
+-    virtual void doDelete( QModelIndexList selected );
+-    virtual void createNode( QModelIndex index, QString name );
+-    virtual void renameNode( QModelIndex index, QString name );
+-    virtual void removeAll();
++    /**** Custom ****/
+ 
+     /* Lookups */
++    QModelIndex index( const int i_id, const int c );
+     virtual QModelIndex rootIndex() const;
+-    virtual void filter( const QString& search_text, const QModelIndex & root, bool b_recursive );
+-    virtual QModelIndex currentIndex() const;
+-    virtual QModelIndex indexByPLID( const int i_plid, const int c ) const;
+-    virtual QModelIndex indexByInputItemID( const int i_inputitem_id, const int c ) const;
+     virtual bool isTree() const;
+     virtual bool canEdit() const;
+-    virtual bool action( QAction *action, const QModelIndexList &indexes );
+-    virtual bool isSupportedAction( actions action, const QModelIndex & ) const;
++    virtual QModelIndex currentIndex() const;
++    int itemId( const QModelIndex &index ) const;
++    virtual input_item_t *getInputItem( const QModelIndex & ) const;
++    virtual QString getURI( const QModelIndex &index ) const;
++    QString getTitle( const QModelIndex &index ) const;
++    virtual bool isCurrentItem( const QModelIndex &index, playLocation where ) const;
+ 
+-protected:
+-    /* VLCModel subclassing */
+-    bool isParent( const QModelIndex &index, const QModelIndex &current) const;
+-    bool isLeaf( const QModelIndex &index ) const;
+-    PLItem *getItem( const QModelIndex & index ) const;
++    /* */
++    void search( const QString& search_text, const QModelIndex & root, bool b_recursive );
++    void rebuild( playlist_item_t * p = NULL );
++
++    virtual void doDelete( QModelIndexList selected );
++    virtual void createNode( QModelIndex index, QString name );
++
++signals:
++    void currentIndexChanged( const QModelIndex& );
++    void rootIndexChanged();
++
++public slots:
++    virtual void activateItem( const QModelIndex &index );
++    void clearPlaylist();
++    void ensureArtRequested( const QModelIndex &index );
++    virtual void actionSlot( QAction *action );
+ 
+ private:
+     /* General */
+@@ -119,13 +129,34 @@
+ 
+     playlist_t *p_playlist;
+ 
++    static QIcon icons[ITEM_TYPE_NUMBER];
++
++    /* single row linear inserts agregation */
++    void bufferedRowInsert( PLItem *item, PLItem *parent, int pos );
++    bool isBufferedForInsert( PLItem *parent, int i_item );
++    PLItem *insertBufferRoot;
++    int insertbuffer_firstrow;
++    int insertbuffer_lastrow;
++    QTimer insertBufferCommitTimer;
++    QList<PLItem *> insertBuffer;
++    QMutex insertBufferMutex;
++
+     /* Custom model private methods */
+     /* Lookups */
++    PLItem *getItem( const QModelIndex & index ) const
++    {
++        if( index.isValid() )
++            return static_cast<PLItem*>( index.internalPointer() );
++        else return rootItem;
++    }
+     QModelIndex index( PLItem *, const int c ) const;
++    bool isCurrent( const QModelIndex &index ) const;
++    bool isParent( const QModelIndex &index, const QModelIndex &current) const;
+ 
+     /* Shallow actions (do not affect core playlist) */
+     void updateTreeItem( PLItem * );
+     void removeItem ( PLItem * );
++    void removeItem( int );
+     void recurseDelete( QList<AbstractPLItem*> children, QModelIndexList *fullList );
+     void takeItem( PLItem * ); //will not delete item
+     void insertChildren( PLItem *node, QList<PLItem*>& items, int i_pos );
+@@ -141,27 +172,25 @@
+     void sort( QModelIndex caller, QModelIndex rootIndex, const int column, Qt::SortOrder order );
+ 
+     /* Lookups */
+-    PLItem *findByPLId( PLItem *, int i_plitemid ) const;
+-    PLItem *findByInputId( PLItem *, int i_input_itemid ) const;
+-    PLItem *findInner(PLItem *, int i_id, bool b_isinputid ) const;
+-    enum pl_nodetype
+-    {
+-        ROOTTYPE_CURRENT_PLAYING,
+-        ROOTTYPE_MEDIA_LIBRARY,
+-        ROOTTYPE_OTHER
+-    };
+-    pl_nodetype getPLRootType() const;
++    PLItem *findById( PLItem *, int ) const;
++    PLItem *findByInput( PLItem *, int ) const;
++    PLItem *findInner(PLItem *, int , bool ) const;
++
++    PLItem *p_cached_item;
++    PLItem *p_cached_item_bi;
++    int i_cached_id;
++    int i_cached_input_id;
+ 
+     /* */
+     QString latestSearch;
+ 
+ private slots:
+     void processInputItemUpdate( input_item_t *);
+-    void processInputItemUpdate();
+-    void processItemRemoval( int i_pl_itemid );
+-    void processItemAppend( int i_pl_itemid, int i_pl_itemidparent );
++    void processInputItemUpdate( input_thread_t* p_input );
++    void processItemRemoval( int i_id );
++    void processItemAppend( int item, int parent );
++    void commitBufferedRowInserts();
+     void activateItem( playlist_item_t *p_item );
+-    void activateItem( const QModelIndex &index );
+ };
+ 
+ class PlMimeData : public QMimeData
+@@ -170,7 +199,7 @@
+ 
+ public:
+     PlMimeData() {}
+-    virtual ~PlMimeData();
++    ~PlMimeData();
+     void appendItem( input_item_t *p_item );
+     QList<input_item_t*> inputItems() const;
+     QStringList formats () const;
+diff -aurN a/modules/gui/qt4/components/playlist/selector.cpp b/modules/gui/qt4/components/playlist/selector.cpp
+--- a/modules/gui/qt4/components/playlist/selector.cpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/selector.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -240,6 +240,12 @@
+     ml->treeItem()->setData( 0, SPECIAL_ROLE, QVariant( IS_ML ) );
+     ml->treeItem()->setData( 0, Qt::DecorationRole, QIcon( ":/sidebar/library" ) );
+ 
++#ifdef MEDIA_LIBRARY
++    /* SQL ML */
++    ml = addItem( SQL_ML_TYPE, "SQL Media Library" )->treeItem();
++    ml->treeItem()->setData( 0, Qt::DecorationRole, QIcon( ":/sidebar/library" ) );
++#endif
++
+     /* SD nodes */
+     QTreeWidgetItem *mycomp = addItem( CATEGORY_TYPE, N_("My Computer"), false, true )->treeItem();
+     QTreeWidgetItem *devices = addItem( CATEGORY_TYPE, N_("Devices"), false, true )->treeItem();
+@@ -371,6 +377,14 @@
+                 item->setData( 0, CAP_SEARCH_ROLE, true );
+         }
+     }
++#ifdef MEDIA_LIBRARY
++    else if( i_type == SQL_ML_TYPE )
++    {
++        emit categoryActivated( NULL, true );
++        curItem = item;
++        return;
++    }
++#endif
+ 
+     curItem = item;
+ 
+diff -aurN a/modules/gui/qt4/components/playlist/sorting.h b/modules/gui/qt4/components/playlist/sorting.h
+--- a/modules/gui/qt4/components/playlist/sorting.h	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/sorting.h	2019-06-01 19:18:50.713326075 +0300
+@@ -61,7 +61,7 @@
+     case COLUMN_DESCRIPTION:     return VLC_META_DESCRIPTION;
+     case COLUMN_URI:             return _("URI");
+     case COLUMN_RATING:          return VLC_META_RATING;
+-    case COLUMN_COVER:           return _("Cover");
++    case COLUMN_COVER:           return VLC_META_ART_URL;
+     default: abort();
+     }
+ }
+diff -aurN a/modules/gui/qt4/components/playlist/standardpanel.cpp b/modules/gui/qt4/components/playlist/standardpanel.cpp
+--- a/modules/gui/qt4/components/playlist/standardpanel.cpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/standardpanel.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -30,16 +30,15 @@
+ 
+ #include "components/playlist/vlc_model.hpp"      /* VLCModel */
+ #include "components/playlist/playlist_model.hpp" /* PLModel */
++#include "components/playlist/ml_model.hpp"       /* MLModel */
+ #include "components/playlist/views.hpp"          /* 3 views */
+ #include "components/playlist/selector.hpp"       /* PLSelector */
+-#include "util/animators.hpp"                     /* PixmapAnimator */
++#include "util/customwidgets.hpp"                 /* PixmapAnimator */
+ #include "menus.hpp"                              /* Popup */
+ #include "input_manager.hpp"                      /* THEMIM */
+ #include "dialogs_provider.hpp"                   /* THEDP */
+-#include "recents.hpp"                            /* RecentMRL */
+ #include "dialogs/playlist.hpp"                   /* Playlist Dialog */
+ #include "dialogs/mediainfo.hpp"                  /* MediaInfoDialog */
+-#include "util/qt_dirs.hpp"
+ 
+ #include <vlc_services_discovery.h>               /* SD_CMD_SEARCH */
+ #include <vlc_intf_strings.h>                     /* POP_ */
+@@ -50,12 +49,6 @@
+     I_DIR_OR_FOLDER( N_( "Enter name for new directory:" ), \
+                      N_( "Enter name for new folder:" ) )
+ 
+-#define I_RENAME_DIR \
+-    I_DIR_OR_FOLDER( N_("Rename Directory"), N_( "Rename Folder" ) )
+-#define I_RENAME_DIR_NAME \
+-    I_DIR_OR_FOLDER( N_( "Enter a new name for the directory:" ), \
+-                     N_( "Enter a new name for the folder:" ) )
+-
+ #include <QHeaderView>
+ #include <QMenu>
+ #include <QKeyEvent>
+@@ -71,16 +64,15 @@
+ 
+ #include <assert.h>
+ 
+-/* local helper */
+-inline QModelIndex popupIndex( QAbstractItemView *view );
+-
+ StandardPLPanel::StandardPLPanel( PlaylistWidget *_parent,
+                                   intf_thread_t *_p_intf,
+                                   playlist_item_t *p_root,
+                                   PLSelector *_p_selector,
+-                                  VLCModel *_p_model )
++                                  PLModel *_p_model,
++                                  MLModel *_p_plmodel)
+                 : QWidget( _parent ),
+                   model( _p_model ),
++                  mlmodel( _p_plmodel),
+                   p_intf( _p_intf ),
+                   p_selector( _p_selector )
+ {
+@@ -93,8 +85,8 @@
+     listView    = NULL;
+     picFlowView = NULL;
+ 
+-    currentRootIndexPLId  = -1;
+-    lastActivatedPLItemId     = -1;
++    currentRootIndexId  = -1;
++    lastActivatedId     = -1;
+ 
+     QList<QString> frames;
+     frames << ":/util/wait1";
+@@ -139,123 +131,130 @@
+ void StandardPLPanel::handleExpansion( const QModelIndex& index )
+ {
+     assert( currentView );
+-    if( currentRootIndexPLId != -1 && currentRootIndexPLId != model->itemId( index.parent(), PLAYLIST_ID ) )
++    if( currentRootIndexId != -1 && currentRootIndexId != model->itemId( index.parent() ) )
+         browseInto( index.parent() );
+     currentView->scrollTo( index );
+ }
+ 
+ void StandardPLPanel::popupPlView( const QPoint &point )
+ {
+-    QPoint globalPoint = currentView->viewport()->mapToGlobal( point );
+     QModelIndex index = currentView->indexAt( point );
+-    if ( !index.isValid() )
+-    {
+-        currentView->clearSelection();
+-    }
+-    else if ( ! currentView->selectionModel()->selectedIndexes().contains( index ) )
+-    {
+-        currentView->selectionModel()->select( index, QItemSelectionModel::Select );
+-    }
++    QPoint globalPoint = currentView->viewport()->mapToGlobal( point );
++    QItemSelectionModel *selection = currentView->selectionModel();
++    QModelIndexList list = selection->selectedRows();
+ 
+-    if( !popup( globalPoint ) ) VLCMenuBar::PopupMenu( p_intf, true );
++    if( !popup( index, globalPoint, list ) )
++        VLCMenuBar::PopupMenu( p_intf, true );
+ }
+ 
+ /*********** Popup *********/
+-bool StandardPLPanel::popup( const QPoint &point )
++bool StandardPLPanel::popup( const QModelIndex & index, const QPoint &point, const QModelIndexList &selectionlist )
+ {
+-    QModelIndex index = popupIndex( currentView ); /* index for menu logic only. Do not store.*/
+-    VLCModel *model = qobject_cast<VLCModel *>(currentView->model());
++    VLCModel *model = qobject_cast<VLCModel*>(currentView->model());
++    QModelIndexList callerAsList;
++    callerAsList << ( index.isValid() ? index : QModelIndex() );
++    popupIndex = index; /* suitable for modal only */
+ 
+-#define ADD_MENU_ENTRY( icon, title, act ) \
+-    if ( model->isSupportedAction( act, index ) )\
+-    {\
++#define ADD_MENU_ENTRY( icon, title, act, data ) \
+     action = menu.addAction( icon, title ); \
+     container.action = act; \
+-    action->setData( QVariant::fromValue( container ) );\
+-    }
++    container.indexes = data; \
++    action->setData( QVariant::fromValue( container ) )
+ 
+     /* */
+     QMenu menu;
+     QAction *action;
+-    VLCModelSubInterface::actionsContainerType container;
++    PLModel::actionsContainerType container;
+ 
+     /* Play/Stream/Info static actions */
++    if( index.isValid() )
++    {
++        ADD_MENU_ENTRY( QIcon( ":/menu/play" ), qtr(I_POP_PLAY),
++                        container.ACTION_PLAY, callerAsList );
+ 
+-    ADD_MENU_ENTRY( QIcon( ":/menu/play" ), qtr(I_POP_PLAY),
+-                    VLCModelSubInterface::ACTION_PLAY )
+-
+-    ADD_MENU_ENTRY( QIcon( ":/menu/stream" ), qtr(I_POP_STREAM),
+-                    VLCModelSubInterface::ACTION_STREAM )
+-
+-    ADD_MENU_ENTRY( QIcon(), qtr(I_POP_SAVE),
+-                    VLCModelSubInterface::ACTION_SAVE );
+-
+-    ADD_MENU_ENTRY( QIcon( ":/menu/info" ), qtr(I_POP_INFO),
+-                    VLCModelSubInterface::ACTION_INFO );
+-
+-    menu.addSeparator();
++        menu.addAction( QIcon( ":/menu/stream" ), qtr(I_POP_STREAM),
++                        this, SLOT( popupStream() ) );
+ 
+-    ADD_MENU_ENTRY( QIcon( ":/type/folder-grey" ), qtr(I_POP_EXPLORE),
+-                    VLCModelSubInterface::ACTION_EXPLORE );
++        menu.addAction( QIcon(), qtr(I_POP_SAVE),
++                        this, SLOT( popupSave() ) );
+ 
+-    QIcon addIcon( ":/buttons/playlist/playlist_add" );
++        menu.addAction( QIcon( ":/menu/info" ), qtr(I_POP_INFO),
++                        this, SLOT( popupInfoDialog() ) );
+ 
+-    ADD_MENU_ENTRY( addIcon, qtr(I_POP_NEWFOLDER),
+-                    VLCModelSubInterface::ACTION_CREATENODE )
++        menu.addSeparator();
+ 
+-    ADD_MENU_ENTRY( QIcon(), qtr(I_POP_RENAMEFOLDER),
+-                    VLCModelSubInterface::ACTION_RENAMENODE )
++        if( model->getURI( index ).startsWith( "file://" ) )
++            menu.addAction( QIcon( ":/type/folder-grey" ), qtr(I_POP_EXPLORE),
++                            this, SLOT( popupExplore() ) );
++    }
+ 
+-    menu.addSeparator();
+     /* In PL or ML, allow to add a file/folder */
+-    ADD_MENU_ENTRY( addIcon, qtr(I_PL_ADDF),
+-                    VLCModelSubInterface::ACTION_ENQUEUEFILE )
+-
+-    ADD_MENU_ENTRY( addIcon, qtr(I_PL_ADDDIR),
+-                    VLCModelSubInterface::ACTION_ENQUEUEDIR )
++    if( model->canEdit() )
++    {
++        QIcon addIcon( ":/buttons/playlist/playlist_add" );
+ 
+-    ADD_MENU_ENTRY( addIcon, qtr(I_OP_ADVOP),
+-                    VLCModelSubInterface::ACTION_ENQUEUEGENERIC )
++        if( model->isTree() )
++            menu.addAction( addIcon, qtr(I_POP_NEWFOLDER),
++                            this, SLOT( popupPromptAndCreateNode() ) );
+ 
+-    ADD_MENU_ENTRY( QIcon(), qtr(I_PL_ADDPL),
+-                    VLCModelSubInterface::ACTION_ADDTOPLAYLIST );
++        menu.addSeparator();
++        if( model->isCurrentItem( model->rootIndex(), PLModel::IN_PLAYLIST ) )
++        {
++            menu.addAction( addIcon, qtr(I_PL_ADDF), THEDP, SLOT( simplePLAppendDialog()) );
++            menu.addAction( addIcon, qtr(I_PL_ADDDIR), THEDP, SLOT( PLAppendDir()) );
++            menu.addAction( addIcon, qtr(I_OP_ADVOP), THEDP, SLOT( PLAppendDialog()) );
++        }
++        else if( model->isCurrentItem( model->rootIndex(), PLModel::IN_MEDIALIBRARY ) )
++        {
++            menu.addAction( addIcon, qtr(I_PL_ADDF), THEDP, SLOT( simpleMLAppendDialog()) );
++            menu.addAction( addIcon, qtr(I_PL_ADDDIR), THEDP, SLOT( MLAppendDir() ) );
++            menu.addAction( addIcon, qtr(I_OP_ADVOP), THEDP, SLOT( MLAppendDialog() ) );
++        }
++    }
+ 
+-    menu.addSeparator();
+-    ADD_MENU_ENTRY( QIcon(), qtr( I_PL_SAVE ),
+-                    VLCModelSubInterface::ACTION_SAVETOPLAYLIST );
++    if( index.isValid() )
++    {
++        if( !model->isCurrentItem( model->rootIndex(), PLModel::IN_PLAYLIST ) )
++        {
++            ADD_MENU_ENTRY( QIcon(), qtr(I_PL_ADDPL),
++                            container.ACTION_ADDTOPLAYLIST, selectionlist );
++        }
++    }
+ 
+     menu.addSeparator();
+ 
+     /* Item removal */
++    if( index.isValid() )
++    {
++        ADD_MENU_ENTRY( QIcon( ":/buttons/playlist/playlist_remove" ), qtr(I_POP_DEL),
++                        container.ACTION_REMOVE, selectionlist );
++    }
+ 
+-    ADD_MENU_ENTRY( QIcon( ":/buttons/playlist/playlist_remove" ), qtr(I_POP_DEL),
+-                    VLCModelSubInterface::ACTION_REMOVE );
+-
+-    ADD_MENU_ENTRY( QIcon( ":/toolbar/clear" ), qtr("Clear the playlist"),
+-                    VLCModelSubInterface::ACTION_CLEAR );
++    if( model->canEdit() ) {
++        menu.addAction( QIcon( ":/toolbar/clear" ), qtr("Clear the playlist"),
++                        model, SLOT( clearPlaylist() ) );
++    }
+ 
+     menu.addSeparator();
+ 
+     /* Playlist sorting */
+-    if ( model->isSupportedAction( VLCModelSubInterface::ACTION_SORT, index ) )
+-    {
+-        QMenu *sortingMenu = new QMenu( qtr( "Sort by" ) );
+-        /* Choose what columns to show in sorting menu, not sure if this should be configurable*/
+-        QList<int> sortingColumns;
+-        sortingColumns << COLUMN_TITLE << COLUMN_ARTIST << COLUMN_ALBUM << COLUMN_TRACK_NUMBER << COLUMN_URI;
+-        container.action = VLCModelSubInterface::ACTION_SORT;
+-        foreach( int Column, sortingColumns )
+-        {
+-            action = sortingMenu->addAction( qfu( psz_column_title( Column ) ) + " " + qtr("Ascending") );
+-            container.column = model->columnFromMeta(Column) + 1;
+-            action->setData( QVariant::fromValue( container ) );
+-
+-            action = sortingMenu->addAction( qfu( psz_column_title( Column ) ) + " " + qtr("Descending") );
+-            container.column = -1 * (model->columnFromMeta(Column)+1);
+-            action->setData( QVariant::fromValue( container ) );
+-        }
+-        menu.addMenu( sortingMenu );
++    QMenu *sortingMenu = new QMenu( qtr( "Sort by" ) );
++    /* Choose what columns to show in sorting menu, not sure if this should be configurable*/
++    QList<int> sortingColumns;
++    sortingColumns << COLUMN_TITLE << COLUMN_ARTIST << COLUMN_ALBUM << COLUMN_TRACK_NUMBER << COLUMN_URI;
++    container.action = container.ACTION_SORT;
++    container.indexes = callerAsList;
++    foreach( int Column, sortingColumns )
++    {
++        action = sortingMenu->addAction( qfu( psz_column_title( Column ) ) + " " + qtr("Ascending") );
++        container.column = model->columnFromMeta(Column) + 1;
++        action->setData( QVariant::fromValue( container ) );
++
++        action = sortingMenu->addAction( qfu( psz_column_title( Column ) ) + " " + qtr("Descending") );
++        container.column = -1 * (model->columnFromMeta(Column)+1);
++        action->setData( QVariant::fromValue( container ) );
+     }
++    menu.addMenu( sortingMenu );
+ 
+     /* Zoom */
+     QMenu *zoomMenu = new QMenu( qtr( "Display size" ) );
+@@ -263,7 +262,7 @@
+     zoomMenu->addAction( qtr( "Decrease" ), this, SLOT( decreaseZoom() ) );
+     menu.addMenu( zoomMenu );
+ 
+-    CONNECT( &menu, triggered( QAction * ), this, popupAction( QAction * ) );
++    CONNECT( &menu, triggered( QAction * ), model, actionSlot( QAction * ) );
+ 
+     menu.addMenu( StandardPLPanel::viewSelectionMenu( this ) );
+ 
+@@ -277,111 +276,6 @@
+ #undef ADD_MENU_ENTRY
+ }
+ 
+-void StandardPLPanel::popupAction( QAction *action )
+-{
+-    VLCModel *model = qobject_cast<VLCModel *>(currentView->model());
+-    VLCModelSubInterface::actionsContainerType a =
+-            action->data().value<VLCModelSubInterface::actionsContainerType>();
+-    QModelIndexList list = currentView->selectionModel()->selectedRows();
+-    QModelIndex index = popupIndex( currentView );
+-    char *path = NULL;
+-    OpenDialog *dialog;
+-    QString temp;
+-    QStringList uris;
+-    bool ok;
+-
+-    /* first try to complete actions requiring missing parameters thru UI dialogs */
+-    switch( a.action )
+-    {
+-    case VLCModelSubInterface::ACTION_INFO:
+-        /* locally handled only */
+-        if( index.isValid() )
+-        {
+-            input_item_t* p_input = model->getInputItem( index );
+-            MediaInfoDialog *mid = new MediaInfoDialog( p_intf, p_input );
+-            mid->setParent( PlaylistDialog::getInstance( p_intf ),
+-                            Qt::Dialog );
+-            mid->show();
+-        }
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_EXPLORE:
+-        /* locally handled only */
+-        temp = model->getURI( index );
+-        if( ! temp.isEmpty() ) path = make_path( temp.toLatin1().constData() );
+-        if( path == NULL ) return;
+-        QDesktopServices::openUrl(
+-                    QUrl::fromLocalFile( QFileInfo( qfu( path ) ).absolutePath() ) );
+-        free( path );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_STREAM:
+-        /* locally handled only */
+-        temp = model->getURI( index );
+-        if ( ! temp.isEmpty() )
+-            THEDP->streamingDialog( NULL, temp, false );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_SAVE:
+-        /* locally handled only */
+-        temp = model->getURI( index );
+-        if ( ! temp.isEmpty() )
+-            THEDP->streamingDialog( NULL, temp );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_CREATENODE:
+-        temp = QInputDialog::getText( PlaylistDialog::getInstance( p_intf ),
+-            qtr( I_NEW_DIR ), qtr( I_NEW_DIR_NAME ),
+-            QLineEdit::Normal, QString(), &ok);
+-        if ( !ok ) return;
+-        model->createNode( index, temp );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_RENAMENODE:
+-        temp = QInputDialog::getText( PlaylistDialog::getInstance( p_intf ),
+-            qtr( I_RENAME_DIR ), qtr( I_RENAME_DIR_NAME ),
+-            QLineEdit::Normal, model->getTitle( index ), &ok);
+-        if ( !ok ) return;
+-        model->renameNode( index, temp );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_ENQUEUEFILE:
+-        uris = THEDP->showSimpleOpen();
+-        if ( uris.isEmpty() ) return;
+-        uris.sort();
+-        foreach( const QString &file, uris )
+-            a.uris << qtu( toURI( toNativeSeparators( file ) ) );
+-        action->setData( QVariant::fromValue( a ) );
+-        model->action( action, list );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_ENQUEUEDIR:
+-        temp = DialogsProvider::getDirectoryDialog( p_intf );
+-        if ( temp.isEmpty() ) return;
+-        a.uris << temp;
+-        action->setData( QVariant::fromValue( a ) );
+-        model->action( action, list );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_ENQUEUEGENERIC:
+-        dialog = OpenDialog::getInstance( this, p_intf, false, SELECT, true, true );
+-        dialog->showTab( OPEN_FILE_TAB );
+-        dialog->exec(); /* make it modal */
+-        a.uris = dialog->getMRLs( false );
+-        a.options = dialog->getOptions();
+-        if ( a.uris.isEmpty() ) return;
+-        action->setData( QVariant::fromValue( a ) );
+-        model->action( action, list );
+-        break;
+-
+-    case VLCModelSubInterface::ACTION_SAVETOPLAYLIST:
+-        THEDP->savePlayingToPlaylist();
+-        break;
+-    default:
+-        model->action( action, list );
+-    }
+-}
+-
+ QMenu* StandardPLPanel::viewSelectionMenu( StandardPLPanel *panel )
+ {
+     QMenu *viewMenu = new QMenu( qtr( "Playlist View Mode" ) );
+@@ -403,15 +297,6 @@
+     return viewMenu;
+ }
+ 
+-inline QModelIndex popupIndex( QAbstractItemView *view )
+-{
+-    QModelIndexList list = view->selectionModel()->selectedIndexes();
+-    if ( list.isEmpty() )
+-        return QModelIndex();
+-    else
+-        return list.first();
+-}
+-
+ void StandardPLPanel::popupSelectColumn( QPoint )
+ {
+     QMenu menu;
+@@ -430,6 +315,63 @@
+     menu.exec( QCursor::pos() );
+ }
+ 
++void StandardPLPanel::popupPromptAndCreateNode()
++{
++    bool ok;
++    QString name = QInputDialog::getText( PlaylistDialog::getInstance( p_intf ),
++        qtr( I_NEW_DIR ), qtr( I_NEW_DIR_NAME ),
++        QLineEdit::Normal, QString(), &ok);
++    if ( !ok ) return;
++    qobject_cast<VLCModel *>(currentView->model())->createNode( popupIndex, name );
++}
++
++void StandardPLPanel::popupInfoDialog()
++{
++    if( popupIndex.isValid() )
++    {
++        VLCModel *model = qobject_cast<VLCModel *>(currentView->model());
++        input_item_t* p_input = model->getInputItem( popupIndex );
++        MediaInfoDialog *mid = new MediaInfoDialog( p_intf, p_input );
++        mid->setParent( PlaylistDialog::getInstance( p_intf ),
++                        Qt::Dialog );
++        mid->show();
++    }
++}
++
++void StandardPLPanel::popupExplore()
++{
++    VLCModel *model = qobject_cast<VLCModel *>(currentView->model());
++    QString uri = model->getURI( popupIndex );
++    char *path = NULL;
++
++    if( ! uri.isEmpty() )
++        path = make_path( uri.toLatin1().constData() );
++
++    if( path == NULL )
++        return;
++
++    QDesktopServices::openUrl(
++                QUrl::fromLocalFile( QFileInfo( qfu( path ) ).absolutePath() ) );
++
++    free( path );
++}
++
++void StandardPLPanel::popupStream()
++{
++    VLCModel *model = qobject_cast<VLCModel *>(currentView->model());
++    QString uri = model->getURI( popupIndex );
++    if ( ! uri.isEmpty() )
++        THEDP->streamingDialog( NULL, uri, false );
++}
++
++void StandardPLPanel::popupSave()
++{
++    VLCModel *model = qobject_cast<VLCModel *>(currentView->model());
++    QString uri = model->getURI( popupIndex );
++    if ( ! uri.isEmpty() )
++        THEDP->streamingDialog( NULL, uri );
++}
++
+ void StandardPLPanel::toggleColumnShown( int i )
+ {
+     treeView->setColumnHidden( i, !treeView->isColumnHidden( i ) );
+@@ -448,7 +390,7 @@
+         bool flat = ( currentView == iconView ||
+                       currentView == listView ||
+                       currentView == picFlowView );
+-        model->filter( searchText,
++        model->search( searchText,
+                        flat ? currentView->rootIndex() : QModelIndex(),
+                        !flat );
+     }
+@@ -473,8 +415,21 @@
+ /* This activated by the selector selection */
+ void StandardPLPanel::setRootItem( playlist_item_t *p_item, bool b )
+ {
++#ifdef MEDIA_LIBRARY
++    if( b )
++    {
++        msg_Dbg( p_intf, "Setting the SQL ML" );
++        currentView->setModel( mlmodel );
++    }
++    else
++#else
+     Q_UNUSED( b );
+-    model->rebuild( p_item );
++#endif
++    {
++        if( currentView->model() != model )
++            currentView->setModel( model );
++        model->rebuild( p_item );
++    }
+ }
+ 
+ void StandardPLPanel::browseInto( const QModelIndex &index )
+@@ -486,15 +441,14 @@
+ 
+         /* When going toward root in LocationBar, scroll to the item
+            that was previously as root */
+-        QModelIndex newIndex = model->indexByPLID(currentRootIndexPLId,0);
++        QModelIndex newIndex = model->index(currentRootIndexId,0);
+         while( newIndex.isValid() && (newIndex.parent() != index) )
+             newIndex = newIndex.parent();
+         if( newIndex.isValid() )
+             currentView->scrollTo( newIndex );
+ 
+         /* Store new rootindexid*/
+-        currentRootIndexPLId = model->itemId( index, PLAYLIST_ID );
+-
++        currentRootIndexId = model->itemId( index );
+         model->ensureArtRequested( index );
+     }
+ 
+@@ -503,8 +457,8 @@
+ 
+ void StandardPLPanel::browseInto()
+ {
+-    browseInto( (currentRootIndexPLId != -1 && currentView != treeView) ?
+-                 model->indexByPLID( currentRootIndexPLId, 0 ) :
++    browseInto( (currentRootIndexId != -1 && currentView != treeView) ?
++                 model->index( currentRootIndexId, 0 ) :
+                  QModelIndex() );
+ }
+ 
+@@ -578,7 +532,8 @@
+ 
+ void StandardPLPanel::deleteSelection()
+ {
+-    QModelIndexList list = currentView->selectionModel()->selectedIndexes();
++    QItemSelectionModel *selection = currentView->selectionModel();
++    QModelIndexList list = selection->selectedIndexes();
+     model->doDelete( list );
+ }
+ 
+@@ -659,6 +614,23 @@
+ #undef A_ZOOM
+ }
+ 
++void StandardPLPanel::changeModel( bool b_ml )
++{
++#ifdef MEDIA_LIBRARY
++    VLCModel *mod;
++    if( b_ml )
++        mod = mlmodel;
++    else
++        mod = model;
++    if( currentView->model() != mod )
++        currentView->setModel( mod );
++#else
++    Q_UNUSED( b_ml );
++    if( currentView->model() != model )
++        currentView->setModel( model );
++#endif
++}
++
+ void StandardPLPanel::showView( int i_view )
+ {
+     bool b_treeViewCreated = false;
+@@ -699,7 +671,7 @@
+     }
+     }
+ 
+-    currentView->setModel( model );
++    changeModel( false );
+ 
+     /* Restoring the header Columns must come after changeModel */
+     if( b_treeViewCreated )
+@@ -783,7 +755,7 @@
+     if( currentView->model() == model )
+     {
+         /* If we are not a leaf node */
+-        if( !index.data( VLCModelSubInterface::IsLeafNodeRole ).toBool() )
++        if( !index.data( PLModel::IsLeafNodeRole ).toBool() )
+         {
+             if( currentView != treeView )
+                 browseInto( index );
+@@ -791,29 +763,25 @@
+         else
+         {
+             playlist_Lock( THEPL );
+-            playlist_item_t *p_item = playlist_ItemGetById( THEPL, model->itemId( index, PLAYLIST_ID ) );
+-            if ( p_item )
+-            {
+-                p_item->i_flags |= PLAYLIST_SUBITEM_STOP_FLAG;
+-                lastActivatedPLItemId = p_item->i_id;
+-            }
++            playlist_item_t *p_item = playlist_ItemGetById( THEPL, model->itemId( index ) );
++            p_item->i_flags |= PLAYLIST_SUBITEM_STOP_FLAG;
++            lastActivatedId = p_item->i_id;
+             playlist_Unlock( THEPL );
+-            if ( p_item && index.isValid() )
+-                model->activateItem( index );
++            model->activateItem( index );
+         }
+     }
+ }
+ 
+-void StandardPLPanel::browseInto( int i_pl_item_id )
++void StandardPLPanel::browseInto( int i_id )
+ {
+-    if( i_pl_item_id != lastActivatedPLItemId ) return;
++    if( i_id != lastActivatedId ) return;
+ 
+-    QModelIndex index = model->indexByPLID( i_pl_item_id, 0 );
++    QModelIndex index = model->index( i_id, 0 );
+ 
+     if( currentView == treeView )
+         treeView->setExpanded( index, true );
+     else
+         browseInto( index );
+ 
+-    lastActivatedPLItemId = -1;
++    lastActivatedId = -1;
+ }
+diff -aurN a/modules/gui/qt4/components/playlist/standardpanel.hpp b/modules/gui/qt4/components/playlist/standardpanel.hpp
+--- a/modules/gui/qt4/components/playlist/standardpanel.hpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/standardpanel.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -30,7 +30,6 @@
+ 
+ #include "qt4.hpp"
+ #include "components/playlist/playlist.hpp"
+-#include "components/playlist/vlc_model.hpp"
+ 
+ #include <QWidget>
+ #include <QModelIndexList>
+@@ -38,7 +37,8 @@
+ #include <vlc_playlist.h> /* playlist_item_t */
+ 
+ class QSignalMapper;
+-class VLCProxyModel;
++class PLModel;
++class MLModel;
+ class QKeyEvent;
+ class QWheelEvent;
+ class QStackedLayout;
+@@ -50,6 +50,7 @@
+ class PlListView;
+ class PicFlowView;
+ 
++class LocationBar;
+ class PLSelector;
+ class PlaylistWidget;
+ class PixmapAnimator;
+@@ -60,7 +61,7 @@
+ 
+ public:
+     StandardPLPanel( PlaylistWidget *, intf_thread_t *,
+-                     playlist_item_t *, PLSelector *, VLCModel * );
++                     playlist_item_t *, PLSelector *, PLModel *, MLModel * );
+     virtual ~StandardPLPanel();
+ 
+     enum { ICON_VIEW = 0,
+@@ -74,9 +75,10 @@
+     static QMenu *viewSelectionMenu(StandardPLPanel *obj);
+ 
+ protected:
+-    VLCModel *model;
++    PLModel *model;
++    MLModel *mlmodel;
+     virtual void wheelEvent( QWheelEvent *e );
+-    bool popup( const QPoint &point );
++    bool popup( const QModelIndex & index, const QPoint &point, const QModelIndexList &selectionlist );
+ 
+ private:
+     intf_thread_t *p_intf;
+@@ -95,16 +97,20 @@
+ 
+     QSignalMapper *selectColumnsSigMapper;
+ 
+-    int lastActivatedPLItemId;
+-    int currentRootIndexPLId;
++    int lastActivatedId;
++    int currentRootIndexId;
+ 
+     void createTreeView();
+     void createIconView();
+     void createListView();
+     void createCoverView();
+     void updateZoom( int i_zoom );
++    void changeModel ( bool b_ml );
+     bool eventFilter ( QObject * watched, QEvent * event );
+ 
++    /* for popup */
++    QModelIndex popupIndex;  /* FIXME: don't store here, pass as Action param */
++
+     /* Wait spinner */
+     PixmapAnimator *spinnerAnimation;
+ 
+@@ -129,7 +135,11 @@
+ 
+     void popupPlView( const QPoint & );
+     void popupSelectColumn( QPoint );
+-    void popupAction( QAction * );
++    void popupPromptAndCreateNode();
++    void popupInfoDialog();
++    void popupExplore();
++    void popupStream();
++    void popupSave();
+     void increaseZoom() { updateZoom( i_zoom + 1 ); };
+     void decreaseZoom() { updateZoom( i_zoom - 1 ); };
+     void toggleColumnShown( int );
+diff -aurN a/modules/gui/qt4/components/playlist/views.cpp b/modules/gui/qt4/components/playlist/views.cpp
+--- a/modules/gui/qt4/components/playlist/views.cpp	2019-06-01 21:37:59.317549658 +0300
++++ b/modules/gui/qt4/components/playlist/views.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -22,7 +22,7 @@
+  *****************************************************************************/
+ 
+ #include "components/playlist/views.hpp"
+-#include "components/playlist/vlc_model.hpp"      /* VLCModel */
++#include "components/playlist/playlist_model.hpp" /* PLModel */
+ #include "components/playlist/sorting.h"          /* Columns List */
+ #include "input_manager.hpp"                      /* THEMIM */
+ 
+@@ -58,7 +58,7 @@
+         painter->setPen( option.palette.color( QPalette::Highlight ).darker( 150 ) );
+         painter->drawRect( r );
+     }
+-    else if( index.data( VLCModel::IsCurrentRole ).toBool() )
++    else if( index.data( PLModel::IsCurrentRole ).toBool() )
+     {
+         painter->setBrush( QBrush( Qt::lightGray ) );
+         painter->setPen( QColor( Qt::darkGray ) );
+@@ -81,7 +81,7 @@
+ 
+     QFont font( index.data( Qt::FontRole ).value<QFont>() );
+     font.setPointSize( __MAX( font.pointSize() + i_zoom, 4 ) );
+-    font.setBold( index.data( VLCModel::IsCurrentRole ).toBool() );
++    font.setBold( index.data( PLModel::IsCurrentRole ).toBool() );
+     painter->setFont( font );
+     QFontMetrics fm = painter->fontMetrics();
+ 
+@@ -120,12 +120,12 @@
+ 
+ 
+     //Draw children indicator
+-    if( !index.data( VLCModel::IsLeafNodeRole ).toBool() )
++    if( !index.data( PLModel::IsLeafNodeRole ).toBool() )
+     {
+         QRect r( option.rect );
+         r.setSize( QSize( 25, 25 ) );
+         r.translate( 5, 5 );
+-        if( index.data( VLCModel::IsCurrentsParentNodeRole ).toBool() )
++        if( index.data( PLModel::IsCurrentsParentNodeRole ).toBool() )
+         {
+             painter->setOpacity( 0.75 );
+             QPainterPath nodeRectPath;
+@@ -222,7 +222,7 @@
+     //Draw title info
+     f.setItalic( true );
+     f.setPointSize( __MAX( f.pointSize() + i_zoom, 4 ) );
+-    f.setBold( index.data( VLCModel::IsCurrentRole ).toBool() );
++    f.setBold( index.data( PLModel::IsCurrentRole ).toBool() );
+     painter->setFont( f );
+     QFontMetrics fm( painter->fontMetrics() );
+ 
+@@ -234,7 +234,7 @@
+     }
+ 
+     //Draw children indicator
+-    if( !index.data( VLCModel::IsLeafNodeRole ).toBool() )
++    if( !index.data( PLModel::IsLeafNodeRole ).toBool() )
+     {
+         QPixmap dirPix = QPixmap( ":/type/node" );
+         painter->drawPixmap( QPoint( textRect.x(), textRect.center().y() - dirPix.height() / 2 ),
+@@ -276,7 +276,7 @@
+ 
+ void PlTreeViewItemDelegate::paint( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const
+ {
+-    if ( index.data( VLCModel::IsCurrentRole ).toBool() )
++    if ( index.data( PLModel::IsCurrentRole ).toBool() )
+     {
+         QStyleOptionViewItem myoptions = option;
+         myoptions.font.setBold( true );
+@@ -288,13 +288,6 @@
+     }
+ }
+ 
+-void CellPixmapDelegate::paint( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const
+-{
+-    QPixmap pixmap = index.data( Qt::DecorationRole ).value<QPixmap>();
+-    painter->drawPixmap( option.rect.topLeft(),
+-                         pixmap.scaled( option.rect.size(), Qt::KeepAspectRatio ) );
+-}
+-
+ static inline void plViewStartDrag( QAbstractItemView *view, const Qt::DropActions & supportedActions )
+ {
+     QDrag *drag = new QDrag( view );
+@@ -312,7 +305,7 @@
+     else event->acceptProposedAction();
+ }
+ 
+-PlIconView::PlIconView( QAbstractItemModel *, QWidget *parent ) : QListView( parent )
++PlIconView::PlIconView( PLModel *, QWidget *parent ) : QListView( parent )
+ {
+     PlIconViewItemDelegate *delegate = new PlIconViewItemDelegate( this );
+ 
+@@ -362,7 +355,7 @@
+     return QAbstractItemView::viewportEvent( event );
+ }
+ 
+-PlListView::PlListView( QAbstractItemModel *, QWidget *parent ) : QListView( parent )
++PlListView::PlListView( PLModel *, QWidget *parent ) : QListView( parent )
+ {
+     setViewMode( QListView::ListMode );
+     setUniformItemSizes( true );
+@@ -419,11 +412,10 @@
+     return QAbstractItemView::viewportEvent( event );
+ }
+ 
+-PlTreeView::PlTreeView( QAbstractItemModel *, QWidget *parent ) : QTreeView( parent )
++PlTreeView::PlTreeView( PLModel *, QWidget *parent ) : QTreeView( parent )
+ {
+     setItemDelegate( new PlTreeViewItemDelegate( this ) );
+-    setItemDelegateForColumn( VLCModel::metaToColumn(COLUMN_COVER),
+-                              new CellPixmapDelegate( this ) );
++
+     setIconSize( QSize( 20, 20 ) );
+     setAlternatingRowColors( true );
+     setAnimated( true );
+@@ -433,7 +425,7 @@
+     viewport()->setAttribute( Qt::WA_Hover );
+     header()->setSortIndicator( -1 , Qt::AscendingOrder );
+     header()->setSortIndicatorShown( true );
+-#if HAS_QT5
++#if QT_VERSION >= 0x050000
+     header()->setSectionsClickable( true );
+ #else
+     header()->setClickable( true );
+@@ -451,9 +443,8 @@
+ void PlTreeView::setModel( QAbstractItemModel * model )
+ {
+     QTreeView::setModel( model );
+-    VLCModel *m = static_cast<VLCModel*>(model);
+     CONNECT( this, expanded( const QModelIndex & ),
+-             m, ensureArtRequested( const QModelIndex & ) );
++             model, ensureArtRequested( const QModelIndex & ) );
+ }
+ 
+ void PlTreeView::startDrag ( Qt::DropActions supportedActions )
+@@ -479,14 +470,11 @@
+ }
+ 
+ #include <QHBoxLayout>
+-PicFlowView::PicFlowView( QAbstractItemModel *p_model, QWidget *parent ) : QAbstractItemView( parent )
++PicFlowView::PicFlowView( PLModel *p_model, QWidget *parent ) : QAbstractItemView( parent )
+ {
+     QHBoxLayout *layout = new QHBoxLayout( this );
+     layout->setMargin( 0 );
+     picFlow = new PictureFlow( this, p_model );
+-    picFlow->setContextMenuPolicy( Qt::CustomContextMenu );
+-    connect( picFlow, SIGNAL(customContextMenuRequested( const QPoint & )),
+-             this,    SIGNAL(customContextMenuRequested( const QPoint & )) );
+     layout->addWidget( picFlow );
+     picFlow->setSlideSize(QSize( 4*LISTVIEW_ART_SIZE, 3*LISTVIEW_ART_SIZE) );
+     setSelectionMode( QAbstractItemView::SingleSelection );
+diff -aurN a/modules/gui/qt4/components/playlist/views.hpp b/modules/gui/qt4/components/playlist/views.hpp
+--- a/modules/gui/qt4/components/playlist/views.hpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/views.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -31,6 +31,7 @@
+ #include "util/pictureflow.hpp"
+ 
+ class QPainter;
++class PLModel;
+ class QFont;
+ 
+ class AbstractPlViewItemDelegate : public QStyledItemDelegate
+@@ -78,21 +79,12 @@
+     virtual void paint ( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const;
+ };
+ 
+-class CellPixmapDelegate : public QStyledItemDelegate
+-{
+-    Q_OBJECT
+-
+-public:
+-    CellPixmapDelegate(QWidget *parent = 0) : QStyledItemDelegate(parent) {}
+-    virtual void paint ( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const;
+-};
+-
+ class PlIconView : public QListView
+ {
+     Q_OBJECT
+ 
+ public:
+-    PlIconView( QAbstractItemModel *model, QWidget *parent = 0 );
++    PlIconView( PLModel *model, QWidget *parent = 0 );
+ protected:
+     virtual void startDrag ( Qt::DropActions supportedActions );
+     virtual void dragMoveEvent ( QDragMoveEvent * event );
+@@ -104,7 +96,7 @@
+     Q_OBJECT
+ 
+ public:
+-    PlListView( QAbstractItemModel *model, QWidget *parent = 0 );
++    PlListView( PLModel *model, QWidget *parent = 0 );
+ protected:
+     virtual void startDrag ( Qt::DropActions supportedActions );
+     virtual void dragMoveEvent ( QDragMoveEvent * event );
+@@ -117,7 +109,7 @@
+     Q_OBJECT
+ 
+ public:
+-    PlTreeView( QAbstractItemModel *, QWidget *parent = 0 );
++    PlTreeView( PLModel *, QWidget *parent = 0 );
+ protected:
+     virtual void startDrag ( Qt::DropActions supportedActions );
+     virtual void dragMoveEvent ( QDragMoveEvent * event );
+@@ -129,7 +121,7 @@
+ {
+     Q_OBJECT
+ public:
+-    PicFlowView( QAbstractItemModel *model, QWidget *parent = 0 );
++    PicFlowView( PLModel *model, QWidget *parent = 0 );
+ 
+     virtual QRect visualRect(const QModelIndex&) const;
+     virtual void scrollTo(const QModelIndex&, QAbstractItemView::ScrollHint);
+diff -aurN a/modules/gui/qt4/components/playlist/vlc_model.cpp b/modules/gui/qt4/components/playlist/vlc_model.cpp
+--- a/modules/gui/qt4/components/playlist/vlc_model.cpp	2019-06-01 21:36:03.896644388 +0300
++++ b/modules/gui/qt4/components/playlist/vlc_model.cpp	2019-06-01 19:18:50.713326075 +0300
+@@ -22,50 +22,14 @@
+  *****************************************************************************/
+ 
+ #include "vlc_model.hpp"
+-#include "input_manager.hpp"                            /* THEMIM */
+-#include "pixmaps/types/type_unknown.xpm"
+-
+-VLCModelSubInterface::VLCModelSubInterface()
+-{
+-}
+-
+-VLCModelSubInterface::~VLCModelSubInterface()
+-{
+-}
+-
+-int VLCModelSubInterface::columnFromMeta( int meta_col )
+-{
+-    int meta = 1, column = 0;
+-
+-    while( meta != meta_col && meta != COLUMN_END )
+-    {
+-        meta <<= 1;
+-        column++;
+-    }
+-
+-    return column;
+-}
+ 
+ VLCModel::VLCModel( intf_thread_t *_p_intf, QObject *parent )
+-    : QAbstractItemModel( parent ), VLCModelSubInterface(), p_intf(_p_intf)
++        : QAbstractItemModel( parent ), p_intf(_p_intf)
+ {
+-    /* Icons initialization */
+-#define ADD_ICON(type, x) icons[ITEM_TYPE_##type] = QIcon( x )
+-    ADD_ICON( UNKNOWN , QPixmap( type_unknown_xpm ) );
+-    ADD_ICON( FILE, ":/type/file" );
+-    ADD_ICON( DIRECTORY, ":/type/directory" );
+-    ADD_ICON( DISC, ":/type/disc" );
+-    ADD_ICON( CDDA, ":/type/cdda" );
+-    ADD_ICON( CARD, ":/type/capture-card" );
+-    ADD_ICON( NET, ":/type/net" );
+-    ADD_ICON( PLAYLIST, ":/type/playlist" );
+-    ADD_ICON( NODE, ":/type/node" );
+-#undef ADD_ICON
+ }
+ 
+ VLCModel::~VLCModel()
+ {
+-
+ }
+ 
+ QString VLCModel::getMeta( const QModelIndex & index, int meta )
+@@ -74,10 +38,18 @@
+         data().toString();
+ }
+ 
++QString VLCModel::getArtUrl( const QModelIndex & index )
++{
++    return index.model()->index( index.row(),
++                    columnFromMeta( COLUMN_COVER ),
++                    index.parent() )
++           .data().toString();
++}
++
+ QPixmap VLCModel::getArtPixmap( const QModelIndex & index, const QSize & size )
+ {
+-    QString artUrl = index.sibling( index.row(),
+-                     VLCModel::columnFromMeta(COLUMN_COVER) ).data().toString();
++    QString artUrl = VLCModel::getArtUrl( index ) ;
++
+     QPixmap artPix;
+ 
+     QString key = artUrl + QString("%1%2").arg(size.width()).arg(size.height());
+@@ -105,109 +77,8 @@
+     return artPix;
+ }
+ 
+-QVariant VLCModel::headerData( int section, Qt::Orientation orientation,
+-                              int role ) const
+-{
+-    if (orientation != Qt::Horizontal || role != Qt::DisplayRole)
+-        return QVariant();
+-
+-    int meta_col = columnToMeta( section );
+-
+-    if( meta_col == COLUMN_END ) return QVariant();
+-
+-    return QVariant( qfu( psz_column_title( meta_col ) ) );
+-}
+-
+-int VLCModel::columnToMeta( int _column )
+-{
+-    int meta = 1, column = 0;
+-
+-    while( column != _column && meta != COLUMN_END )
+-    {
+-        meta <<= 1;
+-        column++;
+-    }
+-
+-    return meta;
+-}
+-
+-int VLCModel::metaToColumn( int _meta )
+-{
+-    int meta = 1, column = 0;
+-
+-    while( meta != COLUMN_END )
+-    {
+-        if ( meta & _meta )
+-            break;
+-        meta <<= 1;
+-        column++;
+-    }
+-
+-    return column;
+-}
+-
+-int VLCModel::itemId( const QModelIndex &index, int type ) const
+-{
+-    AbstractPLItem *item = getItem( index );
+-    if ( !item ) return -1;
+-    return item->id( type );
+-}
+-
+-AbstractPLItem *VLCModel::getItem( const QModelIndex &index ) const
+-{
+-    if( index.isValid() )
+-        return static_cast<AbstractPLItem*>( index.internalPointer() );
+-    else return NULL;
+-}
+-
+-QString VLCModel::getURI( const QModelIndex &index ) const
+-{
+-    AbstractPLItem *item = getItem( index );
+-    if ( !item ) return QString();
+-    return item->getURI().toString();
+-}
+-
+-input_item_t * VLCModel::getInputItem( const QModelIndex &index ) const
+-{
+-    AbstractPLItem *item = getItem( index );
+-    if ( !item ) return NULL;
+-    return item->inputItem();
+-}
+-
+-QString VLCModel::getTitle( const QModelIndex &index ) const
+-{
+-    AbstractPLItem *item = getItem( index );
+-    if ( !item ) return QString();
+-    return item->getTitle();
+-}
+-
+-bool VLCModel::isCurrent( const QModelIndex &index ) const
+-{
+-    AbstractPLItem *item = getItem( index );
+-    if ( !item ) return false;
+-    return item->inputItem() == THEMIM->currentInputItem();
+-}
+-
+ int VLCModel::columnCount( const QModelIndex & ) const
+ {
+     return columnFromMeta( COLUMN_END );
+ }
+ 
+-void VLCModel::ensureArtRequested( const QModelIndex &index )
+-{
+-    if ( index.isValid() && hasChildren( index ) )
+-    {
+-        int i_art_policy = var_GetInteger( THEPL, "album-art" );
+-        bool b_access = var_InheritBool( THEPL, "metadata-network-access" );
+-        if ( i_art_policy != ALBUM_ART_ALL && ! b_access ) return;
+-        int nbnodes = rowCount( index );
+-        QModelIndex child;
+-        for( int row = 0 ; row < nbnodes ; row++ )
+-        {
+-            child = index.child( row, COLUMN_COVER );
+-            if ( child.isValid() && child.data().toString().isEmpty() )
+-                THEMIM->getIM()->requestArtUpdate( getInputItem( child ), false );
+-        }
+-    }
+-}
+-
+diff -aurN a/modules/gui/qt4/components/playlist/vlc_model.hpp b/modules/gui/qt4/components/playlist/vlc_model.hpp
+--- a/modules/gui/qt4/components/playlist/vlc_model.hpp	2019-06-01 21:36:03.906644467 +0300
++++ b/modules/gui/qt4/components/playlist/vlc_model.hpp	2019-06-01 19:18:50.713326075 +0300
+@@ -31,134 +31,96 @@
+ #include "qt4.hpp"
+ #include "sorting.h"
+ 
+-#include "playlist_item.hpp"
+-
+ #include <vlc_input.h>
+ 
+ #include <QModelIndex>
+ #include <QPixmapCache>
+ #include <QSize>
+-#include <QObject>
+ #include <QAbstractItemModel>
+-#include <QIcon>
+-
+ class QAction;
+ 
+-/* Provides non Q_Object interface for Models.
+-   This allows multiple inheritance on already QAbstractModel based
+-   Qobjects like Q*ProxyModel.
+-   Signals being a Q_Object property, they need to be redirected
+-   using a QObject based class member.
+-*/
+-class VLCModelSubInterface
++class VLCModel : public QAbstractItemModel
+ {
++    Q_OBJECT
+ public:
+-    VLCModelSubInterface();
+-    virtual ~VLCModelSubInterface();
+-    enum nodeRole
+-    {
++    enum {
+       IsCurrentRole = Qt::UserRole,
+       IsLeafNodeRole,
+       IsCurrentsParentNodeRole
+     };
+-    virtual void rebuild( playlist_item_t * p = NULL ) = 0;
+-    virtual void doDelete( QModelIndexList ) = 0;
+-    virtual void createNode( QModelIndex, QString ) = 0;
+-    virtual void renameNode( QModelIndex, QString ) = 0;
+-    virtual void removeAll() = 0;
+ 
+-    virtual QModelIndex rootIndex() const = 0;
+-    virtual void filter( const QString& search_text, const QModelIndex & root, bool b_recursive ) = 0;
++    VLCModel( intf_thread_t *_p_intf, QObject *parent = 0 );
++    /*** QAbstractItemModel subclassing ***/
++    virtual int columnCount( const QModelIndex &parent = QModelIndex() ) const;
++
++    virtual int itemId( const QModelIndex & ) const = 0;
++    virtual input_item_t *getInputItem( const QModelIndex & ) const = 0;
+     virtual QModelIndex currentIndex() const = 0;
+-    virtual QModelIndex indexByPLID( const int i_plid, const int c ) const = 0;
+-    virtual QModelIndex indexByInputItemID( const int i_inputitem_id, const int c ) const = 0;
+-    virtual int itemId( const QModelIndex &, int type ) const = 0;
++    virtual void doDelete( QModelIndexList ) = 0;
++    virtual ~VLCModel();
++    static QString getMeta( const QModelIndex & index, int meta );
++    static QPixmap getArtPixmap( const QModelIndex & index, const QSize & size );
++    static QString getArtUrl( const QModelIndex & index );
++    virtual QString getURI( const QModelIndex &index ) const = 0;
++    virtual QModelIndex rootIndex() const = 0;
+     virtual bool isTree() const = 0;
+     virtual bool canEdit() const = 0;
+-    virtual QString getURI( const QModelIndex &index ) const = 0;
+-    virtual input_item_t *getInputItem( const QModelIndex & ) const = 0;
+-    virtual QString getTitle( const QModelIndex &index ) const = 0;
+-    enum actions
++    enum playLocation
+     {
+-        ACTION_PLAY = 1,
+-        ACTION_STREAM,
+-        ACTION_SAVE,
+-        ACTION_INFO,
+-        ACTION_ADDTOPLAYLIST,
+-        ACTION_REMOVE,
+-        ACTION_SORT,
+-        ACTION_EXPLORE,
+-        ACTION_CREATENODE,
+-        ACTION_RENAMENODE,
+-        ACTION_CLEAR,
+-        ACTION_ENQUEUEFILE,
+-        ACTION_ENQUEUEDIR,
+-        ACTION_ENQUEUEGENERIC,
+-        ACTION_SAVETOPLAYLIST
++        IN_PLAYLIST,
++        IN_MEDIALIBRARY
+     };
++    virtual bool isCurrentItem( const QModelIndex &index, playLocation where ) const = 0;
++
+     struct actionsContainerType
+     {
+-        actions action;
++        enum
++        {
++            ACTION_PLAY = 1,
++            ACTION_ADDTOPLAYLIST,
++            ACTION_REMOVE,
++            ACTION_SORT
++        } action;
++        QModelIndexList indexes; /* for passing selection or caller index(es) */
+         int column; /* for sorting */
+-        QStringList uris; /* for enqueuing */
+-        QString options;
+     };
+-    virtual bool action( QAction *, const QModelIndexList & ) = 0;
+-    virtual bool isSupportedAction( actions action, const QModelIndex & ) const = 0;
+-    static int columnFromMeta( int meta_col );
+ 
+-    virtual void activateItem( const QModelIndex &index ) = 0;
+-    virtual void ensureArtRequested( const QModelIndex &index ) = 0;
+-};
++    static int columnToMeta( int _column )
++    {
++        int meta = 1, column = 0;
+ 
+-/* Abstract VLC Model ; Base for custom models.
+-   Only implements methods sharing the same code that would be
+-   implemented in subclasses.
+-   Any custom method here must be only used in implemented methods.
+-*/
+-class VLCModel : public QAbstractItemModel, public VLCModelSubInterface
+-{
+-    Q_OBJECT
+-public:
+-    VLCModel( intf_thread_t *_p_intf, QObject *parent = 0 );
+-    virtual ~VLCModel();
++        while( column != _column && meta != COLUMN_END )
++        {
++            meta <<= 1;
++            column++;
++        }
+ 
+-    /*** QAbstractItemModel subclassing ***/
+-    virtual int columnCount( const QModelIndex &parent = QModelIndex() ) const;
+-    QVariant headerData( int, Qt::Orientation, int ) const;
++        return meta;
++    }
+ 
+-    /*** VLCModelSubInterface subclassing ***/
+-    virtual int itemId( const QModelIndex &, int type ) const;
+-    virtual QString getURI( const QModelIndex &index ) const;
+-    virtual input_item_t *getInputItem( const QModelIndex & ) const;
+-    virtual QString getTitle( const QModelIndex &index ) const;
+-
+-    /* Custom */
+-    static int columnToMeta( int _column );
+-    static int metaToColumn( int meta );
+-    static QString getMeta( const QModelIndex & index, int meta );
+-    static QPixmap getArtPixmap( const QModelIndex & index, const QSize & size );
++    static int columnFromMeta( int meta_col )
++    {
++        int meta = 1, column = 0;
+ 
+-public slots:
+-    /* slots handlers */
+-    virtual void ensureArtRequested( const QModelIndex &index );
++        while( meta != meta_col && meta != COLUMN_END )
++        {
++            meta <<= 1;
++            column++;
++        }
+ 
+-signals:
+-    void currentIndexChanged( const QModelIndex& );
+-    void rootIndexChanged();
++        return column;
++    }
+ 
+-protected:
+-    /* Custom methods / helpers */
+-    virtual bool isCurrent( const QModelIndex &index ) const;
+-    virtual bool isParent( const QModelIndex &index, const QModelIndex &current ) const = 0;
+-    virtual bool isLeaf( const QModelIndex &index ) const = 0;
+-    virtual AbstractPLItem *getItem( const QModelIndex & index ) const;
++    virtual void createNode( QModelIndex, QString ) {};
+ 
+-    QIcon icons[ITEM_TYPE_NUMBER];
++public slots:
++    virtual void activateItem( const QModelIndex &index ) = 0;
++    virtual void actionSlot( QAction *action ) = 0;
+ 
++protected:
+     intf_thread_t *p_intf;
+ };
+ 
+-Q_DECLARE_METATYPE(VLCModelSubInterface::actionsContainerType)
++Q_DECLARE_METATYPE(VLCModel::actionsContainerType)
+ 
+ #endif

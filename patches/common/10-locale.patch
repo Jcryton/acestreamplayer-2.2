@@ -1,0 +1,1184 @@
+diff -ru vlc-2.1.2.orig/po/acestreamplayer.pot vlc-2.1.2/po/acestreamplayer.pot
+--- vlc-2.1.2.orig/po/acestreamplayer.pot	2014-07-06 19:54:01.000000000 +0300
++++ vlc-2.1.2/po/acestreamplayer.pot	2014-10-28 13:11:31.320150970 +0200
+@@ -27205,3 +27205,267 @@
+ #: modules/gui/qt4/ui/vlm.h:302
+ msgid "Media Manager List"
+ msgstr ""
++
++#: modules/gui/qt4/components/controller.hpp:128
++msgid "Skip ahead to live broadcast"
++msgstr ""
++
++#: modules/gui/qt4/components/controller_widget.cpp:128
++msgid "You are watching live broadcast"
++msgstr ""
++
++#: modules/gui/qt4/components/controller.hpp:127
++msgid "Change quality"
++msgstr ""
++
++#: modules/gui/qt4/menus.cpp:127
++msgid "Open %1 Content ID..."
++msgstr ""
++
++#: modules/gui/qt4/menus.cpp:412
++msgid "%1 Information"
++msgstr ""
++
++#: modules/gui/qt4/components/playlist/sorting.h:67
++msgid "Selection"
++msgstr ""
++
++#: modules/gui/qt4/ui/open_content_id.h:85
++msgid "Please enter a content id:"
++msgstr ""
++
++#: modules/gui/qt4/ui/open_content_id.h:87
++msgid "Enter the id of the %p2p_product% content here."
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:26
++msgid "To start watching specify your gender and age"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:32
++msgid "Gender"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:33
++msgid "Male"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:34
++msgid "Female"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:35
++msgid "Age"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:39
++msgid "Under"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:46
++msgid "Above"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:45
++msgid "Specify your gender"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:47
++msgid "Specify your age"
++msgstr ""
++
++#: modules/gui/qt4/components/info_panels.cpp:47
++msgid "Update content id"
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:141
++msgid "Cannot connect to engine. Check if engine installed."
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:142
++msgid "Engine could not load \"%s\""
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:143
++msgid "Engine could not load \"%s\" : \"%s\""
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:354
++#, c-format
++msgid "Attention! This source \"%s\" contains a playlist.\n"
++            "To play and activate the playlist you need to:\n"
++            "- Register on site torrentstream.org;\n"
++            "- Activate your account."
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:20
++msgid "Buffering "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:21
++msgid "Prebuffering "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:22
++msgid "connected to "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " streams"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " stream"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:24
++msgid "Checking "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:25
++msgid "Insufficient download speed to play without interruption"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:26
++msgid "Starting..."
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:27
++msgid "Loading..."
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:28
++msgid "There are no active peers and streams at this moment"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Advertising video"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Main content"
++msgstr ""
++
++#: src/input/var.c:29
++msgid "Cannot seek"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1581
++msgid "Perform play/pause action on plugin's area single click"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1582
++msgid "Share"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1583
++msgid "Copy Content ID"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1584
++msgid "Copy link to player"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1586
++msgid "Copy embed code"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1585
++msgid "Browser Plugin"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:759
++msgid "Mute on"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:760
++msgid "Mute off"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:761
++msgid "Turn off"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:764
++msgid "Close"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:765
++msgid "Exit Fullscreen"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:767
++msgid "Skip this ad"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:120
++msgid "This content is available for premium users only"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:122
++msgid "This content is available for authorized users only"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:124
++msgid "Ad block detected. If you use a software which blocks ads, then turn it off. Otherwise try to start playback once more"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:126
++msgid "Cannot start playback. Please try again later"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:128
++msgid "Cannot load transport file"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:130
++msgid "Advertising"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:132
++msgid "This content is available for Ace Stream premium users only<br/><br/><a href=\"{{premium_activate_url}}\" style=\"color: #ffffff;\">Activate Premium Status</a>"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:134
++msgid "This content is available only for users of service {{provider_name}}: {{provider_url}}"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:136
++msgid "The playback is blocked because a software which blocks Ace Stream ads is detected"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:138
++msgid "Go to advertiser's site"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:140
++msgid "Disable ads"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:142
++msgid "Do not display ads anymore"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:144
++msgid "Select all"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:146
++msgid "Select none"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:148
++msgid "Seeking..."
++msgstr ""
++
++#: modules/p2p_access/control.cpp:150
++msgid "Seeking "
++msgstr ""
++
++#: modules/p2p_access/control.cpp:152
++msgid "Missing data, going to live"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:154
++msgid "Missing data, going to the nearest position"
++msgstr ""
+
+diff -ru vlc-2.1.2.orig/po/en_GB.po vlc-2.1.2/po/en_GB.po
+--- vlc-2.1.2.orig/po/en_GB.po	2014-07-06 19:54:14.000000000 +0300
++++ vlc-2.1.2/po/en_GB.po	2014-10-28 13:17:49.336161992 +0200
+@@ -31043,6 +31043,270 @@
+ #~ msgstr ""
+ #~ "Allows you to modify the user name that will be used for the connection."
+ 
++#: modules/gui/qt4/components/controller.hpp:128
++msgid "Skip ahead to live broadcast"
++msgstr ""
++
++#: modules/gui/qt4/components/controller_widget.cpp:128
++msgid "You are watching live broadcast"
++msgstr ""
++
++#: modules/gui/qt4/components/controller.hpp:127
++msgid "Change quality"
++msgstr ""
++
++#: modules/gui/qt4/menus.cpp:127
++msgid "Open %1 Content ID..."
++msgstr ""
++
++#: modules/gui/qt4/menus.cpp:412
++msgid "%1 Information"
++msgstr ""
++
++#: modules/gui/qt4/components/playlist/sorting.h:67
++msgid "Selection"
++msgstr ""
++
++#: modules/gui/qt4/ui/open_content_id.h:85
++msgid "Please enter a content id:"
++msgstr ""
++
++#: modules/gui/qt4/ui/open_content_id.h:87
++msgid "Enter the id of the %p2p_product% content here."
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:26
++msgid "To start watching specify your gender and age"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:32
++msgid "Gender"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:33
++msgid "Male"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:34
++msgid "Female"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:35
++msgid "Age"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:39
++msgid "Under"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:46
++msgid "Above"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:45
++msgid "Specify your gender"
++msgstr ""
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:47
++msgid "Specify your age"
++msgstr ""
++
++#: modules/gui/qt4/components/info_panels.cpp:47
++msgid "Update content id"
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:141
++msgid "Cannot connect to engine. Check if engine installed."
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:142
++msgid "Engine could not load \"%s\""
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:143
++msgid "Engine could not load \"%s\" : \"%s\""
++msgstr ""
++
++#: modules/p2p_access/p2p_access.cpp:354
++#, c-format
++msgid "Attention! This source \"%s\" contains a playlist.\n"
++            "To play and activate the playlist you need to:\n"
++            "- Register on site torrentstream.org;\n"
++            "- Activate your account."
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:20
++msgid "Buffering "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:21
++msgid "Prebuffering "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:22
++msgid "connected to "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " streams"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " stream"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:24
++msgid "Checking "
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:25
++msgid "Insufficient download speed to play without interruption"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:26
++msgid "Starting..."
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:27
++msgid "Loading..."
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:28
++msgid "There are no active peers and streams at this moment"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Advertising video"
++msgstr ""
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Main content"
++msgstr ""
++
++#: src/input/var.c:29
++msgid "Cannot seek"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1581
++msgid "Perform play/pause action on plugin's area single click"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1582
++msgid "Share"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1583
++msgid "Copy Content ID"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1584
++msgid "Copy link to player"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1586
++msgid "Copy embed code"
++msgstr ""
++
++#: modules/src/libvlc-module.c:1585
++msgid "Browser Plugin"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:759
++msgid "Mute on"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:760
++msgid "Mute off"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:761
++msgid "Turn off"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:764
++msgid "Close"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:765
++msgid "Exit Fullscreen"
++msgstr ""
++
++#: modules/p2p_access/psp_access.c:767
++msgid "Skip this ad"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:120
++msgid "This content is available for premium users only"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:122
++msgid "This content is available for authorized users only"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:124
++msgid "Ad block detected. If you use a software which blocks ads, then turn it off. Otherwise try to start playback once more"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:126
++msgid "Cannot start playback. Please try again later"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:128
++msgid "Cannot load transport file"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:130
++msgid "Advertising"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:132
++msgid "This content is available for Ace Stream premium users only<br/><br/><a href=\"{{premium_activate_url}}\" style=\"color: #ffffff;\">Activate Premium Status</a>"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:134
++msgid "This content is available only for users of service {{provider_name}}: {{provider_url}}"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:136
++msgid "The playback is blocked because a software which blocks Ace Stream ads is detected"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:138
++msgid "Go to advertiser's site"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:140
++msgid "Disable ads"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:142
++msgid "Do not display ads anymore"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:144
++msgid "Select all"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:146
++msgid "Select none"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:148
++msgid "Seeking..."
++msgstr "Seeking, please wait"
++
++#: modules/p2p_access/control.cpp:150
++msgid "Seeking "
++msgstr "Buffering "
++
++#: modules/p2p_access/control.cpp:152
++msgid "Missing data, going to live"
++msgstr ""
++
++#: modules/p2p_access/control.cpp:154
++msgid "Missing data, going to the nearest position"
++msgstr ""
++
+ #, fuzzy
+ #~ msgid "AVFoundation video capture module."
+ #~ msgstr "Audio output module"
+diff -ru vlc-2.1.2.orig/po/Makevars vlc-2.1.2/po/Makevars
+--- vlc-2.1.2.orig/po/Makevars	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/po/Makevars	2014-01-17 12:05:03.000000000 +0200
+@@ -3,7 +3,7 @@
+ VPATH += ../modules/gui ../modules/gui/qt4 ../modules/gui/qt4/ui
+ 
+ # Usually the message domain is the same as the package name.
+-DOMAIN = $(PACKAGE)
++DOMAIN = acestreamplayer
+ 
+ # These two variables depend on the location of this directory.
+ subdir = po
+
+diff -ru vlc-2.1.2.orig/po/POTFILES.in vlc-2.1.2/po/POTFILES.in
+--- vlc-2.1.2.orig/po/POTFILES.in	2013-12-07 18:16:38.000000000 +0200
++++ vlc-2.1.2/po/POTFILES.in	2014-01-17 14:02:25.000000000 +0200
+@@ -1176,9 +1176,37 @@
+ share/lua/http/mobile.html
+ share/lua/http/mobile_view.html
+ 
++include/vlc_sql.h
++include/p2p_object.h
++src/p2p_object/p2p_object_internal.h
++src/p2p_object/p2p_object.c
++src/p2p_object/p2p_video_click.c
++src/sql/sql.c
++modules/p2p_access/api/api.h
++modules/p2p_access/api/in.h
++modules/p2p_access/api/in.cpp
++modules/p2p_access/api/out.h
++modules/p2p_access/api/out.cpp
++modules/p2p_access/connection.h
++modules/p2p_access/connection.cpp
++modules/p2p_access/control.h
++modules/p2p_access/control.cpp
++modules/p2p_access/db.h
++modules/p2p_access/db.cpp
++modules/p2p_access/developer.h
++modules/p2p_access/p2p_access.h
++modules/p2p_access/p2p_access.cpp
++modules/sqlite/sqlite.c
++modules/gui/qt4/ui/open_content_id.h
++modules/gui/qt4/components/web_core.hpp
++modules/gui/qt4/components/web_core.cpp
++modules/gui/qt4/components/web_widgets.hpp
++modules/gui/qt4/components/web_widgets.cpp
++modules/gui/qt4/dialogs/userinfo.hpp
++modules/gui/qt4/dialogs/userinfo.cpp
+ 
+ # Qt4 .ui files
+-# uncomment (and prepend $builddir} if you want to generate a proper vlc.pot 
++# uncomment (and prepend $builddir} if you want to generate a proper acestreamplayer.pot 
+ 
+ modules/gui/qt4/ui/about.h
+ modules/gui/qt4/ui/equalizer.h
+
+diff -ru vlc-2.1.2.orig/po/ru.po vlc-2.1.2/po/ru.po
+--- vlc-2.1.2.orig/po/ru.po	2014-07-06 19:54:42.000000000 +0300
++++ vlc-2.1.2/po/ru.po	2014-10-28 13:19:39.596165206 +0200
+@@ -9706,7 +9706,7 @@
+ 
+ #: modules/audio_filter/equalizer_presets.h:42
+ msgid "Live"
+-msgstr "концерт"
++msgstr "Эфир"
+ 
+ #: modules/audio_filter/equalizer_presets.h:42
+ msgid "Party"
+@@ -33450,10 +33450,6 @@
+ #~ msgstr "Режим захвата"
+ 
+ #, fuzzy
+-#~ msgid "Close"
+-#~ msgstr "&Закрыть"
+-
+-#, fuzzy
+ #~ msgid "Error!"
+ #~ msgstr "Ошибка"
+ 
+@@ -35863,6 +35863,274 @@
+ #~ msgid "Automate picture coding mode"
+ #~ msgstr "Режим кодирования изображения"
+ 
++#: modules/gui/qt4/components/controller.hpp:128
++msgid "Skip ahead to live broadcast"
++msgstr "Пропустить и смотреть прямую трансляцию"
++
++#: modules/gui/qt4/components/controller_widget.cpp:128
++msgid "You are watching live broadcast"
++msgstr "Идет прямой эфир"
++
++#: modules/gui/qt4/components/controller.hpp:127
++msgid "Change quality"
++msgstr "Изменить качество"
++
++#: modules/gui/qt4/menus.cpp:127
++msgid "Open %1 Content ID..."
++msgstr "Открыть %1 Content ID..."
++
++#: modules/gui/qt4/menus.cpp:412
++msgid "%1 Information"
++msgstr "Информация %1"
++
++#: modules/gui/qt4/components/playlist/sorting.h:67
++msgid "Selection"
++msgstr "Выбор"
++
++#: modules/gui/qt4/ui/open_content_id.h:85
++msgid "Please enter a content id:"
++msgstr "Введите идентификатор контента (content id):"
++
++#: modules/gui/qt4/ui/open_content_id.h:87
++msgid "Enter the id of the %p2p_product% content here."
++msgstr "Введите в это поле идентификатор %p2p_product% контента."
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:26
++msgid "To start watching specify your gender and age"
++msgstr "Для начала просмотра укажите свой пол и возраст"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:32
++msgid "Gender"
++msgstr "Пол"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:33
++msgid "Male"
++msgstr "Мужчина"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:34
++msgid "Female"
++msgstr "Женщина"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:35
++msgid "Age"
++msgstr "Возраст"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:39
++msgid "Under"
++msgstr "Младше"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:46
++msgid "Above"
++msgstr "Старше"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:45
++msgid "Specify your gender"
++msgstr "Укажите свой пол"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:47
++msgid "Specify your age"
++msgstr "Укажите свой возраст"
++
++#: modules/gui/qt4/components/info_panels.cpp:47
++msgid "Update content id"
++msgstr "Обновить content id"
++
++#: modules/p2p_access/p2p_access.cpp:141
++msgid "Cannot connect to engine. Check if engine installed."
++msgstr "Не удалось подключиться к движку. Проверте правильность установки."
++
++#: modules/p2p_access/p2p_access.cpp:142
++msgid "Engine could not load \"%s\""
++msgstr "Не удалось загрузить \"%s\""
++
++#: modules/p2p_access/p2p_access.cpp:143
++msgid "Engine could not load \"%s\" : \"%s\""
++msgstr "Не удалось загрузить \"%s\" : \"%s\""
++
++#: modules/p2p_access/p2p_access.cpp:354
++#, c-format
++msgid "Attention! This source \"%s\" contains a playlist.\n"
++            "To play and activate the playlist you need to:\n"
++            "- Register on site torrentstream.org;\n"
++            "- Activate your account."
++msgstr ""
++"Внимание! Данный источник \"%s\" содержит плейлист.\n"
++"Для воспроизведения и активации плейлиста необходимо:\n"
++"- Зарегистрироваться на сайте torrentstream.org;\n"
++"- Активировать Ваш аккаунт."
++
++#: modules/p2p_access/api/in.cpp:20
++msgid "Buffering "
++msgstr "Буферизация "
++
++#: modules/p2p_access/api/in.cpp:21
++msgid "Prebuffering "
++msgstr "Пребуферизация "
++
++#: modules/p2p_access/api/in.cpp:22
++msgid "connected to "
++msgstr "подключено к "
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " streams"
++msgstr " потокам"
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " stream"
++msgstr " потоку"
++
++#: modules/p2p_access/api/in.cpp:24
++msgid "Checking "
++msgstr "Проверка "
++
++#: modules/p2p_access/api/in.cpp:25
++msgid "Insufficient download speed to play without interruption"
++msgstr "Недостаточная скорость загрузки для проигрывания без прерываний"
++
++#: modules/p2p_access/api/in.cpp:26
++msgid "Starting..."
++msgstr "Запуск..."
++
++#: modules/p2p_access/api/in.cpp:27
++msgid "Loading..."
++msgstr "Загрузка..."
++
++#: modules/p2p_access/api/in.cpp:28
++msgid "There are no active peers and streams at this moment"
++msgstr "На данный момент нет активных пиров и потоков"
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Advertising video"
++msgstr "Рекламный видеоблок"
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Main content"
++msgstr "Основной контент"
++
++#: src/input/var.c:29
++msgid "Cannot seek"
++msgstr "Невозможно выполнить действие"
++
++#: modules/src/libvlc-module.c:1581
++msgid "Perform play/pause action on plugin's area single click"
++msgstr "Воспроизведение/пауза при одинарном клике мыши"
++
++#: modules/src/libvlc-module.c:1582
++msgid "Share"
++msgstr "Поделиться"
++
++#: modules/src/libvlc-module.c:1583
++msgid "Copy Content ID"
++msgstr "Скопировать Content ID"
++
++#: modules/src/libvlc-module.c:1584
++msgid "Copy link to player"
++msgstr "Скопировать ссылку на плеер"
++
++#: modules/src/libvlc-module.c:1586
++msgid "Copy embed code"
++msgstr "Скопировать код для вставки"
++
++#: modules/src/libvlc-module.c:1585
++msgid "Browser Plugin"
++msgstr "Плагин для браузера"
++
++#: modules/p2p_access/psp_access.c:759
++msgid "Mute on"
++msgstr "Выключить звук"
++
++#: modules/p2p_access/psp_access.c:760
++msgid "Mute off"
++msgstr "Включить звук"
++
++#: modules/p2p_access/psp_access.c:761
++msgid "Turn off"
++msgstr "Выключить"
++
++#: modules/p2p_access/psp_access.c:764
++msgid "Close"
++msgstr "Закрыть"
++
++#: modules/p2p_access/psp_access.c:765
++msgid "Exit Fullscreen"
++msgstr "Выйти из полноэкранного режима"
++
++#: modules/p2p_access/psp_access.c:767
++msgid "Skip this ad"
++msgstr "Пропустить эту рекламу"
++
++#: modules/p2p_access/control.cpp:120
++msgid "This content is available for premium users only"
++msgstr "Просмотр доступен только премиум-пользователям"
++
++#: modules/p2p_access/control.cpp:122
++msgid "This content is available for authorized users only"
++msgstr "Просмотр доступен только авторизированным пользователям"
++
++#: modules/p2p_access/control.cpp:124
++msgid "Ad block detected. If you use a software which blocks ads, then turn it off. Otherwise try to start playback once more"
++msgstr "Обнаружен блокировщик рекламы. Если вы используете программу, которая блокирует рекламу, отключите ее. Если нет - попробуйте начать воспроизведение еще раз"
++
++#: modules/p2p_access/control.cpp:126
++msgid "Cannot start playback. Please try again later"
++msgstr "Не удалось начать воспроизведение. Пожалуйста, попробуйте позже"
++
++#: modules/p2p_access/control.cpp:128
++msgid "Cannot load transport file"
++msgstr "Не удалось загрузить транспортный файл"
++
++#: modules/p2p_access/control.cpp:130
++msgid "Advertising"
++msgstr "Реклама"
++
++#: modules/p2p_access/control.cpp:132
++msgid "This content is available for Ace Stream premium users only<br/><br/><a href=\"{{premium_activate_url}}\" style=\"color: #ffffff;\">Activate Premium Status</a>"
++msgstr "Просмотр доступен только премиум-пользователям Ace Stream<br/><br/><a href=\"{{premium_activate_url}}\" style=\"color: #ffffff;\">Активировать премиум статус</a>"
++
++#: modules/p2p_access/control.cpp:134
++msgid "This content is available only for users of service {{provider_name}}: {{provider_url}}"
++msgstr "Просмотр доступен только пользователям сервиса {{provider_name}}: {{provider_url}}"
++
++#: modules/p2p_access/control.cpp:136
++msgid "The playback is blocked because a software which blocks Ace Stream ads is detected"
++msgstr "Просмотр заблокирован, так как обнаружен блокировщик рекламы Ace Stream"
++
++#: modules/p2p_access/control.cpp:138
++msgid "Go to advertiser's site"
++msgstr "Перейти на сайт рекламодателя"
++
++#: modules/p2p_access/control.cpp:140
++msgid "Disable ads"
++msgstr "Отключить рекламу"
++
++#: modules/p2p_access/control.cpp:142
++msgid "Do not display ads anymore"
++msgstr "Больше не показывать рекламу"
++
++#: modules/p2p_access/control.cpp:144
++msgid "Select all"
++msgstr "Выбрать все"
++
++#: modules/p2p_access/control.cpp:146
++msgid "Select none"
++msgstr "Отменить все"
++
++#: modules/p2p_access/control.cpp:148
++msgid "Seeking..."
++msgstr "Подождите, идет перемотка"
++
++#: modules/p2p_access/control.cpp:150
++msgid "Seeking "
++msgstr "Буферизация "
++
++#: modules/p2p_access/control.cpp:152
++msgid "Missing data, going to live"
++msgstr "Нет данных, переход на live"
++
++#: modules/p2p_access/control.cpp:154
++msgid "Missing data, going to the nearest position"
++msgstr "Нет данных, переход на ближайшую позицию"
++
+ #, fuzzy
+ #~ msgid "Addon Manager"
+ #~ msgstr "Менеджер дополнений"
+diff -ru vlc-2.1.2.orig/po/uk.po vlc-2.1.2/po/uk.po
+--- vlc-2.1.2.orig/po/uk.po	2013-12-07 18:18:16.000000000 +0200
++++ vlc-2.1.2/po/uk.po	2014-01-23 17:19:55.982031274 +0200
+@@ -9725,7 +9725,7 @@
+ 
+ #: modules/audio_filter/equalizer_presets.h:42
+ msgid "Live"
+-msgstr "Живий виступ"
++msgstr "Ефір"
+ 
+ #: modules/audio_filter/equalizer_presets.h:42
+ msgid "Party"
+@@ -36308,3 +36304,271 @@
+#, fuzzy
+#~ msgid "Streaming Output"
+#~ msgstr "Вивід потоку"
++
++#: modules/gui/qt4/components/controller.hpp:128
++msgid "Skip ahead to live broadcast"
++msgstr "Пропустити і дивитися пряму трансляцію"
++
++#: modules/gui/qt4/components/controller_widget.cpp:128
++msgid "You are watching live broadcast"
++msgstr "Прямий ефір"
++
++#: modules/gui/qt4/components/controller.hpp:127
++msgid "Change quality"
++msgstr "Змінити якість"
++
++#: modules/gui/qt4/menus.cpp:127
++msgid "Open %1 Content ID..."
++msgstr "Відкрити %1 Content ID..."
++
++#: modules/gui/qt4/menus.cpp:412
++msgid "%1 Information"
++msgstr "Інформація %1"
++
++#: modules/gui/qt4/components/playlist/sorting.h:67
++msgid "Selection"
++msgstr "Вибір"
++
++#: modules/gui/qt4/ui/open_content_id.h:85
++msgid "Please enter a content id:"
++msgstr "Введіть ідентифікатор контента (content id):"
++
++#: modules/gui/qt4/ui/open_content_id.h:87
++msgid "Enter the id of the %p2p_product% content here."
++msgstr "Введіть ідентифікатор %p2p_product% контенте тут."
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:26
++msgid "To start watching specify your gender and age"
++msgstr "Для початку перегляду вкажіть свою стать та вік"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:32
++msgid "Gender"
++msgstr "Стать"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:33
++msgid "Male"
++msgstr "Чоловік"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:34
++msgid "Female"
++msgstr "Жінка"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:35
++msgid "Age"
++msgstr "Вік"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:39
++msgid "Under"
++msgstr "Молодше"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:46
++msgid "Above"
++msgstr "Старше"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:45
++msgid "Specify your gender"
++msgstr "Вкажіть свою стать"
++
++#: modules/gui/qt4/dialogs/userinfo.cpp:47
++msgid "Specify your age"
++msgstr "Вкажіть свій вік"
++
++#: modules/gui/qt4/components/info_panels.cpp:47
++msgid "Update content id"
++msgstr "Оновити content id"
++
++#: modules/p2p_access/p2p_access.cpp:141
++msgid "Cannot connect to engine. Check if engine installed."
++msgstr "Неможливо підключитись. Перевірти правильність втановлення ПО."
++
++#: modules/p2p_access/p2p_access.cpp:142
++msgid "Engine could not load \"%s\""
++msgstr "Неможливо завантажити \"%s\""
++
++#: modules/p2p_access/p2p_access.cpp:143
++msgid "Engine could not load \"%s\" : \"%s\""
++msgstr "Неможливо завантажити \"%s\" : \"%s\""
++
++#: modules/p2p_access/p2p_access.cpp:354
++#, c-format
++msgid "Attention! This source \"%s\" contains a playlist.\n"
++            "To play and activate the playlist you need to:\n"
++            "- Register on site torrentstream.org;\n"
++            "- Activate your account."
++msgstr ""
++"Увага! Дане джерело \"%s\" має плейлист.\n"
++"Для відтворення та активації плейлиста необхідно:\n"
++"- Зареєструватися на сайті torrentstream.org;\n"
++"- Активувати Ваш аккаунт."
++
++#: modules/p2p_access/api/in.cpp:20
++msgid "Buffering "
++msgstr "Буферизація "
++
++#: modules/p2p_access/api/in.cpp:21
++msgid "Prebuffering "
++msgstr "Пребуферизація "
++
++#: modules/p2p_access/api/in.cpp:22
++msgid "connected to "
++msgstr "під'єднано до "
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " streams"
++msgstr " потоків"
++
++#: modules/p2p_access/api/in.cpp:23
++msgid " stream"
++msgstr " потоку"
++
++#: modules/p2p_access/api/in.cpp:24
++msgid "Checking "
++msgstr "Перевірка "
++
++#: modules/p2p_access/api/in.cpp:25
++msgid "Insufficient download speed to play without interruption"
++msgstr "Недостатня швидкість завантаження для безперервного програвання"
++
++#: modules/p2p_access/api/in.cpp:26
++msgid "Starting..."
++msgstr "Запуск..."
++
++#: modules/p2p_access/api/in.cpp:27
++msgid "Loading..."
++msgstr "Завантаження..."
++
++#: modules/p2p_access/api/in.cpp:28
++msgid "There are no active peers and streams at this moment"
++msgstr "На даний момент активні піри і потоки відсутні"
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Advertising video"
++msgstr "Рекламний відеоблок"
++
++#: modules/p2p_access/api/in.cpp:29
++msgid "Main content"
++msgstr "Основний контент"
++
++#: src/input/var.c:29
++msgid "Cannot seek"
++msgstr "Неможливо виконати дію"
++
++#: modules/src/libvlc-module.c:1581
++msgid "Perform play/pause action on plugin's area single click"
++msgstr "Відтворення/пауза при одинарному кліку миші"
++
++#: modules/src/libvlc-module.c:1582
++msgid "Share"
++msgstr "Поділитися"
++
++#: modules/src/libvlc-module.c:1583
++msgid "Copy Content ID"
++msgstr "Скопіювати Content ID"
++
++#: modules/src/libvlc-module.c:1584
++msgid "Copy link to player"
++msgstr "Скопіювати посилання на плеєр"
++
++#: modules/src/libvlc-module.c:1586
++msgid "Copy embed code"
++msgstr "Скопіювати код для вставки"
++
++#: modules/src/libvlc-module.c:1585
++msgid "Browser Plugin"
++msgstr "Плагін для браузера"
++
++#: modules/p2p_access/psp_access.c:759
++msgid "Mute on"
++msgstr "Вимкнути звук"
++
++#: modules/p2p_access/psp_access.c:760
++msgid "Mute off"
++msgstr "Увімкнути звук"
++
++#: modules/p2p_access/psp_access.c:761
++msgid "Turn off"
++msgstr "Вимкнути"
++
++#: modules/p2p_access/psp_access.c:764
++msgid "Close"
++msgstr "Закрити"
++
++#: modules/p2p_access/psp_access.c:765
++msgid "Exit Fullscreen"
++msgstr "Вийти з повноекранного режиму"
++
++#: modules/p2p_access/psp_access.c:767
++msgid "Skip this ad"
++msgstr "Пропустити цю рекламу"
++
++#: modules/p2p_access/control.cpp:120
++msgid "This content is available for premium users only"
++msgstr "Перегляд доступний лише преміум-користувачам"
++
++#: modules/p2p_access/control.cpp:122
++msgid "This content is available for authorized users only"
++msgstr "Перегляд доступний лише авторизованим користувачам"
++
++#: modules/p2p_access/control.cpp:124
++msgid "Ad block detected. If you use a software which blocks ads, then turn it off. Otherwise try to start playback once more"
++msgstr "Знайдено блокувальник реклами. Якщо ви використовуєте програму, що блокує рекламу, вимкніть її. Якщо ні - спробуйте почати перегляд ще раз"
++
++#: modules/p2p_access/control.cpp:126
++msgid "Cannot start playback. Please try again later"
++msgstr "Не вдалося розпочати перегляд. Будь ласка, спробуйте пізніше"
++
++#: modules/p2p_access/control.cpp:128
++msgid "Cannot load transport file"
++msgstr "Не вдалося завантажити транспортний файл"
++
++#: modules/p2p_access/control.cpp:130
++msgid "Advertising"
++msgstr "Реклама"
++
++#: modules/p2p_access/control.cpp:132
++msgid "This content is available for Ace Stream premium users only<br/><br/><a href=\"{{premium_activate_url}}\" style=\"color: #ffffff;\">Activate Premium Status</a>"
++msgstr "Перегляд доступний лише преміум-користувачам Ace Stream<br/><br/><a href=\"{{premium_activate_url}}\" style=\"color: #ffffff;\">Активувати преміум статус"
++
++#: modules/p2p_access/control.cpp:134
++msgid "This content is available only for users of service {{provider_name}}: {{provider_url}}"
++msgstr "Перегляд доступний лише користувачам сервісу {{provider_name}}: {{provider_url}}"
++
++#: modules/p2p_access/control.cpp:136
++msgid "The playback is blocked because a software which blocks Ace Stream ads is detected"
++msgstr "Перегляд заблоковано, оскільки виявлено блокувальник реклами Ace Stream"
++
++#: modules/p2p_access/control.cpp:138
++msgid "Go to advertiser's site"
++msgstr "Перейти на сайт рекламодавця"
++
++#: modules/p2p_access/control.cpp:140
++msgid "Disable ads"
++msgstr "Вимкнути рекламу"
++
++#: modules/p2p_access/control.cpp:142
++msgid "Do not display ads anymore"
++msgstr "Більше не показувати рекламу"
++
++#: modules/p2p_access/control.cpp:144
++msgid "Select all"
++msgstr "Обрати все"
++
++#: modules/p2p_access/control.cpp:146
++msgid "Select none"
++msgstr "Відмінити все"
++
++#: modules/p2p_access/control.cpp:148
++msgid "Seeking..."
++msgstr "Зачекайте, йде перемотка"
++
++#: modules/p2p_access/control.cpp:150
++msgid "Seeking "
++msgstr "Буферизація "
++
++#: modules/p2p_access/control.cpp:152
++msgid "Missing data, going to live"
++msgstr "Немає даних, перехід на live"
++
++#: modules/p2p_access/control.cpp:154
++msgid "Missing data, going to the nearest position"
++msgstr "Немає даних, перехід на найближчу позицію"

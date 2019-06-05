@@ -1,0 +1,93 @@
+diff -ru vlc-2.1.2.orig/include/vlc_vout_display.h vlc-2.1.2/include/vlc_vout_display.h
+--- vlc-2.1.2.orig/include/vlc_vout_display.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_vout_display.h	2014-01-16 16:12:39.191798403 +0200
+@@ -36,6 +36,7 @@
+ #include <vlc_keys.h>
+ #include <vlc_mouse.h>
+ #include <vlc_vout_window.h>
++#include <p2p_object.h>
+ 
+ /* XXX
+  * Do NOT use video_format_t::i_aspect but i_sar_num/den everywhere. i_aspect
+@@ -342,6 +343,10 @@
+ 
+ static inline void vout_display_SendEventDisplaySize(vout_display_t *vd, int width, int height, bool is_fullscreen)
+ {
++    p2p_object_t *p_p2p = p2p_Get( vd );
++    if( p_p2p ) {
++        var_SetCoords( p_p2p, "vout-display-size", width, height );
++    }
+     vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_DISPLAY_SIZE, width, height, is_fullscreen);
+ }
+ static inline void vout_display_SendEventPicturesInvalid(vout_display_t *vd)
+diff -ru vlc-2.1.2.orig/src/video_output/video_output.c vlc-2.1.2/src/video_output/video_output.c
+--- vlc-2.1.2.orig/src/video_output/video_output.c	2013-09-12 18:18:34.000000000 +0300
++++ vlc-2.1.2/src/video_output/video_output.c	2014-01-16 17:00:16.286513776 +0200
+@@ -608,8 +608,8 @@
+     VLC_UNUSED(vd);
+     vout_window_cfg_t cfg_override = *cfg;
+ 
+-    if (!var_InheritBool( vout, "embedded-video"))
+-        cfg_override.is_standalone = true;
++    //if (!var_InheritBool( vout, "embedded-video"))
++    //    cfg_override.is_standalone = true;
+ 
+     if (vout->p->window.is_unused && vout->p->window.object) {
+         assert(!vout->p->splitter_name);
+diff -ru vlc-2.1.2.orig/src/video_output/display.c vlc-2.1.2/src/video_output/display.c
+--- vlc-2.1.2.orig/src/video_output/display.c	2013-07-25 14:29:38.000000000 +0300
++++ vlc-2.1.2/src/video_output/display.c	2014-03-05 14:33:22.864516561 +0200
+@@ -144,6 +144,11 @@
+  */
+ static void vout_display_Delete(vout_display_t *vd)
+ {
++    p2p_object_t *p_p2p = p2p_Get( vd );
++    if( p_p2p ) {
++        var_SetCoords( p_p2p, "vout-display-size", 0, 0 );
++    }
++
+     if (vd->module)
+         module_unneed(vd, vd->module);
+ 
+@@ -680,8 +685,8 @@
+     if (!osys->vout->p) {
+         vout_window_cfg_t cfg_override = *cfg;
+ 
+-        if (!var_InheritBool(osys->vout, "embedded-video"))
+-            cfg_override.is_standalone = true;
++        //if (!var_InheritBool(osys->vout, "embedded-video"))
++        //    cfg_override.is_standalone = true;
+ 
+         return vout_window_New(VLC_OBJECT(osys->vout), "$window", &cfg_override);
+     }
+@@ -1266,6 +1271,11 @@
+     osys->fit_window = 0;
+     osys->event.fifo = NULL;
+ 
++    p2p_object_t *p_p2p = p2p_Get( vout );
++    if( p_p2p ) {
++        var_SetCoords( p_p2p, "vout-display-size", osys->display_width, osys->display_height );
++    }
++
+     osys->source = *source;
+     osys->crop.left   = 0;
+     osys->crop.top    = 0;
+diff -ru vlc-2.1.2.orig/src/video_output/event.h vlc-2.1.2/src/video_output/event.h
+--- vlc-2.1.2.orig/src/video_output/event.h	2013-06-24 21:00:40.000000000 +0300
++++ vlc-2.1.2/src/video_output/event.h	2014-01-16 16:59:31.372982151 +0200
+@@ -63,6 +63,7 @@
+     {
+         /* FIXME? */
+         int x, y;
++        p2p_VideoClickActivate( p2p_Get( vout ), true );
+         var_GetCoords(vout, "mouse-moved", &x, &y);
+         var_SetCoords(vout, "mouse-clicked", x, y);
+         var_SetBool(vout->p_libvlc, "intf-popupmenu", false);
+@@ -88,6 +89,7 @@
+ static inline void vout_SendEventMouseDoubleClick(vout_thread_t *vout)
+ {
+     //vout_ControlSetFullscreen(vout, !var_GetBool(vout, "fullscreen"));
++    p2p_VideoClickActivate( p2p_Get( vout ), false );
+     var_ToggleBool(vout, "fullscreen");
+ }
+ static inline void vout_SendEventMouseVisible(vout_thread_t *vout)

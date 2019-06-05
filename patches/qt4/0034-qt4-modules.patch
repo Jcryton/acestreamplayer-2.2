@@ -1,0 +1,799 @@
+--- vlc-2.1.4.orig/modules/gui/qt4/input_manager.cpp	2014-02-21 15:59:56.000000000 +0200
++++ vlc-2.1.4/modules/gui/qt4/input_manager.cpp	2014-04-29 14:56:45.163148868 +0300
+@@ -40,6 +40,7 @@
+ #include <QDir>
+ #include <QSignalMapper>
+ #include <QMessageBox>
++#include <QTime>
+ 
+ #include <assert.h>
+ 
+@@ -54,11 +55,25 @@
+ static int PLItemRemoved( vlc_object_t *, const char *,
+                         vlc_value_t, vlc_value_t, void * );
+ 
++
++
++
+ static int InputEvent( vlc_object_t *, const char *,
+                        vlc_value_t, vlc_value_t, void * );
+ static int VbiEvent( vlc_object_t *, const char *,
+                      vlc_value_t, vlc_value_t, void * );
+ 
++static int P2PSaveableChanged( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int NothingToPlay( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int P2PShowQualitiesOnNextAppend( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int P2PInfoChanged( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int P2PStatusChanged( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int P2PErrorChanged( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int P2PAdParamsChanged( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int P2PLoadUrl( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++static int PLIndexChanged( vlc_object_t *, const char *, vlc_value_t, vlc_value_t, void * );
++
++                     
+ /* Ensure arbitratry (not dynamically allocated) event IDs are not in use */
+ static inline void registerAndCheckEventIds( int start, int end )
+ {
+@@ -76,7 +91,7 @@
+ InputManager::InputManager( QObject *parent, intf_thread_t *_p_intf) :
+                            QObject( parent ), p_intf( _p_intf )
+ {
+-    i_old_playing_status = END_S;
++    i_old_playing_status = INIT_S;
+     oldName      = "";
+     artUrl       = "";
+     p_input      = NULL;
+@@ -87,6 +102,12 @@
+     timeA        = 0;
+     timeB        = 0;
+     f_cache      = -1.; /* impossible initial value, different from all */
++
++    m_cached_volume = -1.f;
++    m_is_ad = false;
++    m_ad_params.reset();
++    m_first_time_pos_changed = true;
++
+     registerAndCheckEventIds( IMEvent::PositionUpdate, IMEvent::FullscreenControlPlanHide );
+     registerAndCheckEventIds( PLEvent::PLItemAppended, PLEvent::PLEmpty );
+ }
+@@ -148,6 +148,26 @@
+         p_item = input_GetItem( p_input );
+         emit rateChanged( var_GetFloat( p_input, "rate" ) );
+ 
++        m_first_time_pos_changed = true;
++        if( p_item ) {
++            bool isP2P = input_item_IsP2P( p_item );
++            emit disableSeekOnSliderDrag( isP2P );
++            bool b = input_item_GetP2PIsLiveFlag( p_item );
++            emit enableLiveStreamButton(b);
++            emit enableSliderLiveStreamMode(b);
++            checkQualityList( p_item );
++            emit enableSaveButton( input_item_GetP2PSaveFormat( p_item ) != P2P_SAVE_UNSAVEABLE );
++
++            m_is_ad = isAd();
++
++            if(isP2P)
++                emit inputIsAdvertisement( input_item_GetP2PIsAdFlag(p_item) );
++            else {
++                emit inputIsAdvertisement(false);
++                m_ad_params.reset();
++            }
++        }
++
+         /* Get Saved Time */
+         if( p_item->i_type == ITEM_TYPE_FILE )
+         {
+@@ -181,6 +201,7 @@
+         lastURI.clear();
+         assert( !p_input_vbi );
+         emit rateChanged( var_InheritFloat( p_intf, "rate" ) );
++        emit inputIsAdvertisement(false);
+     }
+ }
+ 
+@@ -153,6 +195,11 @@
+     vlc_object_release( p_input );
+     p_input = NULL;
+ 
++    emit inputIsAdvertisement(false);
++    m_first_time_pos_changed = true;
++    emit notifyStateChanged(AceWebBrowser::BHPS_STOPPED, m_is_ad);
++    emit enableSliderLiveStreamMode(false);
++
+     emit positionUpdated( -1.0, 0 ,0 );
+     emit rateChanged( var_InheritFloat( p_intf, "rate" ) );
+     emit nameChanged( "" );
+@@ -185,6 +232,8 @@
+ 
+     if( i_type == IMEvent::ItemChanged )
+         UpdateMeta( ple->item() );
++    if( i_type == IMEvent::PLIndexChanged)
++        emit notifyStateChanged(AceWebBrowser::BHPS_NONE, isAd());
+ 
+     if( !hasInput() )
+         return;
+@@ -261,22 +310,70 @@
+     case IMEvent::EPGEvent:
+         UpdateEPG();
+         break;
++    case IMEvent::P2PUpdateSaveableCmd:
++        UpdateSaveable();
++        break;
++    case IMEvent::P2PLivePos:
++        UpdateLivePos();
++        break;
+     default:
+         msg_Warn( p_intf, "This shouldn't happen: %i", i_type );
+         assert(0);
+     }
+ }
+ 
++void InputManager::setAdParams(QString url, QString text, int skipoffset, QString disurl, bool is_percent)
++{
++    m_ad_params.reset();
++    m_ad_params.url = url;
++    m_ad_params.visit_text = text;
++    m_ad_params.unableads_url = disurl;
++    m_ad_params.skip_offset = skipoffset;
++    m_ad_params.is_percent_offset = is_percent;
++    m_ad_params.enable_skip = false;
++    emit setVisitAdButtonText(text);
++
++    if(isAd()) {
++        firstAdPosProcess();
++    }
++}
++
++
++void InputManager::dropCachedVolume()
++{
++    if(m_cached_volume > 0.f) {
++        m_cached_volume = -1.f;
++    }
++}
++
++void InputManager::skipAd()
++{
++    if( isAd() ) {
++        char *url = input_item_GetURI( p_item );
++        if(url) {
++            input_item_UnblockP2PIsAdFlag( p_item );
++            delInput();
++            p2p_Skip( THEP2P, url );
++            free(url);
++            //
++            //if( hasInput() )
++            //    var_SetFloat( p_input, "position", 1.0 );
++        }
++    }
++}
++
+ /* Add the callbacks on Input. Self explanatory */
+ inline void InputManager::addCallbacks()
+ {
+     var_AddCallback( p_input, "intf-event", InputEvent, this );
++    var_AddCallback( THEPL, "playlist-item-update-saveable", P2PSaveableChanged, this );
+ }
+ 
+ /* Delete the callbacks on Input. Self explanatory */
+ inline void InputManager::delCallbacks()
+ {
+     var_DelCallback( p_input, "intf-event", InputEvent, this );
++    var_DelCallback( THEPL, "playlist-item-update-saveable", P2PSaveableChanged, this );
+ }
+ 
+ /* Static callbacks for IM */
+@@ -373,6 +470,10 @@
+         /* EPG data changed */
+         event = new IMEvent( IMEvent::EPGEvent );
+         break;
++        
++    case INPUT_EVENT_P2P_LIVEPOS :
++        event = new IMEvent( IMEvent::P2PLivePos );
++        break;
+ 
+     case INPUT_EVENT_SIGNAL:
+         /* This is for capture-card signals */
+@@ -398,6 +499,37 @@
+     return VLC_SUCCESS;
+ }
+ 
++static int P2PSaveableChanged( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old ); VLC_UNUSED( cur );
++    
++    InputManager *im = (InputManager*)data;
++    IMEvent *event = new IMEvent( IMEvent::P2PUpdateSaveableCmd );
++
++    QApplication::postEvent( im, event );
++    return VLC_SUCCESS;
++}
++
++void InputManager::firstAdPosProcess()
++{
++    if(p_input) {
++        int i_length = var_GetTime(  p_input , "length" ) / CLOCK_FREQ;
++        if(m_ad_params.skip_offset >= 0) {
++            if((m_ad_params.is_percent_offset && m_ad_params.skip_offset > 99) 
++                || (!m_ad_params.is_percent_offset && m_ad_params.skip_offset >= i_length)) {
++                m_ad_params.skip_offset = -1;
++                m_ad_params.enable_skip = false;
++            }
++            else
++                m_ad_params.enable_skip = true;
++        }
++        else
++            m_ad_params.enable_skip = false;
++        emit setDisableAdButtonEnable(m_ad_params.unableads_url != "");
++        emit setVisitAdButtonEnable(m_ad_params.url != "");
++    }
++}
++
+ void InputManager::UpdatePosition()
+ {
+     /* Update position */
+@@ -407,7 +539,47 @@
+     i_length = var_GetTime(  p_input , "length" ) / CLOCK_FREQ;
+     i_time = var_GetTime(  p_input , "time");
+     f_pos = var_GetFloat(  p_input , "position" );
++
++    if(m_first_time_pos_changed) {
++        if(isAd()) { 
++            firstAdPosProcess();
++        }
++        else {
++            p2p_RequestLoadUrlAd(THEP2P, P2P_LOAD_URL_WEBSTAT_PLAY, 0);
++        }
++
++        m_first_time_pos_changed = false;
++    }
++
+     emit positionUpdated( f_pos, i_time, i_length );
++    
++    if(isAd()) {
++        if(m_ad_params.enable_skip) {
++            if(m_ad_params.is_percent_offset) {
++                if( f_pos * 100 >= m_ad_params.skip_offset ) {
++                    emit setWaitForAd( -1 );
++                    m_ad_params.skip_offset = -1;
++                }
++                else {
++                    int last = m_ad_params.skip_offset - f_pos * 100;
++                    emit setWaitForAd(i_length * last / 100);
++                }
++            }
++            else {
++                if(i_length > 0 && (int)(f_pos * i_length) >= m_ad_params.skip_offset) {
++                    emit setWaitForAd( -1 );
++                    m_ad_params.skip_offset = -1;
++                }
++                else {
++                    int last = m_ad_params.skip_offset - (int)(f_pos * i_length);
++                    emit setWaitForAd( last );
++                }
++            }
++        }
++        else {
++            emit setWaitForAd( i_length - i_length * f_pos );
++        }
++    }
+ }
+ 
+ void InputManager::UpdateNavigation()
+@@ -444,6 +616,9 @@
+     {
+         i_old_playing_status = state;
+         emit playingStatusChanged( state );
++        if(state != OPENING_S && state != INIT_S) {
++            emit notifyStateChanged(state, isAd());
++        }
+     }
+ }
+ 
+@@ -502,6 +677,16 @@
+     return i_old_playing_status;
+ }
+ 
++bool InputManager::isAd() 
++{
++    return p_item && input_item_IsP2P(p_item) && input_item_GetP2PIsAdFlag(p_item);
++}
++
++bool InputManager::isP2P() 
++{
++    return p_item && input_item_IsP2P(p_item);
++}
++
+ bool InputManager::hasAudio()
+ {
+     if( hasInput() )
+@@ -621,6 +806,26 @@
+     if( hasInput() )
+     {
+         /* TODO */
++
++        /* advolume stuff */
++        audio_output_t *aout = input_GetAout( p_input );
++        if( !aout )
++            return;
++        if(isAd()) {
++            float advolume = var_InheritFloat(aout, "advolume");
++            float volume = playlist_VolumeGet(pl_Get(p_intf));
++            if(volume > advolume) {
++                playlist_VolumeSet(pl_Get(p_intf), advolume);
++                m_cached_volume = volume;
++            }
++        }
++        else {
++            if(m_cached_volume > 0.f) {
++                playlist_VolumeSet(pl_Get(p_intf), m_cached_volume );
++                m_cached_volume = -1.f;
++            }
++        }
++        vlc_object_release( aout );
+     }
+ }
+ void InputManager::UpdateCaching()
+@@ -761,6 +966,23 @@
+     }
+ }
+ 
++void InputManager::UpdateLivePos()
++{
++    if( hasInput() ) {
++        vlc_value_t var;
++        if( var_Get( THEP2P, "livepos", &var ) == VLC_SUCCESS ) {
++            emit updateLiveStreamButton( var.p2p_livepos.is_live );
++            emit updateSliderLiveStreamPos( var.p2p_livepos.live_first, 
++                                            var.p2p_livepos.live_last, 
++                                            var.p2p_livepos.pos, 
++                                            var.p2p_livepos.first_ts, 
++                                            var.p2p_livepos.last_ts, 
++                                            var.p2p_livepos.last, 
++                                            var.p2p_livepos.buffer_pieces );
++        }
++    }
++}
++
+ /* User update of the slider */
+ void InputManager::sliderUpdate( float new_pos )
+ {
+@@ -955,6 +1177,69 @@
+         var_SetTime( THEMIM->getInput(), "time" , timeA );
+ }
+ 
++void InputManager::UpdateSaveable()
++{
++	if( p_item )
++        emit enableSaveButton( input_item_GetP2PSaveFormat(p_item) != P2P_SAVE_UNSAVEABLE );
++}
++
++void InputManager::liveSeekEvent( int pos )
++{
++    emit liveSeekOccured();
++    p2p_LiveSeek( THEP2P, pos );
++}
++
++void InputManager::checkQualityList( input_item_t *p_i )
++{
++    QStringList q_list;
++    int q_current = -1;
++    if( p_i ) {
++        int q_size = input_item_GetP2PQualitySize( p_i );
++        if( q_size > 0 ) {
++            q_current = input_item_GetP2PQualityCurrent( p_i );
++            for( int i = 0; i<q_size; ++i ) {
++                char *q = input_item_GetP2PQualityValue( p_i, i );
++                QString item(q);
++                q_list.insert( i, item ); 
++                free(q);
++            }
++        }
++    }
++    emit enableQualitiesButton( q_list, q_current );
++}
++
++void InputManager::changeQuality( int quality )
++{
++    if( hasInput() ) {
++        if( p_item ) {
++            input_item_SetP2PQualityCurrent( p_item, quality );
++            playlist_Skip( THEPL,0 );
++        }
++    }
++    else {
++        playlist_item_t *p_pl_cur = playlist_CurrentPlayingItem(THEPL);
++        if( p_pl_cur && p_pl_cur->p_input ) {
++            input_item_SetP2PQualityCurrent( p_pl_cur->p_input, quality );
++            p2p_Stop( THEP2P );
++            playlist_Skip( THEPL,0 );
++        }
++        else {
++            playlist_item_t *p_last_playing_item = playlist_LastPlayingItem(THEPL);
++            if( p_last_playing_item && p_last_playing_item->p_input ) {
++                input_item_SetP2PQualityCurrent( p_last_playing_item->p_input, quality );
++                playlist_Play(THEPL);
++            }
++            else {
++                input_item_t *p_item = playlist_GetFirstP2PIntupItem(THEPL);
++                if( p_item ) {
++                    input_item_SetP2PQualityCurrent( p_item, quality );
++                    playlist_Play(THEPL);
++                }
++            }
++        }
++    }
++}
++
+ /**********************************************************************
+  * MainInputManager implementation. Wrap an input manager and
+  * take care of updating the main playlist input.
+@@ -962,7 +1247,7 @@
+  **********************************************************************/
+ 
+ MainInputManager::MainInputManager( intf_thread_t *_p_intf )
+-    : QObject(NULL), p_intf( _p_intf ),
++    : QObject(NULL), p_intf( _p_intf ), b_show_qualities_button_on_append(false),
+       random( VLC_OBJECT(THEPL), "random" ),
+       repeat( VLC_OBJECT(THEPL), "repeat" ), loop( VLC_OBJECT(THEPL), "loop" ),
+       volume( VLC_OBJECT(THEPL), "volume" ), mute( VLC_OBJECT(THEPL), "mute" )
+@@ -970,6 +1255,9 @@
+     p_input = NULL;
+     im = new InputManager( this, p_intf );
+ 
++    CONNECT(this, setAdParams(QString, QString, int, QString, bool), 
++            im, setAdParams(QString, QString, int, QString, bool));
++
+     var_AddCallback( THEPL, "item-change", ItemChanged, im );
+     var_AddCallback( THEPL, "activity", PLItemChanged, this );
+     var_AddCallback( THEPL, "leaf-to-parent", LeafToParent, this );
+@@ -982,6 +1270,15 @@
+     volume.addCallback( this, SLOT(notifyVolume(float)) );
+     mute.addCallback( this, SLOT(notifyMute(bool)) );
+ 
++    var_AddCallback( THEPL, "playlist-nothing-to-play", NothingToPlay, this );
++    var_AddCallback( THEPL, "playlist-item-show-appended-qualities", P2PShowQualitiesOnNextAppend, this );
++    var_AddCallback( THEP2P, "info", P2PInfoChanged, this );
++    var_AddCallback( THEP2P, "status", P2PStatusChanged, this );
++    var_AddCallback( THEP2P, "error", P2PErrorChanged, this );
++    var_AddCallback( THEP2P, "adparams", P2PAdParamsChanged, this );
++    var_AddCallback( THEP2P, "load-url", P2PLoadUrl, this );
++    var_AddCallback( THEPL, "playlist-index-changed", PLIndexChanged, im);
++
+     /* Warn our embedded IM about input changes */
+     DCONNECT( this, inputChanged( input_thread_t * ),
+               im, setInput( input_thread_t * ) );
+@@ -1011,6 +1308,14 @@
+     var_DelCallback( THEPL, "playlist-item-append", PLItemAppended, this );
+     var_DelCallback( THEPL, "playlist-item-deleted", PLItemRemoved, this );
+ 
++    var_DelCallback( THEPL, "playlist-nothing-to-play", NothingToPlay, this );
++    var_DelCallback( THEPL, "playlist-item-show-appended-qualities", P2PShowQualitiesOnNextAppend, this );
++    var_DelCallback( THEP2P, "info", P2PInfoChanged, this );
++    var_DelCallback( THEP2P, "status", P2PStatusChanged, this );
++    var_DelCallback( THEP2P, "error", P2PErrorChanged, this );
++    var_DelCallback( THEP2P, "adparams", P2PAdParamsChanged, this );
++    var_DelCallback( THEPL, "playlist-index-changed", PLIndexChanged, im);
++    var_DelCallback( THEP2P, "load-url", P2PLoadUrl, this );
+     delete menusAudioMapper;
+ }
+ 
+@@ -1035,7 +1340,8 @@
+     {
+     case PLEvent::PLItemAppended:
+         plEv = static_cast<PLEvent*>( event );
+-        emit playlistItemAppended( plEv->getItemId(), plEv->getParentId() );
++        //emit playlistItemAppended( plEv->getItemId(), plEv->getParentId() );
++        processAppendItem( plEv->getItemId(), plEv->getParentId() );
+         return;
+     case PLEvent::PLItemRemoved:
+         plEv = static_cast<PLEvent*>( event );
+@@ -1049,6 +1355,37 @@
+         plEv = static_cast<PLEvent*>( event );
+         emit leafBecameParent( plEv->getItemId() );
+         return;
++    case IMEvent::P2PShowQualitiesOnAppendCmd:
++        b_show_qualities_button_on_append = true;
++        return;
++    case IMEvent::P2PUpdateInfo:
++        updateInfo();
++        return;
++    case IMEvent::P2PUpdateStatus :
++        updateStatus();
++        return;
++    case IMEvent::P2PUpdateError :
++        updateError();
++        return;
++    case IMEvent::NothingToPlayCmd :
++        emit nothingToPlay();
++        return;
++    case OtherAdParamsUpdate_Type: {
++        AdParamsEvent *adp = static_cast<AdParamsEvent*>(event);
++        emit setAdParams(adp->url, adp->text, adp->skipoffset, adp->noadurl, adp->is_percent);
++        return;
++    }
++    case OtherLoadUrl_Type: {
++        LoadUrlEvent *ev = static_cast<LoadUrlEvent*>(event);
++        emit loadUrlEvent(ev->item);
++        return;
++    }
++    case OtherClearLoadUrl_Type: {
++        ClearLoadUrlEvent *ev = static_cast<ClearLoadUrlEvent*>(event);
++        if(!getIM()->isAd())
++            emit clearLoadUrlEvent(ev->type);
++        return;
++    }
+     default:
+         if( type != IMEvent::ItemChanged ) return;
+     }
+@@ -1062,7 +1399,13 @@
+ /* Playlist Control functions */
+ void MainInputManager::stop()
+ {
+-   playlist_Stop( THEPL );
++    if(p_input) {
++        int state = var_GetInteger( p_input, "state" );
++        if(state == PLAYING_S || state == PAUSE_S) {
++            emit userStopAction();
++        }
++    }
++    playlist_Stop( THEPL );
+ }
+ 
+ void MainInputManager::next()
+@@ -1088,8 +1431,13 @@
+     /* No input, play */
+     if( !p_input )
+         playlist_Play( THEPL );
+-    else
++    else {
++        int state = var_GetInteger( p_input, "state" );
+         playlist_Pause( THEPL );
++        if(state == PLAYING_S) {
++            emit userPauseAction();
++        }
++    }
+ }
+ 
+ void MainInputManager::play()
+@@ -1178,6 +1526,51 @@
+     return b_empty;
+ }
+ 
++void MainInputManager::processAppendItem( int id, int parent )
++{
++    emit playlistItemAppended( id, parent );
++    if( b_show_qualities_button_on_append ) {
++        b_show_qualities_button_on_append = false;
++        playlist_item_t *p = playlist_ItemGetById( THEPL, id );
++        if( p && p->p_input ) {
++            getIM()->checkQualityList( p->p_input );
++        }
++    }
++}
++
++void MainInputManager::updateInfo()
++{
++    QString ret = "";
++    char *psz_info = var_GetString( THEP2P, "info" );
++    if( psz_info ) {
++        ret.sprintf( "%s", psz_info );
++        free( psz_info );
++        emit p2pInfoChanged(ret);
++    }
++}
++
++void MainInputManager::updateStatus()
++{
++    QString ret = "";
++    char *psz_status = var_GetString( THEP2P, "status" );
++    if( psz_status ) {
++        ret.sprintf( "%s", psz_status );
++        free( psz_status );
++        emit p2pStatusChanged(ret);
++    }
++}
++
++void MainInputManager::updateError()
++{
++    QString ret = "";
++    char *psz_err = var_GetString( THEP2P, "error" );
++    if( psz_err ) {
++        ret.sprintf( "%s", psz_err );
++        free( psz_err );
++        emit p2pErrorChanged(ret);
++    }
++}
++
+ /****************************
+  * Static callbacks for MIM *
+  ****************************/
+@@ -1201,7 +1594,6 @@
+     MainInputManager *mim = (MainInputManager*)param;
+ 
+     PLEvent *event = new PLEvent( PLEvent::LeafToParent, newval.i_int );
+-
+     QApplication::postEvent( mim, event );
+     return VLC_SUCCESS;
+ }
+@@ -1216,7 +1608,6 @@
+     emit soundMuteChanged(mute);
+ }
+ 
+-
+ void MainInputManager::menusUpdateAudio( const QString& data )
+ {
+     audio_output_t *aout = getAout();
+@@ -1259,3 +1650,172 @@
+     }
+     return VLC_SUCCESS;
+ }
++
++static int NothingToPlay( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old ); VLC_UNUSED( cur );
++    
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++
++    IMEvent *event = new IMEvent( IMEvent::NothingToPlayCmd );
++    QApplication::postEvent( mim, event );
++    return VLC_SUCCESS;
++}
++
++static int P2PShowQualitiesOnNextAppend( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old ); VLC_UNUSED( cur );
++    
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++
++    IMEvent *event = new IMEvent( IMEvent::P2PShowQualitiesOnAppendCmd );
++    QApplication::postEvent( mim, event );
++    return VLC_SUCCESS;
++}
++
++static int P2PInfoChanged( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old ); VLC_UNUSED( cur );
++    
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++
++    IMEvent *event = new IMEvent( IMEvent::P2PUpdateInfo );
++    QApplication::postEvent( mim, event );
++    return VLC_SUCCESS;
++}
++
++static int P2PStatusChanged( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old ); VLC_UNUSED( cur );
++
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++
++    IMEvent *event = new IMEvent( IMEvent::P2PUpdateStatus );
++    QApplication::postEvent( mim, event );
++    return VLC_SUCCESS;
++}
++
++static int P2PErrorChanged( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old ); VLC_UNUSED( cur );
++
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++
++    IMEvent *event = new IMEvent( IMEvent::P2PUpdateError );
++    QApplication::postEvent( mim, event );
++    return VLC_SUCCESS;
++}
++
++static int P2PLoadUrl( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old );
++
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++    if(cur.p_address) {
++        p2p_load_url_item_t *p_loadurl = (p2p_load_url_item_t *)cur.p_address;
++        if( p_loadurl ) {
++            AceWebBrowser::BrowserType _type = (p_loadurl->type == P2P_LOAD_URL_WEBSTAT_PLAY
++                || p_loadurl->type == P2P_LOAD_URL_WEBSTAT_PAUSE
++                || p_loadurl->type == P2P_LOAD_URL_WEBSTAT_STOP
++                || p_loadurl->type == P2P_LOAD_URL_WEBSTAT_FULLSCREEN)
++                ? AceWebBrowser::BTYPE_WEBSTAT
++                : static_cast<AceWebBrowser::BrowserType>(p_loadurl->type);
++            if(p_loadurl->clear) {
++                ClearLoadUrlEvent *event = new ClearLoadUrlEvent(_type);
++                QApplication::postEvent( mim, event );
++                return VLC_SUCCESS;
++            }
++            
++            AceWebBrowser::LoadItem *item = new AceWebBrowser::LoadItem(
++                    _type,
++                    AceWebBrowser::UrlWithId(
++                            QString(p_loadurl->url).split(", "),
++                            QString(p_loadurl->id).split(", ")),
++                    p_loadurl->width,
++                    p_loadurl->height,
++                    p_loadurl->left,
++                    p_loadurl->top,
++                    p_loadurl->right,
++                    p_loadurl->bottom,
++                    p_loadurl->allow_dialogs,
++                    p_loadurl->enable_flash,
++                    static_cast<AceWebBrowser::BrowserCookies>(p_loadurl->cookies),
++                    QString(p_loadurl->embed_scripts).split(", "),
++                    QString(p_loadurl->embed_code),
++                    p_loadurl->preload,
++                    QString(p_loadurl->content_type),
++                    QString(p_loadurl->creative_type),
++                    QString(p_loadurl->click_url),
++                    static_cast<AceWebBrowser::BrowserUserAgent>(p_loadurl->user_agent),
++                    p_loadurl->close_after_seconds,
++                    p_loadurl->show_time,
++                    p_loadurl->start_hidden,
++                    p_loadurl->allow_window_open,
++                    p_loadurl->group_id,
++                    p_loadurl->url_filter,
++                    p_loadurl->useIE
++                    );
++
++            LoadUrlEvent *event = new LoadUrlEvent(*item);
++            QApplication::postEvent( mim, event );
++        }
++    }
++    
++    return VLC_SUCCESS;
++}
++
++static int P2PAdParamsChanged( vlc_object_t * obj, const char *var, vlc_value_t old, vlc_value_t cur, void *data )
++{
++    VLC_UNUSED( obj ); VLC_UNUSED( var ); VLC_UNUSED( old );
++    MainInputManager *mim = static_cast<MainInputManager*>(data);
++    p2p_ad_params_t *p_ad_params = (p2p_ad_params_t *)cur.p_address;
++    
++    if( p_ad_params ) {
++        QString url = "";
++        QString text = "";
++        QString skipoff = "";
++        int skipoffset = -1;
++        bool is_percent = false;
++        QString noadurl = "";
++        
++        if( p_ad_params->url )
++            url.sprintf( "%s", p_ad_params->url );
++        if( p_ad_params->text )
++            text.sprintf( "%s", p_ad_params->text );
++        if( p_ad_params->skipoffset )
++            skipoff.sprintf( "%s", p_ad_params->skipoffset );
++        if( p_ad_params->noadsurl )
++            noadurl.sprintf( "%s", p_ad_params->noadsurl );
++        
++        if(skipoff == "") {
++            skipoffset = -1;
++            is_percent = false;
++        }
++        else {
++            if(skipoff.at(skipoff.length()-1) == '%') {
++                is_percent = true;
++                skipoff.resize(skipoff.length()-1);
++                skipoffset = skipoff.toInt();
++            }
++            else {
++                is_percent = false;
++                QTime tm = QTime::fromString(skipoff, "hh:mm:ss");
++                skipoffset = tm.hour() * 60 * 60 + tm.minute() * 60 + tm.second();
++            }
++        }
++        AdParamsEvent *event = new AdParamsEvent( OtherAdParamsUpdate_Type, url, text, skipoffset, noadurl, is_percent );
++        QApplication::postEvent( mim, event );
++    }
++    return VLC_SUCCESS;
++}
++
++static int PLIndexChanged( vlc_object_t *p_this, const char *psz_var,
++                        vlc_value_t oldval, vlc_value_t, void *param )
++{
++    VLC_UNUSED( p_this ); VLC_UNUSED( psz_var ); VLC_UNUSED( oldval );
++    InputManager *im = (InputManager*)param;
++
++    IMEvent *event = new IMEvent( IMEvent::PLIndexChanged );
++    QApplication::postEvent( im, event );
++    return VLC_SUCCESS;
++}

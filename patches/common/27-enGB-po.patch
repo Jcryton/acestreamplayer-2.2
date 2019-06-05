@@ -1,0 +1,13 @@
+--- a/po/en_GB.po	2019-06-04 06:07:47.711056394 +0300
++++ b/po/en_GB.po.new	2019-06-04 06:08:05.561222028 +0300
+@@ -28640,10 +28640,6 @@
+ #~ msgstr "Skinnable Interface"
+ 
+ #, fuzzy
+-#~ msgid "Close"
+-#~ msgstr "Codec"
+-
+-#, fuzzy
+ #~ msgid "Create Mosaic"
+ #~ msgstr "Sample rate"
+ 

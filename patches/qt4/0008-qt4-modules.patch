@@ -1,0 +1,110 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/info_panels.cpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/info_panels.cpp	2014-01-17 18:01:16.182996111 +0200
+@@ -50,6 +50,7 @@
+ #include <QLabel>
+ #include <QSpinBox>
+ #include <QTextEdit>
++#include <QPushButton>
+ 
+ /************************************************************************
+  * Single panels
+@@ -666,3 +667,99 @@
+ void InputStatsPanel::clear()
+ {
+ }
++
++/*
++ * P2P Info
++ */
++P2PPanel::P2PPanel( QWidget *parent, intf_thread_t *_p_intf ) : QWidget( parent ), p_intf( _p_intf )
++{
++    QGridLayout *p2pLayout = new QGridLayout( this );
++    p2pLayout->setVerticalSpacing( 5 );
++    
++    QFont smallFont = QApplication::font();
++    smallFont.setPointSize( smallFont.pointSize() - 1 );
++    smallFont.setBold( true );
++
++    p_input = NULL;
++    QLabel *label;
++    
++    /* Content ID */
++    label = new QLabel( qtr( "Content ID" ) );
++    label->setFont( smallFont ); 
++    label->setContentsMargins( 3, 2, 0, 0 );
++    p2pLayout->addWidget( label, 0, 0, 1, 9 );
++    cidInput = new QLineEdit;
++    cidInput->setReadOnly(true);
++    p2pLayout->addWidget( cidInput, 1, 0, 1, 9 );
++    
++    cidUpdate = new QPushButton(QIcon(":/update"), "");
++    cidUpdate->setToolTip( qtr("Update content id") );
++    cidUpdate->setVisible( false );
++    BUTTONACT( cidUpdate, updateCid() );
++    p2pLayout->addWidget( cidUpdate, 1, 9, 1, 1 );
++    
++    p2pLayout->setColumnStretch( 1, 20 );
++    p2pLayout->setColumnMinimumWidth ( 1, 80 );
++    p2pLayout->setRowStretch( 2, 10 );
++}
++
++void P2PPanel::clear()
++{
++    cidInput->clear();
++}
++
++void P2PPanel::updateCid()
++{
++    if( !p_input ) {
++        clear();
++        return;
++    }
++    if( input_item_IsP2P( p_input ) ) {
++        /*Content ID*/
++        p2p_uri_id_type_t p2p_type = input_item_GetP2PType(p_input);
++        if( p2p_type == P2P_TYPE_PLAYER ) {
++            char *psz_p2p_uri = input_item_GetP2PUrl( p_input );
++            QString uri = qfu(psz_p2p_uri);
++            free( psz_p2p_uri );
++            uri.replace( "acestream://", "", Qt::CaseInsensitive );
++            cidInput->setText( uri );
++            
++            cidUpdate->setVisible( false );
++        }
++        else {
++            char *psz_infohash = input_item_GetP2PInfohash( p_input );
++            char *psz_checksum = input_item_GetP2PChecksum( p_input );
++            if( psz_infohash && psz_checksum ) {
++                int dev = input_item_GetP2PDeveloper( p_input );
++                int aff = input_item_GetP2PAffiliate( p_input );
++                int zone = input_item_GetP2PZone( p_input );
++                char *psz_cid = p2p_GetCid( THEP2P, psz_infohash, psz_checksum, dev, aff, zone );
++                if( psz_cid ) {
++                    cidInput->setText( qfu( psz_cid ) );
++                    free( psz_cid );
++                }
++                else {
++                    cidInput->setText( "" );
++                    cidUpdate->setVisible( true );
++                }
++                free(psz_infohash);
++                free(psz_checksum);
++            }
++            else
++                cidInput->setText( "" );
++        }
++    }
++    else
++        clear();
++}
++
++void P2PPanel::update( input_item_t *p_item )
++{
++    if( !p_item ) {
++        clear();
++        return;
++    }
++    p_input = p_item;
++    
++    updateCid();
++}

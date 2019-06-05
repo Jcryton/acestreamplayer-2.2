@@ -1,0 +1,40 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/open_panels.hpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/open_panels.hpp	2014-01-17 15:01:31.970986840 +0200
+@@ -38,6 +38,7 @@
+ #include "ui/open_disk.h"
+ #include "ui/open_net.h"
+ #include "ui/open_capture.h"
++#include "ui/open_content_id.h"
+ 
+ #include <QFileDialog>
+ 
+@@ -229,4 +230,29 @@
+     void advancedDialog();
+ };
+ 
++class ContentIdOpenPanel: public OpenPanel
++{
++	Q_OBJECT
++public:
++    ContentIdOpenPanel( QWidget *, intf_thread_t * );
++    virtual ~ContentIdOpenPanel();
++    virtual void clear() ;
++    void onFocus();
++    void onAccept();
++private:
++    Ui::OpenContentId ui;
++    bool b_recentList;
++public slots:
++    virtual void updateMRL();
++};
++
++class ContentIdValidator : public QValidator
++{
++   Q_OBJECT
++public:
++   ContentIdValidator( QObject *parent ) : QValidator( parent ) { }
++   void fixup( QString& ) const;
++   QValidator::State validate( QString&, int& ) const;
++};
++
+ #endif

@@ -1,0 +1,82 @@
+diff -ru vlc-2.1.2.orig/modules/control/dbus/dbus_player.c vlc-2.1.2/modules/control/dbus/dbus_player.c
+--- vlc-2.1.2.orig/modules/control/dbus/dbus_player.c	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/modules/control/dbus/dbus_player.c	2014-01-14 16:20:14.000000000 +0200
+@@ -33,6 +33,8 @@
+ #include <vlc_common.h>
+ #include <vlc_playlist.h>
+ #include <vlc_interface.h>
++#include <vlc_url.h>
++#include <p2p_object.h>
+ 
+ #include <math.h>
+ 
+@@ -269,9 +271,26 @@
+         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+     }
+ 
+-    playlist_Add( PL, psz_mrl, NULL,
++    p2p_uri_id_type_t p2p_uri_type = p2p_GetIdTypeWithOptString( psz_mrl, NULL );
++    if( p2p_uri_type == P2P_TYPE_UNSUPPORT ) {
++        playlist_Add( PL, psz_mrl, NULL,
+                   PLAYLIST_APPEND | PLAYLIST_GO,
+                   PLAYLIST_END, true, false );
++    }
++    else {
++        char *id;
++        if(p2p_uri_type != P2P_TYPE_PLAYER && p2p_uri_type != P2P_TYPE_RAW)
++            id = ( strstr(psz_mrl, "://") == NULL ) ? vlc_path2uri(psz_mrl, NULL) : strdup(psz_mrl);
++        else
++            id = strdup(psz_mrl);
++
++        p2p_LoadWithOptString( p2p_Get(PL), id, NULL,
++                        p2p_uri_type, p2p_LoadAsync, NULL,
++                        PLAYLIST_INSERT, p2p_LoadAddInput, NULL,
++                        true, true, 
++                        P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++        free(id);
++    }
+ 
+     REPLY_SEND;
+ }
+diff -ru vlc-2.1.2.orig/modules/control/dbus/dbus_tracklist.c vlc-2.1.2/modules/control/dbus/dbus_tracklist.c
+--- vlc-2.1.2.orig/modules/control/dbus/dbus_tracklist.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/control/dbus/dbus_tracklist.c	2014-01-14 16:19:35.000000000 +0200
+@@ -32,6 +32,8 @@
+ 
+ #include <vlc_common.h>
+ #include <vlc_playlist.h>
++#include <vlc_url.h>
++#include <p2p_object.h>
+ 
+ #include <assert.h>
+ 
+@@ -134,9 +136,26 @@
+                 psz_aftertrack );
+     }
+ 
+-    i_mode |= ( TRUE == b_play ) ? PLAYLIST_GO : 0;
+-    playlist_Add( PL, psz_mrl, NULL, i_mode, i_pos, true, false );
+-
++    p2p_uri_id_type_t p2p_uri_type = p2p_GetIdTypeWithOptString( psz_mrl, NULL );
++    if( p2p_uri_type == P2P_TYPE_UNSUPPORT ) {
++        i_mode |= ( TRUE == b_play ) ? PLAYLIST_GO : 0;
++        playlist_Add( PL, psz_mrl, NULL, i_mode, i_pos, true, false );
++    }
++    else {
++        char *id;
++        if(p2p_uri_type != P2P_TYPE_PLAYER && p2p_uri_type != P2P_TYPE_RAW)
++            id = ( strstr(psz_mrl, "://") == NULL ) ? vlc_path2uri(psz_mrl, NULL) : strdup(psz_mrl);
++        else
++            id = strdup(psz_mrl);
++
++        p2p_LoadWithOptString( p2p_Get(PL), id, NULL,
++                        p2p_uri_type, p2p_LoadAsync, NULL,
++                        PLAYLIST_INSERT, p2p_LoadAddInput, NULL,
++                        true, b_play == TRUE, 
++                        P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++        free(id);
++    }
++    
+     REPLY_SEND;
+ }
+ 

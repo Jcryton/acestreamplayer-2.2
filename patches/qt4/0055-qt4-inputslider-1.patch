@@ -1,0 +1,33 @@
+--- a/modules/gui/qt4/util/input_slider.cpp	2019-06-05 03:40:58.080208000 +0300
++++ b/modules/gui/qt4/util/input_slider.cpp.new	2019-06-05 02:39:04.071171000 +0300
+@@ -475,7 +475,7 @@
+         mTimeTooltip->hide();
+     }
+ }
+-
++/*
+ void SeekSlider::paintEvent( QPaintEvent *ev )
+ {
+     if ( alternativeStyle )
+@@ -502,7 +502,7 @@
+     else
+         QSlider::paintEvent( ev );
+ }
+-
++*/
+ void SeekSlider::hideEvent( QHideEvent * )
+ {
+     mTimeTooltip->hide();
+@@ -567,6 +567,12 @@
+     animHandle->start();
+ }
+ 
++bool SeekSlider::isAnimationRunning() const
++{
++    return animHandle->state() == QAbstractAnimation::Running
++            || hideHandleTimer->isActive();
++}
++
+ QSize SeekSlider::handleSize() const
+ {
+     const int size = ( orientation() == Qt::Horizontal ? height() : width() );

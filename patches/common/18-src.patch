@@ -1,0 +1,85 @@
+diff -ru vlc-2.1.2.orig/src/libvlccore.sym vlc-2.1.2/src/libvlccore.sym
+--- vlc-2.1.4.orig/src/libvlccore.sym	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.4/src/libvlccore.sym	2014-04-11 10:12:35.626011970 +0300
+@@ -650,6 +650,81 @@
+ vlc_str2keycode
+ fingerprinter_Create
+ fingerprinter_Destroy
++msg_P2PLog
++input_item_NewP2PData
++input_item_ClearP2PData
++input_item_CopyFull
++input_item_ClearOptions
++input_item_SetDecodedName
++input_item_IsP2P
++input_item_GetP2PData
++input_item_SetP2PData
++input_item_AddP2PQuality
++input_item_GetP2PUrl
++input_item_GetP2PFileName
++input_item_GetP2PInfohash
++input_item_GetP2PChecksum
++input_item_GetP2PQualityValue
++input_item_GetP2PQualityCurrent
++input_item_GetP2PQualitySize
++input_item_GetP2PType
++input_item_GetP2PSaveFormat
++input_item_GetP2PGroup
++input_item_GetP2PGroupSize
++input_item_GetP2PIndex
++input_item_GetP2PDeveloper
++input_item_GetP2PAffiliate
++input_item_GetP2PZone
++input_item_GetP2PPlayCommandFlag
++input_item_GetP2PActiveFlag
++input_item_GetP2PIsAdFlag
++input_item_GetP2PIsIntAdFlag
++input_item_GetP2PIsLiveFlag
++input_item_UnblockP2PIsAdFlag
++input_item_GetP2PCheckAndSetPlayback
++input_item_GetP2PCheckAndSetDuration
++input_item_SetP2PPlayCommandFlags
++input_item_unSetP2PPlayCommandFlag
++input_item_SetP2PSaveType
++input_item_ToggleP2PActiveFlag
++input_item_SetP2PActiveFlag
++input_item_SetP2PQualityCurrent
+++vout_P2POSDMessage
++vout_OSDFormatedMessage
++sql_Create
++sql_Destroy
++p2p_Get
++p2p_Deactivate
++p2p_SetCallback
++p2p_GetIdTypeWithOptArray
++p2p_GetIdTypeWithOptString
++p2p_LoadWithOptArray
++p2p_LoadWithOptString
++p2p_Start
++p2p_Stop
++p2p_Duration
++p2p_Playback
++p2p_Skip
++p2p_GetPid
++p2p_GetCid
++p2p_Save
++p2p_GetAdUrl
++p2p_LiveSeek
++p2p_UserData
++p2p_StatEvent
++p2p_SaveOption
++p2p_VideoClickActivate
++p2p_RegisterLoadUrlAdStatistics
++p2p_RequestLoadUrlAd
++p2p_RegisterLoadUrlAdEvent
++playlist_LastPlayingItem
++playlist_GetFirstP2PIntupItem
++playlist_p2pLoadCallback
++playlist_p2pGetStatusItemId
++vlc_GetActionByKey
++p2p_UserDataMining
++p2p_RestartLast
++p2p_InfoWindowsResponse
+ addons_manager_New
+ addons_manager_Delete
+ addons_manager_Gather

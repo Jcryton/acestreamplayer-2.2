@@ -1,0 +1,137 @@
+diff -ru vlc-2.1.2.orig/bin/cachegen.c vlc-2.1.2/bin/cachegen.c
+--- vlc-2.1.2.orig/bin/cachegen.c	2013-06-24 21:00:37.000000000 +0300
++++ vlc-2.1.2/bin/cachegen.c	2014-01-16 18:20:48.000000000 +0200
+@@ -82,9 +82,10 @@
+         if (setenv ("VLC_PLUGIN_PATH", path, 1))
+             abort ();
+ 
+-        const char *vlc_argv[4];
++        const char *vlc_argv[5];
+         int vlc_argc = 0;
+ 
++        vlc_argv[vlc_argc++] = "--no-p2p-access";
+         vlc_argv[vlc_argc++] = "--quiet";
+         if (force)
+             vlc_argv[vlc_argc++] = "--reset-plugins-cache";
+diff -dur vlc-2.1.4.orig/bin/vlc.c vlc-2.1.4/bin/vlc.c
+--- vlc-2.1.4.orig/bin/vlc.c	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.4/bin/vlc.c	2014-08-05 14:15:03.377218571 +0300
+@@ -79,6 +79,12 @@
+ }
+ #endif
+ 
++#ifdef KEY_HEADER
++#include "key.h"
++#else
++static const char dev_key[] = "1mcXu2Ujtsjy9z7k-elucnH-384lvH4E-munn1LrXVEt2bSnHO7VaEa";
++#endif
++
+ extern void vlc_enable_override (void);
+ 
+ static bool signal_ignored (int signum)
+@@ -220,6 +226,22 @@
+     memcpy (argv + argc, ppsz_argv, i_argc * sizeof (*argv));
+     argc += i_argc;
+ #endif
++
++#ifdef KEY_HEADER
++    // developer key staff
++    size_t dev_len = sizeof(dev_key) / sizeof(short);
++    char *dev_kk = developer_key_to_string( dev_key, &dev_len );
++    char* psz_keyopt = (char *)malloc((dev_len + 21)*sizeof(char));
++    strcpy(psz_keyopt, "--ace-developer-key=");
++    strcat(psz_keyopt, dev_kk);
++    argv[argc++] = psz_keyopt;
++#else
++    char* psz_keyopt = (char *)malloc((sizeof(dev_key) + 21)*sizeof(char));
++    strcpy(psz_keyopt, "--ace-developer-key=");
++    strcat(psz_keyopt, dev_key);
++    argv[argc++] = psz_keyopt;
++#endif
++
+     argv[argc] = NULL;
+ 
+     vlc_enable_override ();
+@@ -273,6 +295,10 @@
+     /* Cleanup */
+ out:
+     libvlc_release (vlc);
++#ifdef KEY_HEADER
++    free(dev_kk);
++#endif
++    
+ #ifdef __OS2__
+     for (int i = 2; i < argc; i++)
+         free (argv[i]);
+diff -ru vlc-2.1.2.orig/bin/winvlc.c vlc-2.1.2/bin/winvlc.c
+--- vlc-2.1.4.orig/bin/winvlc.c	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.4/bin/winvlc.c	2014-08-05 14:13:30.229217239 +0300
+@@ -47,6 +47,12 @@
+ LONG WINAPI vlc_exception_filter(struct _EXCEPTION_POINTERS *lpExceptionInfo);
+ static const wchar_t *crashdump_path;
+ 
++#ifdef KEY_HEADER
++#include "key.h"
++#else
++static const char dev_key[] = "kjYX790gTytRaXV04IvC-xZH3A18sj5b1Tf3I-J5XVS1xsj-j0797KwxxLpBl26HPvWMm";
++#endif
++
+ static char *FromWide (const wchar_t *wide)
+ {
+     size_t len;
+@@ -106,7 +112,7 @@
+         return 1;
+ 
+     char *argv[argc + 3];
+-    BOOL crash_handling = TRUE;
++    BOOL crash_handling = FALSE; //TRUE;
+     int j = 0;
+     char *lang = NULL;
+ 
+@@ -128,6 +134,21 @@
+ 
+         argv[j++] = FromWide (wargv[i]);
+     }
++    
++#ifdef KEY_HEADER
++    // developer key staff
++    size_t dev_len = sizeof(dev_key) / sizeof(short);
++    char *dev_kk = developer_key_to_string( dev_key, &dev_len );
++    char* psz_keyopt = (char *)malloc((dev_len + 21)*sizeof(char));
++    strcpy(psz_keyopt, "--ace-developer-key=");
++    strcat(psz_keyopt, dev_kk);
++    argv[j++] = psz_keyopt;
++#else
++    char* psz_keyopt = (char *)malloc((sizeof(dev_key) + 21)*sizeof(char));
++    strcpy(psz_keyopt, "--ace-developer-key=");
++    strcat(psz_keyopt, dev_key);
++    argv[j++] = psz_keyopt;
++#endif
+ 
+     argc = j;
+     argv[argc] = NULL;
+@@ -152,8 +173,11 @@
+     if (!lang)
+     {
+         HKEY h_key;
+-        if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\VideoLAN\\VLC\\"), 0, KEY_READ, &h_key )
+-                == ERROR_SUCCESS )
++#ifdef TORRENT_STREAM
++        if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\TorrentStream\\"), 0, KEY_READ, &h_key ) == ERROR_SUCCESS )
++#else
++        if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\AceStream\\"), 0, KEY_READ, &h_key ) == ERROR_SUCCESS )
++#endif
+         {
+             TCHAR szData[256];
+             DWORD len = 256;
+@@ -190,7 +214,9 @@
+                     "Either the command line options were invalid or no plugins were found.\n"),
+                     TEXT("VLC media player"),
+                     MB_OK|MB_ICONERROR);
+-
++#ifdef KEY_HEADER
++    free(dev_kk);
++#endif
+ 
+     for (int i = 0; i < argc; i++)
+         free (argv[i]);

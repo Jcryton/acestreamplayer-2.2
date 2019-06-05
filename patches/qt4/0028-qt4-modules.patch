@@ -1,0 +1,18 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs/mediainfo.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs/mediainfo.hpp	2014-01-17 15:54:07.046989635 +0200
+@@ -42,6 +42,7 @@
+     {
+         META_PANEL = 0,
+         EXTRAMETA_PANEL,
++        P2P_PANEL,
+         INFO_PANEL,
+         INPUTSTATS_PANEL
+     };
+@@ -62,6 +63,7 @@
+     MetaPanel *MP;
+     InfoPanel *IP;
+     ExtraMetaPanel *EMP;
++    P2PPanel *P2PMP;
+ 
+     QPushButton *saveMetaButton;
+     QLineEdit   *uriLine;

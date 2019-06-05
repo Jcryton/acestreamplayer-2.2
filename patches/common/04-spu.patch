@@ -1,0 +1,76 @@
+diff -ru vlc-2.1.2.orig/include/vlc_spu.h vlc-2.1.2/include/vlc_spu.h
+--- vlc-2.1.2.orig/include/vlc_spu.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_spu.h	2014-01-16 14:15:55.515199860 +0200
+@@ -47,6 +47,8 @@
+ 
+ /* Default subpicture channel ID */
+ #define SPU_DEFAULT_CHANNEL (1)
++#define SPU_P2P_CHANNEL (2)
++#define SPU_MAX_DEFINED_CHANNEL (2)
+ 
+ /**
+  * Subpicture unit descriptor
+diff -ru vlc-2.1.2.orig/include/vlc_vout_osd.h vlc-2.1.2/include/vlc_vout_osd.h
+--- vlc-2.1.2.orig/include/vlc_vout_osd.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_vout_osd.h	2014-01-16 14:13:59.043202517 +0200
+@@ -90,6 +90,9 @@
+  */
+ VLC_API void vout_OSDIcon( vout_thread_t *, int, short );
+ 
++VLC_API void vout_OSDFormatedMessage( vout_thread_t *, int, const char *);
++VLC_API void vout_P2POSDMessage(vout_thread_t *, mtime_t, const char *);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff -ru vlc-2.1.2.orig/src/video_output/video_text.c vlc-2.1.2/src/video_output/video_text.c
+--- vlc-2.1.2.orig/src/video_output/video_text.c	2013-07-19 13:57:09.000000000 +0300
++++ vlc-2.1.2/src/video_output/video_text.c	2014-01-16 14:14:44.207201495 +0200
+@@ -153,3 +153,15 @@
+     va_end(args);
+ }
+ 
++void vout_OSDFormatedMessage( vout_thread_t *vout, int channel, const char *msg)
++{
++    if( msg ) {
++        vout_OSDText(vout, channel, SUBPICTURE_ALIGN_TOP|SUBPICTURE_ALIGN_RIGHT, 1000000, msg);
++    }
++}
++
++void vout_P2POSDMessage( vout_thread_t *vout, mtime_t duration, const char *msg )
++{
++    if( msg )
++        vout_OSDText(vout, SPU_P2P_CHANNEL, SUBPICTURE_ALIGN_TOP, duration, msg);
++}
+diff -ru vlc-2.1.2.orig/src/video_output/vout_subpictures.c vlc-2.1.2/src/video_output/vout_subpictures.c
+--- vlc-2.1.2.orig/src/video_output/vout_subpictures.c	2013-07-19 13:57:09.000000000 +0300
++++ vlc-2.1.2/src/video_output/vout_subpictures.c	2014-01-16 17:01:15.480901318 +0200
+@@ -1229,7 +1229,7 @@
+     sys->margin = var_InheritInteger(spu, "sub-margin");
+ 
+     /* Register the default subpicture channel */
+-    sys->channel = SPU_DEFAULT_CHANNEL + 1;
++    sys->channel = SPU_MAX_DEFINED_CHANNEL + 1;
+ 
+     sys->source_chain_update = NULL;
+     sys->filter_chain_update = NULL;
+@@ -1401,6 +1401,9 @@
+     if (subpic->i_channel == SPU_DEFAULT_CHANNEL)
+         spu_ClearChannel(spu, SPU_DEFAULT_CHANNEL);
+ 
++    if (subpic->i_channel == SPU_P2P_CHANNEL)
++        spu_ClearChannel(spu, SPU_P2P_CHANNEL);
++
+     /* p_private is for spu only and cannot be non NULL here */
+     for (subpicture_region_t *r = subpic->p_region; r != NULL; r = r->p_next)
+         assert(r->p_private == NULL);
+@@ -1541,7 +1544,8 @@
+ 
+         if (!subpic)
+             continue;
+-        if (subpic->i_channel != channel && (channel != -1 || subpic->i_channel == SPU_DEFAULT_CHANNEL))
++        if (subpic->i_channel != channel && (channel != -1 || subpic->i_channel == SPU_DEFAULT_CHANNEL)
++                && (channel != -1 || subpic->i_channel == SPU_P2P_CHANNEL))
+             continue;
+ 
+         /* You cannot delete subpicture outside of spu_SortSubpictures */

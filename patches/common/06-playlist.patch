@@ -1,0 +1,719 @@
+diff -ru vlc-2.1.2.orig/include/vlc_playlist.h vlc-2.1.2/include/vlc_playlist.h
+--- vlc-2.1.2.orig/include/vlc_playlist.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_playlist.h	2014-01-16 16:13:30.566097983 +0200
+@@ -156,7 +156,7 @@
+ 
+ /** Playlist status */
+ typedef enum
+-{ PLAYLIST_STOPPED,PLAYLIST_RUNNING,PLAYLIST_PAUSED } playlist_status_t;
++{ PLAYLIST_STOPPED,PLAYLIST_RUNNING,PLAYLIST_PAUSED, PLAYLIST_PREBUFFERING } playlist_status_t;
+ 
+ /** Structure containing information about the playlist */
+ struct playlist_t
+@@ -258,6 +258,7 @@
+ #define playlist_Play(p) playlist_Control(p,PLAYLIST_PLAY, pl_Unlocked )
+ #define playlist_Pause(p) playlist_Control(p,PLAYLIST_PAUSE, pl_Unlocked )
+ #define playlist_Stop(p) playlist_Control(p,PLAYLIST_STOP, pl_Unlocked )
++#define playlist_Stop_From_Engine(p) playlist_Control(p,PLAYLIST_STOP_FROM_ENGINE, pl_Unlocked )
+ #define playlist_Next(p) playlist_Control(p,PLAYLIST_SKIP, pl_Unlocked, 1)
+ #define playlist_Prev(p) playlist_Control(p,PLAYLIST_SKIP, pl_Unlocked, -1)
+ #define playlist_Skip(p,i) playlist_Control(p,PLAYLIST_SKIP, pl_Unlocked,  (i) )
+@@ -306,6 +307,12 @@
+ VLC_API playlist_item_t * playlist_CurrentPlayingItem( playlist_t * ) VLC_USED;
+ VLC_API int playlist_Status( playlist_t * );
+ 
++VLC_API playlist_item_t *playlist_LastPlayingItem( playlist_t* ) VLC_USED;
++VLC_API input_item_t *playlist_GetFirstP2PIntupItem( playlist_t* ) VLC_USED;
++VLC_API int playlist_p2pLoadCallback( p2p_object_t*, void*, void* );
++
++VLC_API int playlist_p2pGetStatusItemId(playlist_t *, bool);
++
+ /**
+  * Export a node of the playlist to a certain type of playlistfile
+  * \param p_playlist the playlist to export
+diff -ru vlc-2.1.2.orig/src/playlist/playlist_internal.h vlc-2.1.2/src/playlist/playlist_internal.h
+--- vlc-2.1.2.orig/src/playlist/playlist_internal.h	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/playlist/playlist_internal.h	2014-01-16 17:25:07.728407997 +0200
+@@ -90,5 +90,7 @@
+     bool     b_tree; /**< Display as a tree */
+     bool     b_doing_ml; /**< Doing media library stuff  get quicker */
++    
++    playlist_item_t *p_last_item;
+ } playlist_private_t;
+ 
+ #define pl_priv( pl ) ((playlist_private_t *)(pl))
+@@ -145,6 +147,9 @@
+ void ResetCurrentlyPlaying( playlist_t *p_playlist, playlist_item_t *p_cur );
+ void ResyncCurrentIndex( playlist_t *p_playlist, playlist_item_t *p_cur );
+ 
++char *playlist_BuildP2PIndexesString( playlist_t *p_playlist, input_item_t *p_input_item );
++void playlist_SetP2PSaveFormat( playlist_t *p_playlist, const char *infohash, int index, p2p_save_format_t format );
++
+ /**
+  * @}
+  */
+diff -ru vlc-2.1.2.orig/src/playlist/item.c vlc-2.1.2/src/playlist/item.c
+--- vlc-2.1.2.orig/src/playlist/item.c	2013-07-13 16:29:55.000000000 +0300
++++ vlc-2.1.2/src/playlist/item.c	2014-01-20 15:23:23.379914988 +0200
+@@ -468,6 +468,9 @@
+              b_playlist ? p_playlist->p_playing :
+                           p_playlist->p_media_library , i_mode, i_pos );
+ 
++    if( input_item_IsP2P(p_input) ) {
++        input_item_SetPreparsed( p_input, true );
++    }
+     GoAndPreparse( p_playlist, i_mode, p_item );
+ 
+     PL_UNLOCK_IF( !b_locked );
+@@ -823,7 +826,7 @@
+     input_item_node_t *p_node, int i_pos, bool b_flat,
+     playlist_item_t **pp_first_leaf )
+ {
+-    *pp_first_leaf = NULL;
++    //*pp_first_leaf = NULL;
+ 
+     if( p_parent->i_children == -1 ) ChangeToNode( p_playlist, p_parent );
+ 
+@@ -836,23 +839,43 @@
+         playlist_item_t *p_new_item = NULL;
+         bool b_children = p_child_node->i_children > 0;
+ 
++        bool b_assert_new_item = true;
++        
+         //Create the playlist item represented by input node, if allowed.
+         if( !(b_flat && b_children) )
+         {
+-            p_new_item = playlist_NodeAddInput( p_playlist,
+-                    p_child_node->p_item,
+-                    p_parent,
+-                    PLAYLIST_INSERT, i_pos,
+-                    pl_Locked );
+-            if( !p_new_item ) return i_pos;
+-
+-            i_pos++;
++            p2p_uri_id_type_t p2p_uri_type = p2p_GetIdTypeWithOptArray(p_child_node->p_item->psz_uri, p_child_node->p_item->i_options, p_child_node->p_item->ppsz_options);
++            if( p2p_uri_type != P2P_TYPE_UNSUPPORT ) {
++                b_assert_new_item = false;
++                
++                char *_title = input_item_GetTitleFbName( p_child_node->p_item );
++                p2p_LoadWithOptArray( p2p_Get(p_playlist), p_child_node->p_item->psz_uri, _title,
++                            p2p_uri_type, p2p_LoadAsync, p_child_node->p_item->i_options, ( p_child_node->p_item->i_options ? p_child_node->p_item->ppsz_options : NULL ),
++                            PLAYLIST_INSERT, p2p_LoadAddToNode, p_parent,
++                            true, false, 
++                            P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++                free(_title);
++            }
++            else
++            {
++                *pp_first_leaf = NULL;
++                p_new_item = playlist_NodeAddInput( p_playlist,
++                        p_child_node->p_item,
++                        p_parent,
++                        PLAYLIST_INSERT, i_pos,
++                        pl_Locked );
++                if( !p_new_item ) return i_pos;
++                i_pos++;
++            }
+         }
+         //Recurse if any children
+         if( b_children )
+         {
+             //Substitute p_new_item for first child leaf
+             //(If flat, continue counting from current position)
++            
++            playlist_item_t *p_new_item_ch = p_new_item ? p_new_item : p_parent;
++            
+             int i_last_pos = RecursiveAddIntoParent(
+                     p_playlist,
+                     p_new_item ? p_new_item : p_parent,
+@@ -860,12 +883,18 @@
+                     ( b_flat ? i_pos : 0 ),
+                     b_flat,
+                     &p_new_item );
++                    
++            if(!p_new_item)
++                p_new_item = p_new_item_ch;
++
+             //If flat, take position after recursion as current position
+             if( b_flat ) i_pos = i_last_pos;
+         }
+-
+-        assert( p_new_item != NULL );
+-        if( i == 0 ) *pp_first_leaf = p_new_item;
++        
++        if(b_assert_new_item) {
++            assert( p_new_item != NULL );
++            if( i == 0 ) *pp_first_leaf = p_new_item;
++        }
+     }
+     return i_pos;
+ }
+diff -ru vlc-2.1.2.orig/src/playlist/search.c vlc-2.1.2/src/playlist/search.c
+--- vlc-2.1.2.orig/src/playlist/search.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/playlist/search.c	2014-01-16 17:24:48.605974158 +0200
+@@ -176,3 +176,79 @@
+     return VLC_SUCCESS;
+ }
+ 
++char *playlist_BuildP2PIndexesString( playlist_t *p_playlist, input_item_t *p_input_item )
++{
++    if( !p_input_item || !input_item_IsP2P(p_input_item) )
++        return NULL;
++
++    char *indexes = NULL;
++    int group_id = input_item_GetP2PGroup(p_input_item);
++    int group_size = input_item_GetP2PGroupSize(p_input_item);    
++    int index = input_item_GetP2PIndex(p_input_item);
++    
++    if( group_size == 1 || group_id == 0 ) {
++        indexes = (char*)malloc(sizeof(char) * 10);
++        sprintf( indexes, "%d", index );
++        return indexes;
++    }
++
++    indexes = (char*)malloc(sizeof(char) * group_size * 4); //!!!
++    sprintf( indexes, "%d", index );
++    
++    size_t input_item_index = -1;
++    
++    for( size_t i = 0; i < p_playlist->all_items.i_size; ++i ) {
++        input_item_t *p_iter_input = ARRAY_VAL(p_playlist->all_items, i)->p_input;
++        if( p_iter_input == p_input_item ) {
++            input_item_index = i;
++            continue;
++        }
++        if( input_item_index != -1 && input_item_GetP2PGroup(p_iter_input) == group_id && input_item_GetP2PActiveFlag(p_iter_input) ) {
++            int iter_index = input_item_GetP2PIndex(p_iter_input);
++            sprintf( indexes, "%s,%d", indexes, iter_index );
++        }
++    }
++    if( input_item_index != -1 ) {
++        for( size_t i =  0 ; i < input_item_index; ++i ) {
++            input_item_t *p_iter_input = ARRAY_VAL(p_playlist->all_items, i)->p_input;
++            if( input_item_GetP2PGroup(p_iter_input) == group_id && input_item_GetP2PActiveFlag(p_iter_input) ) {
++                int iter_index = input_item_GetP2PIndex(p_iter_input);
++                sprintf( indexes, "%s,%d", indexes, iter_index );
++            }
++        }
++    }
++    
++    return indexes;
++}
++
++void playlist_SetP2PSaveFormat( playlist_t *p_playlist, const char *infohash, int index, p2p_save_format_t format )
++{
++    PL_LOCK;
++    for( size_t i=0; i < p_playlist->all_items.i_size; i++ ) {
++		input_item_t *p_iter = ARRAY_VAL(p_playlist->all_items, i)->p_input;
++		if( input_item_IsP2P(p_iter) ) {
++			char *psz_iter_infohash = input_item_GetP2PInfohash(p_iter);
++            if( psz_iter_infohash ) {
++                if( !strcmp( infohash, psz_iter_infohash ) && index == input_item_GetP2PIndex(p_iter) )
++                    input_item_SetP2PSaveType( p_iter, format );
++                free( psz_iter_infohash );
++            }
++		}
++	}
++    PL_UNLOCK;
++}
++
++input_item_t *playlist_GetFirstP2PIntupItem( playlist_t *p_playlist )
++{
++    PL_LOCK;
++    input_item_t *p_item = NULL;
++    for( size_t i = 0; i < p_playlist->all_items.i_size; i++ ) {
++		input_item_t *p_iter = ARRAY_VAL(p_playlist->all_items, i)->p_input;
++        if( input_item_IsP2P( p_iter ) ) {
++            p_item = p_iter;
++            break;
++        }
++	}
++    PL_UNLOCK;
++    return p_item;
++}
+diff -ru vlc-2.1.2.orig/src/playlist/control.c vlc-2.1.2/src/playlist/control.c
+--- vlc-2.1.2.orig/src/playlist/control.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/playlist/control.c	2014-01-16 17:26:00.585965486 +0200
+@@ -80,12 +80,22 @@
+ 
+     switch( i_query )
+     {
+-    case PLAYLIST_STOP:
++    case PLAYLIST_STOP: {
++        playlist_item_t *p_playlist_item = playlist_CurrentPlayingItem( p_playlist );
++        if( p_playlist_item && p_playlist_item->p_input )
++            p2p_Stop( p2p_Get(p_playlist) );
++
+         pl_priv(p_playlist)->request.i_status = PLAYLIST_STOPPED;
+         pl_priv(p_playlist)->request.b_request = true;
+         pl_priv(p_playlist)->request.p_item = NULL;
+         break;
+-
++    }
++    case PLAYLIST_STOP_FROM_ENGINE: {
++        pl_priv(p_playlist)->request.i_status = PLAYLIST_STOPPED;
++        pl_priv(p_playlist)->request.b_request = true;
++        pl_priv(p_playlist)->request.p_item = NULL;
++        break;
++    }
+     // Node can be null, it will keep the same. Use with care ...
+     // Item null = take the first child of node
+     case PLAYLIST_VIEWPLAY:
+@@ -150,6 +160,8 @@
+         if( pl_priv(p_playlist)->status.i_status != PLAYLIST_STOPPED )
+             pl_priv(p_playlist)->request.i_status = pl_priv(p_playlist)->status.i_status;
+         pl_priv(p_playlist)->request.b_request = true;
++        
++        var_SetBool( p2p_Get(p_playlist), "item-will-replay", pl_priv(p_playlist)->request.i_skip == 0 );
+         break;
+ 
+     default:
+diff -ru vlc-2.1.4.orig/src/playlist/engine.c vlc-2.1.4/src/playlist/engine.c
+--- vlc-2.1.4.orig/src/playlist/engine.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.4/src/playlist/engine.c	2014-10-16 14:48:19.945147096 +0300
+@@ -32,12 +32,18 @@
+ #include <vlc_sout.h>
+ #include <vlc_playlist.h>
+ #include <vlc_interface.h>
++#include <vlc_vout.h>
+ #include "playlist_internal.h"
+ #include "input/resource.h"
+ 
+ /*****************************************************************************
+  * Local prototypes
+  *****************************************************************************/
++static int playlist_p2p_play_callback( p2p_object_t*, void*, void* );
++static int playlist_p2p_stop_callback( p2p_object_t*, void*, void* );
++static int playlist_p2p_cansave_callback( p2p_object_t*, void*, void* );
++static int P2PExitFullscreenCallback( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *data );
++ 
+ static void VariablesInit( playlist_t *p_playlist );
+ 
+ static int RandomCallback( vlc_object_t *p_this, char const *psz_cmd,
+@@ -287,6 +293,8 @@
+     pl_priv(p_playlist)->status.p_node = p_playlist->p_playing;
+     pl_priv(p_playlist)->request.b_request = false;
+     pl_priv(p_playlist)->status.i_status = PLAYLIST_STOPPED;
++    
++    pl_priv(p_playlist)->p_last_item = NULL;
+ 
+     if(b_ml)
+     {
+@@ -446,6 +454,9 @@
+         playlist_ItemDelete( pl_priv(p_playlist)->status.p_item ); */
+     }
+     pl_priv(p_playlist)->status.p_item = p_item;
++    
++    if( p_item )
++        pl_priv(p_playlist)->p_last_item = p_item;
+ }
+ 
+ void set_current_status_node( playlist_t * p_playlist,
+@@ -513,6 +524,23 @@
+     var_Create( p_playlist, "mute", VLC_VAR_BOOL );
+     var_Create( p_playlist, "volume", VLC_VAR_FLOAT );
+     var_SetFloat( p_playlist, "volume", -1.f );
++    
++    var_Create( p_playlist, "playlist-nothing-to-play", VLC_VAR_BOOL );
++    var_Create( p_playlist, "playlist-some-control-request", VLC_VAR_BOOL );
++    var_Create( p_playlist, "playlist-item-update-saveable", VLC_VAR_BOOL );
++    var_Create( p_playlist, "playlist-item-show-appended-qualities", VLC_VAR_BOOL );
++    var_Create( p_playlist, "playlist-index-changed", VLC_VAR_BOOL );
++    
++    /* p2p_object */
++    var_Create (p_playlist, "start-position", VLC_VAR_FLOAT);
++    var_SetFloat(p_playlist, "start-position", 0.0);
++    var_Create (p_playlist, "start-deinterlace", VLC_VAR_STRING);
++    var_SetString(p_playlist, "start-deinterlace", "");
++    var_AddCallback( p2p_Get(p_playlist), "exit-fullscreen", P2PExitFullscreenCallback, p_playlist );
++    p2p_SetCallback( p2p_Get(p_playlist), P2P_LOAD_CALLBACK, playlist_p2pLoadCallback, p_playlist );
++    p2p_SetCallback( p2p_Get(p_playlist), P2P_PLAY_CALLBACK, playlist_p2p_play_callback, p_playlist );
++    p2p_SetCallback( p2p_Get(p_playlist), P2P_STOP_CALLBACK, playlist_p2p_stop_callback, p_playlist );
++    p2p_SetCallback( p2p_Get(p_playlist), P2P_CANSAVE_CALLBACK, playlist_p2p_cansave_callback, p_playlist );
+ }
+ 
+ playlist_item_t * playlist_CurrentPlayingItem( playlist_t * p_playlist )
+@@ -529,3 +557,144 @@
+     return pl_priv(p_playlist)->status.i_status;
+ }
+ 
++playlist_item_t *playlist_LastPlayingItem( playlist_t * p_playlist )
++{
++    PL_ASSERT_LOCKED;
++    return pl_priv(p_playlist)->p_last_item;
++}
++
++int playlist_p2pLoadCallback( p2p_object_t *p_p2p, void *p_callback_item, void *p_data )
++{
++    VLC_UNUSED(p_p2p);
++    playlist_t *p_playlist = (playlist_t*)p_data;
++    p2p_load_item_t *p_load_item = (p2p_load_item_t*)p_callback_item;
++    int ret = VLC_EGENERIC;
++    
++    if( p_load_item ) {
++        if( p_load_item->p_input_item ) {
++            input_item_t *p_input_item_copy = input_item_CopyFull( p_load_item->p_input_item );
++        
++            bool playlist_is_empty = p_playlist->items.i_size == 0;
++            if( playlist_is_empty ) {
++                if( input_item_GetP2PQualitySize(p_input_item_copy) > 0 )
++                    var_TriggerCallback( p_playlist, "playlist-item-show-appended-qualities" );
++            }
++            msg_P2PLog( p_playlist, "[P2PLoadCallback] ..." );
++            if( p_load_item->desktop_add_type == p2p_LoadAddToNode && p_load_item->p_parent_node ) {
++                ret = (int)(playlist_NodeAddInput( p_playlist, p_input_item_copy,
++                            p_load_item->p_parent_node,
++                            p_load_item->need_start ? p_load_item->add_mode | PLAYLIST_GO : p_load_item->add_mode,
++                            PLAYLIST_END,
++                            p_load_item->object_locked ? pl_Locked : pl_Unlocked ) != NULL);
++            }
++            else {
++                ret = playlist_AddInput( p_playlist,
++                        p_input_item_copy,
++                        p_load_item->need_start ? p_load_item->add_mode | PLAYLIST_GO : p_load_item->add_mode,
++                        PLAYLIST_END, p_load_item->add_to_playlist, p_load_item->object_locked ? pl_Locked : pl_Unlocked );
++            }
++            vlc_gc_decref( p_input_item_copy );
++        }
++    }
++    return ret;
++}
++
++static int playlist_p2p_play_callback( p2p_object_t *p_p2p, void *p_callback_item, void *p_data )
++{
++    VLC_UNUSED(p_p2p);
++    playlist_t *p_playlist = (playlist_t*)p_data;
++    p2p_play_item_t *p_play_item = (p2p_play_item_t*)p_callback_item;
++    
++    if( p_play_item ) {
++        msg_P2PLog( p_playlist, "[P2PPlayCallback] ..." );
++        
++        input_item_t* p_input = NULL;
++        if( pl_priv( p_playlist )->request.p_item ) {
++            p_input = pl_priv( p_playlist )->request.p_item->p_input;
++        }
++        else {
++            playlist_item_t *p_playlist_item = playlist_CurrentPlayingItem( p_playlist );
++            if(p_playlist_item) {
++                p_input = pl_priv( p_playlist )->request.p_item = p_playlist_item;
++                p_input = p_playlist_item->p_input;
++            }
++        }
++        if( p_input && input_item_IsP2P(p_input) ) {
++            pl_priv(p_playlist)->request.b_request = true;
++            pl_priv(p_playlist)->request.i_skip = 0;
++            
++            input_item_SetP2PPlayCommandFlags( p_input, 
++                        p_play_item->play_content_type == P2P_PLAY_AD,
++                        p_play_item->play_content_type == P2P_PLAY_INTERRUPTABLE_AD,
++                        p_play_item->play_content_type == P2P_PLAY_STREAM );
++            var_SetFloat( p_playlist, "start-position", p_play_item->start_position );
++            var_SetString( p_playlist, "start-deinterlace", p_play_item->deinterlace );
++            
++            input_item_SetURI( p_input, p_play_item->url );
++            pl_priv(p_playlist)->request.p_item->p_input=p_input;
++            pl_priv(p_playlist)->request.i_status = PLAYLIST_RUNNING;
++            vlc_cond_signal( &pl_priv(p_playlist)->signal );
++        }
++    }
++    return VLC_SUCCESS;
++}
++
++static int playlist_p2p_stop_callback( p2p_object_t *p_p2p, void *p_callback_item, void *p_data )
++{
++    VLC_UNUSED(p_p2p); VLC_UNUSED(p_callback_item);
++    
++    playlist_t *p_playlist = (playlist_t*)p_data;
++    msg_P2PLog( p_playlist, "[P2PStopCallback] ..." );
++    playlist_Stop_From_Engine(p_playlist);
++    
++    return VLC_SUCCESS;
++}
++
++static int playlist_p2p_cansave_callback( p2p_object_t *p_p2p, void *p_callback_item, void *p_data )
++{
++    VLC_UNUSED(p_p2p);
++    playlist_t *p_playlist = (playlist_t*)p_data;
++    p2p_cansave_item_t *p_cansave_item = (p2p_cansave_item_t*)p_callback_item;
++    
++    if( p_cansave_item ) {
++        msg_P2PLog( p_playlist, "[P2PCansaveCallback] ..." );
++        playlist_SetP2PSaveFormat( p_playlist, p_cansave_item->infohash, p_cansave_item->index, p_cansave_item->format );
++        
++        var_TriggerCallback( p_playlist, "playlist-item-update-saveable" );
++    }
++
++    return VLC_SUCCESS;
++}
++
++static int P2PExitFullscreenCallback( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *data )
++{
++    VLC_UNUSED(p_this); VLC_UNUSED(psz_cmd);  VLC_UNUSED(oldval);  VLC_UNUSED(newval);
++    playlist_t *p_playlist = (playlist_t*)data;
++
++    input_thread_t *p_input =  playlist_CurrentInput( p_playlist );
++    if( p_input ) {
++        bool fs = var_GetBool( p_playlist, "fullscreen" );
++        if( fs ) {
++            fs = var_ToggleBool( p_playlist, "fullscreen" );
++            vout_thread_t *p_vout = input_GetVout( p_input );
++            if( p_vout ) {
++                var_SetBool( p_vout, "fullscreen", fs );
++                vlc_object_release( p_vout );
++            }
++        }
++        vlc_object_release( p_input );
++    }
++    
++    return VLC_SUCCESS;
++}
++
++int playlist_p2pGetStatusItemId(playlist_t *p_playlist, bool locked) 
++{
++	int ret = -1;
++	if (!locked) PL_LOCK;
++	if (pl_priv(p_playlist)->status.p_item) {
++		ret = pl_priv(p_playlist)->status.p_item->i_id;
++	}
++	if (!locked) PL_UNLOCK;
++	return ret;
++}
+diff -ru vlc-2.1.2.orig/src/playlist/thread.c vlc-2.1.2/src/playlist/thread.c
+--- vlc-2.1.2.orig/src/playlist/thread.c	2013-12-03 11:12:35.000000000 +0200
++++ vlc-2.1.2/src/playlist/thread.c	2014-03-04 16:45:07.225836906 +0200
+@@ -326,43 +326,56 @@
+         {
+             if( p_playlist->i_current_index < -1 )
+                 p_playlist->i_current_index = -1;
+-            for( int i = i_skip; i > 0 ; i-- )
+-            {
+-                p_playlist->i_current_index++;
+-                if( p_playlist->i_current_index >= p_playlist->current.i_size )
++            bool b_active = false;
++            do {
++                for( int i = i_skip; i > 0 ; i-- )
+                 {
+-                    PL_DEBUG( "looping - restarting at beginning of node" );
+-                    /* reshuffle playlist when end is reached */
+-                    if( var_GetBool( p_playlist, "random" ) ) {
+-                        PL_DEBUG( "reshuffle playlist" );
+-                        ResetCurrentlyPlaying( p_playlist,
+-                                get_current_status_item( p_playlist ) );
++                    p_playlist->i_current_index++;
++                    if( p_playlist->i_current_index >= p_playlist->current.i_size )
++                    {
++                        PL_DEBUG( "looping - restarting at beginning of node" );
++                        /* reshuffle playlist when end is reached */
++                        if( var_GetBool( p_playlist, "random" ) ) {
++                            PL_DEBUG( "reshuffle playlist" );
++                            ResetCurrentlyPlaying( p_playlist,
++                                    get_current_status_item( p_playlist ) );
++                        }
++                        p_playlist->i_current_index = 0;
+                     }
+-                    p_playlist->i_current_index = 0;
+                 }
++                p_new = ARRAY_VAL( p_playlist->current,
++                                p_playlist->i_current_index );
++
++                b_active = input_item_GetP2PActiveFlag(p_new->p_input);
+             }
+-            p_new = ARRAY_VAL( p_playlist->current,
+-                               p_playlist->i_current_index );
++            while(!b_active);
+         }
+         else if( p_playlist->current.i_size && (i_skip < 0) )
+         {
+-            for( int i = i_skip; i < 0 ; i++ )
++            bool b_active = false;
++            do
+             {
+-                p_playlist->i_current_index--;
+-                if( p_playlist->i_current_index <= -1 )
++                for( int i = i_skip; i < 0 ; i++ )
+                 {
+-                    PL_DEBUG( "looping - restarting at end of node" );
+-                    /* reshuffle playlist when beginning is reached */
+-                    if( var_GetBool( p_playlist, "random" ) ) {
+-                        PL_DEBUG( "reshuffle playlist" );
+-                        ResetCurrentlyPlaying( p_playlist,
+-                                get_current_status_item( p_playlist ) );
++                    p_playlist->i_current_index--;
++                    if( p_playlist->i_current_index <= -1 )
++                    {
++                        PL_DEBUG( "looping - restarting at end of node" );
++                        /* reshuffle playlist when beginning is reached */
++                        if( var_GetBool( p_playlist, "random" ) ) {
++                            PL_DEBUG( "reshuffle playlist" );
++                            ResetCurrentlyPlaying( p_playlist,
++                                    get_current_status_item( p_playlist ) );
++                        }
++                        p_playlist->i_current_index = p_playlist->current.i_size-1;
+                     }
+-                    p_playlist->i_current_index = p_playlist->current.i_size-1;
+                 }
+-            }
+-            p_new = ARRAY_VAL( p_playlist->current,
+-                               p_playlist->i_current_index );
++                p_new = ARRAY_VAL( p_playlist->current,
++                                   p_playlist->i_current_index );
++
++                b_active = input_item_GetP2PActiveFlag(p_new->p_input);
++			}
++			while(!b_active);
+         }
+         /* Clear the request */
+         p_sys->request.b_request = false;
+@@ -370,6 +383,15 @@
+     /* "Automatic" item change ( next ) */
+     else
+     {
++        /* after ad we don't change item */
++        playlist_item_t* p_it = get_current_status_item( p_playlist );
++		if( p_it && input_item_IsP2P(p_it->p_input) && ( input_item_GetP2PIsAdFlag(p_it->p_input) || input_item_GetP2PIsIntAdFlag(p_it->p_input)) )
++			return NULL;
++        if( var_GetBool( p2p_Get(p_playlist), "ad-skipped" ) ) {
++            var_SetBool( p2p_Get(p_playlist), "ad-skipped", false );
++            return NULL;
++        }
++    
+         bool b_loop = var_GetBool( p_playlist, "loop" );
+         bool b_repeat = var_GetBool( p_playlist, "repeat" );
+         bool b_playstop = var_GetBool( p_playlist, "play-and-stop" );
+@@ -412,25 +434,31 @@
+             ResetCurrentlyPlaying( p_playlist,
+                                    get_current_status_item( p_playlist ) );
+ 
+-        p_playlist->i_current_index++;
+-        assert( p_playlist->i_current_index <= p_playlist->current.i_size );
+-        if( p_playlist->i_current_index == p_playlist->current.i_size )
+-        {
+-            if( !b_loop || p_playlist->current.i_size == 0 )
+-                return NULL;
+-            /* reshuffle after last item has been played */
+-            if( var_GetBool( p_playlist, "random" ) ) {
+-                PL_DEBUG( "reshuffle playlist" );
+-                ResetCurrentlyPlaying( p_playlist,
+-                                       get_current_status_item( p_playlist ) );
++        bool b_active = false;
++        do {
++            p_playlist->i_current_index++;
++            assert( p_playlist->i_current_index <= p_playlist->current.i_size );
++            if( p_playlist->i_current_index == p_playlist->current.i_size )
++            {
++                if( !b_loop || p_playlist->current.i_size == 0 )
++                    return NULL;
++                /* reshuffle after last item has been played */
++                if( var_GetBool( p_playlist, "random" ) ) {
++                    PL_DEBUG( "reshuffle playlist" );
++                    ResetCurrentlyPlaying( p_playlist,
++                                        get_current_status_item( p_playlist ) );
++                }
++                p_playlist->i_current_index = 0;
+             }
+-            p_playlist->i_current_index = 0;
+-        }
+-        PL_DEBUG( "using item %i", p_playlist->i_current_index );
+-        if ( p_playlist->current.i_size == 0 )
+-            return NULL;
++            PL_DEBUG( "using item %i", p_playlist->i_current_index );
++            if ( p_playlist->current.i_size == 0 )
++                return NULL;
+ 
+-        p_new = ARRAY_VAL( p_playlist->current, p_playlist->i_current_index );
++            p_new = ARRAY_VAL( p_playlist->current, p_playlist->i_current_index );
++            b_active = input_item_GetP2PActiveFlag(p_new->p_input);
++        }
++        while(!b_active);
++        
+         /* The new item can't be autoselected  */
+         if( p_new != NULL && p_new->i_flags & PLAYLIST_SKIP_FLAG )
+             return NULL;
+@@ -459,6 +487,7 @@
+         PL_DEBUG( "dead input" );
+         PL_UNLOCK;
+ 
++
+         /* WARNING: Input resource manipulation and callback deletion are
+          * incompatible with the playlist lock. */
+         if( !var_InheritBool( p_input, "sout-keep" ) )
+@@ -485,6 +514,9 @@
+     playlist_private_t *p_sys = pl_priv(p_playlist);
+     assert( !p_sys->p_input );
+ 
++    if( p_sys->request.b_request && p_sys->request.i_status == PLAYLIST_STOPPED )
++        var_TriggerCallback( p_playlist, "playlist-nothing-to-play" );
++
+     /* No input. Several cases
+      *  - No request, running status -> start new item
+      *  - No request, stopped status -> collect garbage
+@@ -501,19 +533,63 @@
+     playlist_item_t *p_item = NextItem( p_playlist );
+     if( p_item )
+     {
++        playlist_item_t *_cur = get_current_status_item(p_playlist);
++        if(_cur) {
++            msg_P2PLog(p_playlist, "current %d new %d", _cur->i_id, p_item->i_id);
++            if(p_item->i_id != _cur->i_id) {
++                var_TriggerCallback( p_playlist, "playlist-index-changed" );
++            }
++        }
++        if( input_item_IsP2P( p_item->p_input ) ) {
++            if( input_item_GetP2PPlayCommandFlag( p_item->p_input ) ) {
++                input_item_unSetP2PPlayCommandFlag( p_item->p_input );
++            }
++            else {
++                p_sys->request.p_item = p_item;
++                p_sys->request.i_status = PLAYLIST_PREBUFFERING;
++                p_sys->status.i_status = PLAYLIST_STOPPED;
++            
++                char *psz_url = input_item_GetP2PUrl(p_item->p_input);
++                char *psz_indexes = playlist_BuildP2PIndexesString( p_playlist, p_item->p_input );
++                p2p_uri_id_type_t type = input_item_GetP2PType(p_item->p_input);
++                int quality = input_item_GetP2PQualityCurrent(p_item->p_input);
++                int developer = input_item_GetP2PDeveloper(p_item->p_input);
++                int affilaite = input_item_GetP2PAffiliate(p_item->p_input);
++                int zone = input_item_GetP2PZone(p_item->p_input);
++
++                p2p_Start( p2p_Get(p_playlist), psz_url, psz_indexes, type, quality, developer, affilaite, zone, 0 );
++                free(psz_url);
++                free(psz_indexes);
++
++                set_current_status_item( p_playlist, p_item );
++                return;
++            }
++        }
++        else {
++            p2p_Stop( p2p_Get(p_playlist) );
++        }
++
+         msg_Dbg( p_playlist, "starting playback of the new playlist item" );
+         ResyncCurrentIndex( p_playlist, p_item );
+         PlayItem( p_playlist, p_item );
+         return;
+     }
+ 
+-    msg_Dbg( p_playlist, "nothing to play" );
+-    p_sys->status.i_status = PLAYLIST_STOPPED;
++    playlist_item_t* p_it = get_current_status_item( p_playlist );
++    if( p_it && input_item_IsP2P(p_it->p_input) && ( input_item_GetP2PIsAdFlag(p_it->p_input) || input_item_GetP2PIsIntAdFlag(p_it->p_input)) ) {
++        msg_P2PLog( p_playlist, "Waiting main content..." );
++        p_sys->status.i_status = PLAYLIST_STOPPED;
++    }
++    else {
++        msg_Dbg( p_playlist, "nothing to play" );
++        var_TriggerCallback( p_playlist, "playlist-nothing-to-play" );
++        p_sys->status.i_status = PLAYLIST_STOPPED;
+ 
+-    if( var_InheritBool( p_playlist, "play-and-exit" ) )
+-    {
+-        msg_Info( p_playlist, "end of playlist, exiting" );
+-        libvlc_Quit( p_playlist->p_libvlc );
++        if( var_GetBool( p_playlist, "play-and-exit" ) )
++        {
++            msg_Info( p_playlist, "end of playlist, exiting" );
++            libvlc_Quit( p_playlist->p_libvlc );
++        }
+     }
+ }
+ 

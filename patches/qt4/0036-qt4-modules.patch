@@ -1,0 +1,1207 @@
+--- vlc-2.1.4.orig/modules/gui/qt4/main_interface.cpp	2014-02-21 15:59:56.000000000 +0200
++++ vlc-2.1.4/modules/gui/qt4/main_interface.cpp	2014-08-05 14:27:55.229231494 +0300
+@@ -41,12 +41,22 @@
+ #include "components/playlist/playlist.hpp"     // plWidget
+ #include "dialogs/firstrun.hpp"                 // First Run
+ #include "dialogs/playlist.hpp"                 // PlaylistDialog
++#include "dialogs/userinfo.hpp"
++#include "dialogs/mininginfo.hpp"
++
++#include "acewebbrowser/browser.hpp"
++#include "acewebbrowser/javascriptobject.hpp"
++#ifdef _WIN32
++#include "acewebbrowser/iejsobject.hpp"
++#endif
++#include "acewebbrowser/exceptions.hpp"
+ 
+ #include "menus.hpp"                            // Menu creation
+ #include "recents.hpp"                          // RecentItems when DnD
+ 
+ #include <QCloseEvent>
+ #include <QKeyEvent>
++#include <QResizeEvent>
+ 
+ #include <QUrl>
+ #include <QSize>
+@@ -59,10 +69,12 @@
+ #include <QStackedWidget>
+ #include <QFileInfo>
+ 
++#include <QDesktopServices>
+ #include <QTimer>
+ 
+ #include <vlc_keys.h>                       /* Wheel event */
+ #include <vlc_vout_display.h>               /* vout_thread_t and VOUT_ events */
++#include <vlc_dialog.h>
+ 
+ // #define DEBUG_INTF
+ 
+@@ -75,6 +88,15 @@
+ static int IntfRaiseMainCB( vlc_object_t *p_this, const char *psz_variable,
+                            vlc_value_t old_val, vlc_value_t new_val,
+                            void *param );
++static int IntfShowUserDataCB( vlc_object_t *p_this, const char *psz_variable,
++                           vlc_value_t old_val, vlc_value_t new_val,
++                           void *param );
++static int IntfShowErrorDialogCB( vlc_object_t *p_this, const char *psz_variable,
++                           vlc_value_t old_val, vlc_value_t new_val,
++                           void *param );
++static int IntfShowMiningDialogCB( vlc_object_t *p_this, const char *psz_variable,
++                           vlc_value_t old_val, vlc_value_t new_val,
++                           void *param ); 
+ 
+ const QEvent::Type MainInterface::ToolbarsNeedRebuild =
+         (QEvent::Type)QEvent::registerEventType();
+@@ -99,6 +121,19 @@
+     b_hasPausedWhenMinimized = false;
+     i_kc_offset          = false;
+ 
++    p2p_info = "";
++    p2p_status = "";
++    p2p_error = "";
++    m_link_2_open_later = "";
++    m_link_2_open_aceweb = false;
++    m_link_2_open_args = "";
++    m_request_pause_ad = false;
++#ifdef _WIN32
++    ieBrowser = 0;
++#endif
++    mIeDeleteTimer = 0;
++    m_last_webstat_play_id = "";
++
+     /* Ask for Privacy */
+     FirstRun::CheckAndRun( this, p_intf );
+ 
+@@ -161,7 +196,7 @@
+      * Status Bar *
+      **************/
+     createStatusBar();
+-    setStatusBarVisibility( getSettings()->value( "MainWindow/status-bar-visible", false ).toBool() );
++    setStatusBarVisibility( getSettings()->value( "MainWindow/status-bar-visible", true ).toBool() );
+ 
+     /********************
+      * Input Manager    *
+@@ -214,11 +249,18 @@
+         {
+             CONNECT( this, askVideoToResize( unsigned int, unsigned int ),
+                      this, setVideoSize( unsigned int, unsigned int ) );
+-            CONNECT( videoWidget, sizeChanged( int, int ),
+-                     this, videoSizeChanged( int,  int ) );
++            if( b_videoEmbedded ) {
++                CONNECT( videoWidget, sizeChanged( int, int ),
++                        this, videoSizeChanged( int,  int ) );
++            }
+         }
+         CONNECT( this, askVideoSetFullScreen( bool ),
+                  this, setVideoFullScreen( bool ) );
++
++        CONNECT( THEMIM, nothingToPlay(), this, imNothongToPlay() );
++        CONNECT( videoWidget, closeBackgroundScreen(), this, imNothongToPlay() );
++
++        CONNECT( this, backgroundText( QString ), videoWidget, backgroundPrintMessage( QString ) );
+     }
+ 
+     CONNECT( THEDP, toolBarConfUpdated(), this, toolBarConfUpdated() );
+@@ -229,8 +271,29 @@
+     CONNECT( this, askBoss(), this, setBoss() );
+     CONNECT( this, askRaise(), this, setRaise() );
+ 
++    CONNECT( this, askUserData(), this, showUserData() );
++    CONNECT( this, askErrorDialog(QString, QString), this, showErrorDialog(QString, QString) );
++    CONNECT( this, askMiningDialog(QString, QString, int, int, QString, QString, int, QString, QString), 
++            this, showMiningDialog(QString, QString, int, int, QString, QString, int, QString, QString) );
++    
++    CONNECT( THEMIM, p2pInfoChanged(const QString&), this, p2pUpdateInfo(const QString&) );
++    CONNECT( THEMIM, p2pStatusChanged(const QString&), this, p2pUpdateStatus(const QString&) );
++    CONNECT( THEMIM, p2pErrorChanged(const QString&), this, p2pUpdateError(const QString&) );
++    
++    CONNECT( THEMIM->getIM(), enableSaveButton( bool ), this, updateMinWidth() );
++    CONNECT( THEMIM->getIM(), enableLiveStreamButton( bool ), this, updateMinWidth() );
++    CONNECT( THEMIM->getIM(), enableQualitiesButton( QStringList, int ), this, updateMinWidth() );
++    
++    CONNECT( THEMIM->getIM(), inputIsAdvertisement(bool), this, toogleAdvertisementPanel(bool) );
+     /** END of CONNECTS**/
+ 
++    browserManager = new AceWebBrowser::BrowserManager(this);
++    CONNECT(THEMIM, loadUrlEvent(const AceWebBrowser::LoadItem &), this, handleLoadUrlEvent(const AceWebBrowser::LoadItem &));
++    CONNECT(THEMIM, clearLoadUrlEvent(AceWebBrowser::BrowserType), this, handleClearLoadUrlEvent(AceWebBrowser::BrowserType));
++    CONNECT(THEMIM->getIM(), voutChanged( bool ), this, handleVoutChanged(bool));
++    CONNECT(THEMIM, userPauseAction(), this, handleUserPauseAction());
++    CONNECT(THEMIM, userStopAction(), this, handleUserStopAction());
++    CONNECT(THEMIM->getIM(), notifyStateChanged(int, bool), this, handleInputState(int, bool));
+ 
+     /************
+      * Callbacks
+@@ -242,6 +305,9 @@
+     /* Register callback for the intf-popupmenu variable */
+     var_AddCallback( p_intf->p_libvlc, "intf-popupmenu", PopupMenuCB, p_intf );
+ 
++    var_AddCallback( THEP2P, "show-userdata-dialog", IntfShowUserDataCB, p_intf );
++    var_AddCallback( THEP2P, "showdialog", IntfShowErrorDialogCB, p_intf );
++    var_AddCallback( THEP2P, "showinfowindow", IntfShowMiningDialogCB, p_intf );
+ 
+     /* Final Sizing, restoration and placement of the interface */
+     if( settings->value( "MainWindow/playlist-visible", false ).toBool() )
+@@ -269,7 +335,17 @@
+     if( videoWidget )
+         releaseVideoSlot();
+ 
++    if(mIeDeleteTimer) {
++        mIeDeleteTimer->stop();
++        mIeDeleteTimer->deleteLater();
++    }
++    
+ #ifdef _WIN32
++    if(ieBrowser) {
++        ieBrowser->deleteLater();
++        ieBrowser = 0;
++    }
++        
+     if( himl )
+         ImageList_Destroy( himl );
+     if(p_taskbl)
+@@ -311,6 +387,14 @@
+     var_DelCallback( p_intf->p_libvlc, "intf-toggle-fscontrol", IntfShowCB, p_intf );
+     var_DelCallback( p_intf->p_libvlc, "intf-popupmenu", PopupMenuCB, p_intf );
+ 
++    var_DelCallback( THEP2P, "show-userdata-dialog", IntfShowUserDataCB, p_intf );
++    var_DelCallback( THEP2P, "showdialog", IntfShowErrorDialogCB, p_intf );
++    var_DelCallback( THEP2P, "showinfowindow", IntfShowMiningDialogCB, p_intf );
++
++    if(browserManager) {
++        delete browserManager;
++    }
++
+     p_intf->p_sys->p_mi = NULL;
+ }
+ 
+@@ -342,9 +426,14 @@
+     if( fullscreenControls )
+     {
+         delete fullscreenControls;
+-        fullscreenControls = new FullscreenControllerWidget( p_intf, this );
++        if( b_videoEmbedded )
++            fullscreenControls = new FullscreenControllerWidget( p_intf, this );
++        else
++            fullscreenControls = new FullscreenControllerWidget( p_intf );
+         CONNECT( fullscreenControls, keyPressed( QKeyEvent * ),
+                  this, handleKeyPress( QKeyEvent * ) );
++        CONNECT( this, enableFsControlsHiding(bool), fullscreenControls, enableHiding(bool) );
++        CONNECT( this, placeFsControls(int, int), fullscreenControls, placeFsControls(int, int) );
+         THEMIM->requestVoutUpdate();
+     }
+ 
+@@ -378,14 +467,14 @@
+     stackCentralW = new QVLCStackedWidget( main );
+ 
+     /* Bg Cone */
+-    if ( QDate::currentDate().dayOfYear() >= QT_XMAS_JOKE_DAY
++    /*if ( QDate::currentDate().dayOfYear() >= QT_XMAS_JOKE_DAY
+          && var_InheritBool( p_intf, "qt-icon-change" ) )
+     {
+         bgWidget = new EasterEggBackgroundWidget( p_intf );
+         CONNECT( this, kc_pressed(), bgWidget, animate() );
+     }
+-    else
+-        bgWidget = new BackgroundWidget( p_intf );
++    else */
++    bgWidget = new BackgroundWidget( p_intf );
+ 
+     stackCentralW->addWidget( bgWidget );
+     if ( !var_InheritBool( p_intf, "qt-bgcone" ) )
+@@ -395,11 +484,15 @@
+             bgWidget->setExpandstoHeight( true );
+ 
+     /* And video Outputs */
++    videoWidget = new VideoWidget( p_intf );
+     if( b_videoEmbedded )
+     {
+-        videoWidget = new VideoWidget( p_intf );
+         stackCentralW->addWidget( videoWidget );
+     }
++
++    browserPlaceholder = new BrowserHolder(this);
++    stackCentralW->addWidget( browserPlaceholder );
++
+     mainLayout->insertWidget( 1, stackCentralW );
+ 
+     stackWidgetsSizes[bgWidget] =
+@@ -434,9 +527,14 @@
+         /* Create the FULLSCREEN CONTROLS Widget */
+         if( var_InheritBool( p_intf, "qt-fs-controller" ) )
+         {
+-            fullscreenControls = new FullscreenControllerWidget( p_intf, this );
++            if( b_videoEmbedded )
++                fullscreenControls = new FullscreenControllerWidget( p_intf, this );
++            else
++                fullscreenControls = new FullscreenControllerWidget( p_intf );
+             CONNECT( fullscreenControls, keyPressed( QKeyEvent * ),
+                      this, handleKeyPress( QKeyEvent * ) );
++            CONNECT( this, enableFsControlsHiding(bool), fullscreenControls, enableHiding(bool) );
++            CONNECT( this, placeFsControls(int, int), fullscreenControls, placeFsControls(int, int) );
+         }
+ }
+ 
+@@ -535,7 +633,13 @@
+ #endif
+ }
+ 
+-inline void MainInterface::showVideo() { showTab( videoWidget ); setRaise(); }
++inline void MainInterface::showVideo() 
++{
++    if(b_videoEmbedded)
++        showTab( videoWidget ); 
++    else
++        videoWidget->show();
++}
+ inline void MainInterface::restoreStackOldWidget()
+             { showTab( stackCentralOldWidget ); }
+ 
+@@ -549,42 +653,51 @@
+                  stackCentralW->indexOf( stackCentralOldWidget ) );
+     msg_Dbg( p_intf, "ShowTab request for %s", widget->metaObject()->className() );
+ #endif
++    if ( widget == browserPlaceholder ) {
++        stackCentralOldWidget = stackCentralW->currentWidget();
++        stackWidgetsSizes[widget] = stackCentralW->size();
++    }
++
+     /* fixing when the playlist has been undocked after being hidden.
+        restoreStackOldWidget() is called when video stops but
+        stackCentralOldWidget would still be pointing to playlist */
+     if ( widget == playlistWidget && !isPlDocked() )
+         widget = bgWidget;
+ 
+-    stackCentralOldWidget = stackCentralW->currentWidget();
+-    stackWidgetsSizes[stackCentralOldWidget] = stackCentralW->size();
+-
+-    /* If we are playing video, embedded */
+-    if( videoWidget && THEMIM->getIM()->hasVideo() )
+-    {
+-        /* Video -> Playlist */
+-        if( videoWidget == stackCentralOldWidget && widget == playlistWidget )
+-        {
+-            stackCentralW->removeWidget( videoWidget );
+-            videoWidget->show(); videoWidget->raise();
+-        }
++    if( stackCentralW->currentWidget() != widget ) {
++        stackCentralOldWidget = stackCentralW->currentWidget();
++        stackWidgetsSizes[stackCentralOldWidget] = stackCentralW->size();
++    }
+ 
+-        /* Playlist -> Video */
+-        if( playlistWidget == stackCentralOldWidget && widget == videoWidget )
++    if ( widget != browserPlaceholder ) {
++        /* If we are playing video, embedded */
++        if( videoWidget && THEMIM->getIM()->hasVideo() )
+         {
+-            playlistWidget->artContainer->removeWidget( videoWidget );
+-            videoWidget->show(); videoWidget->raise();
+-            stackCentralW->addWidget( videoWidget );
+-        }
++            /* Video -> Playlist */
++            if( videoWidget == stackCentralOldWidget && widget == playlistWidget )
++            {
++                stackCentralW->removeWidget( videoWidget );
++                videoWidget->show(); videoWidget->raise();
++            }
+ 
+-        /* Embedded playlist -> Non-embedded playlist */
+-        if( bgWidget == stackCentralOldWidget && widget == videoWidget )
+-        {
+-            /* In rare case when video is started before the interface */
+-            if( playlistWidget != NULL )
++            /* Playlist -> Video */
++            if( playlistWidget == stackCentralOldWidget && widget == videoWidget )
++            {
+                 playlistWidget->artContainer->removeWidget( videoWidget );
+-            videoWidget->show(); videoWidget->raise();
+-            stackCentralW->addWidget( videoWidget );
+-            stackCentralW->setCurrentWidget( videoWidget );
++                videoWidget->show(); videoWidget->raise();
++                stackCentralW->addWidget( videoWidget );
++            }
++
++            /* Embedded playlist -> Non-embedded playlist */
++            if( bgWidget == stackCentralOldWidget && widget == videoWidget )
++            {
++                /* In rare case when video is started before the interface */
++                if( playlistWidget != NULL )
++                    playlistWidget->artContainer->removeWidget( videoWidget );
++                videoWidget->show(); videoWidget->raise();
++                stackCentralW->addWidget( videoWidget );
++                stackCentralW->setCurrentWidget( videoWidget );
++            }
+         }
+     }
+ 
+@@ -689,20 +802,27 @@
+     assert( videoWidget );
+     videoWidget->release();
+     setVideoOnTop( false );
++
++    if( b_videoFullScreen ) return;
+     setVideoFullScreen( false );
+     hideResumePanel();
+ 
+-    if( stackCentralW->currentWidget() == videoWidget )
+-        restoreStackOldWidget();
+-    else if( playlistWidget &&
+-             playlistWidget->artContainer->currentWidget() == videoWidget )
++    if( b_videoEmbedded )
+     {
+-        playlistWidget->artContainer->setCurrentIndex( 0 );
+-        stackCentralW->addWidget( videoWidget );
+-    }
++        if( stackCentralW->currentWidget() == videoWidget )
++            restoreStackOldWidget();
++        else if( playlistWidget &&
++                playlistWidget->artContainer->currentWidget() == videoWidget )
++        {
++            playlistWidget->artContainer->setCurrentIndex( 0 );
++            stackCentralW->addWidget( videoWidget );
++        }
+ 
+-    /* We don't want to have a blank video to popup */
+-    stackCentralOldWidget = bgWidget;
++        /* We don't want to have a blank video to popup */
++        stackCentralOldWidget = bgWidget;
++    }
++    else
++        videoWidget->hide();
+ }
+ 
+ void MainInterface::setVideoSize( unsigned int w, unsigned int h )
+@@ -719,6 +840,7 @@
+ void MainInterface::setVideoFullScreen( bool fs )
+ {
+     b_videoFullScreen = fs;
++    var_SetBool( THEP2P, "vout-display-fullscreen", fs );
+     if( fs )
+     {
+         int numscreen = var_InheritInteger( p_intf, "qt-fullscreen-screennumber" );
+@@ -1002,6 +1140,13 @@
+ void MainInterface::setName( const QString& name )
+ {
+     input_name = name; /* store it for the QSystray use */
++
++    if( name == "" ) {
++        p2p_info = "";
++        p2p_status = "";
++        p2p_error = "";
++    }
++
+     /* Display it in the status bar, but also as a Tooltip in case it doesn't
+        fit in the label */
+     nameLabel->setText( name );
+@@ -1016,11 +1161,11 @@
+ {
+     if( aTitle.isEmpty() )
+     {
+-        setWindowTitle( qtr( "VLC media player" ) );
++        setWindowTitle( qtr( P2P_APP_NAME ) + " (VLC)" );
+     }
+     else
+     {
+-        setWindowTitle( aTitle + " - " + qtr( "VLC media player" ) );
++        setWindowTitle( aTitle + " - " + qtr( P2P_APP_NAME ) + " (VLC)" );
+     }
+ }
+ 
+@@ -1059,9 +1204,9 @@
+     else
+         iconVLC = QIcon::fromTheme( "vlc", QIcon( ":/logo/vlc256.png" ) );
+     sysTray = new QSystemTrayIcon( iconVLC, this );
+-    sysTray->setToolTip( qtr( "VLC media player" ));
++    sysTray->setToolTip( qtr( P2P_APP_NAME )+ " (VLC)" );
+ 
+-    systrayMenu = new QMenu( qtr( "VLC media player" ), this );
++    systrayMenu = new QMenu( qtr( P2P_APP_NAME )+ " (VLC)", this );
+     systrayMenu->setIcon( iconVLC );
+ 
+     VLCMenuBar::updateSystrayMenu( this, p_intf, true );
+@@ -1161,7 +1306,7 @@
+ #endif
+             break;
+         case QSystemTrayIcon::MiddleClick:
+-            sysTray->showMessage( qtr( "VLC media player" ),
++            sysTray->showMessage( qtr( P2P_APP_NAME )+ " (VLC)",
+                     qtr( "Control menu for the player" ),
+                     QSystemTrayIcon::Information, 3000 );
+             break;
+@@ -1178,7 +1323,7 @@
+ {
+     if( name.isEmpty() )
+     {
+-        sysTray->setToolTip( qtr( "VLC media player" ) );
++        sysTray->setToolTip( qtr( P2P_APP_NAME )+ " (VLC)" );
+     }
+     else
+     {
+@@ -1186,7 +1331,7 @@
+         if( ( i_notificationSetting == NOTIFICATION_ALWAYS ) ||
+             ( i_notificationSetting == NOTIFICATION_MINIMIZED && (isMinimized() || isHidden()) ) )
+         {
+-            sysTray->showMessage( qtr( "VLC media player" ), name,
++            sysTray->showMessage( qtr( P2P_APP_NAME )+ " (VLC)", name,
+                     QSystemTrayIcon::NoIcon, 3000 );
+         }
+     }
+@@ -1209,7 +1354,7 @@
+         sysTray->setToolTip( input_name + " - " + qtr( "Paused") );
+         break;
+     default:
+-        sysTray->setToolTip( qtr( "VLC media player" ) );
++        sysTray->setToolTip( qtr( P2P_APP_NAME )+ " (VLC)" );
+         break;
+     }
+     VLCMenuBar::updateSystrayMenu( this, p_intf );
+@@ -1351,7 +1515,7 @@
+     handleKeyPress( e );
+ 
+     /* easter eggs sequence handling */
+-    if ( e->key() == kc[ i_kc_offset ] )
++    /*if ( e->key() == kc[ i_kc_offset ] )
+         i_kc_offset++;
+     else
+         i_kc_offset = 0;
+@@ -1360,7 +1524,7 @@
+     {
+         i_kc_offset = 0;
+         emit kc_pressed();
+-    }
++    }*/
+ }
+ 
+ void MainInterface::handleKeyPress( QKeyEvent *e )
+@@ -1375,7 +1539,16 @@
+     int i_vlck = qtEventToVLCKey( e );
+     if( i_vlck > 0 )
+     {
+-        var_SetInteger( p_intf->p_libvlc, "key-pressed", i_vlck );
++        uint32_t action = vlc_GetActionByKey(p_intf, i_vlck);
++        if( action == ACTIONID_PLAY_PAUSE ) {
++            THEAM->play();
++        }
++        else if( action == ACTIONID_STOP ) {
++            THEMIM->stop();
++        }
++        else {
++            var_SetInteger( p_intf->p_libvlc, "key-pressed", i_vlck );
++        }
+         e->accept();
+     }
+     else
+@@ -1385,10 +1558,20 @@
+ void MainInterface::wheelEvent( QWheelEvent *e )
+ {
+     int i_vlckey = qtWheelEventToVLCKey( e );
++    uint32_t action = vlc_GetActionByKey(p_intf, i_vlckey);
++    if(action == ACTIONID_VOL_UP || action == ACTIONID_VOL_DOWN) {
++       THEMIM->getIM()->dropCachedVolume(); 
++    }
+     var_SetInteger( p_intf->p_libvlc, "key-pressed", i_vlckey );
+     e->accept();
+ }
+ 
++void MainInterface::resizeEvent(QResizeEvent *e)
++{
++    emit notifySizeChanged(e->size());
++    e->ignore();
++}
++
+ void MainInterface::closeEvent( QCloseEvent *e )
+ {
+ //  hide();
+@@ -1455,6 +1638,618 @@
+     raise();
+ }
+ 
++void MainInterface::p2pUserDataDialogShow()
++{
++    emit askUserData();
++}
++
++void MainInterface::p2pErrorDialogShow(const QString& title, const QString& text)
++{
++    emit askErrorDialog(title, text);
++}
++
++void MainInterface::p2pMiningDialogShow(const QString &type, const QString &text, int buttons, int action1, const QString &text1, const QString &url1, int action2, const QString &text2, const QString &url2) 
++{
++    emit askMiningDialog(type, text, buttons, action1, text1, url1, action2, text2, url2);
++}
++
++void MainInterface::showUserData()
++{
++    UserInfoWidget::ShowUserInfoDialog( this, p_intf );
++}
++
++void MainInterface::showErrorDialog(QString title, QString text)
++{
++    if(title.size() <= 0)
++        title = "Error";
++    dialog_Fatal( THEP2P, qtu(title), qtu(text) );
++}
++
++void MainInterface::showMiningDialog(const QString &type, const QString &text, int buttons, int action1, const QString &text1, const QString &url1, int action2, const QString &text2, const QString &url2)
++{
++    MiningInfoWidget::ShowMiningDialog( this, p_intf, type, text, buttons, action1, text1, url1, action2, text2, url2 );
++}
++
++void MainInterface::p2pUpdateInfo( const QString &info )
++{
++    p2p_info = info;
++    updateTextLabels();
++}
++
++void MainInterface::p2pUpdateStatus( const QString &status )
++{
++    p2p_status = status;
++    if( p2p_error.size() > 0 )
++        p2p_error = "";
++    updateTextLabels();
++}
++
++void MainInterface::p2pUpdateError( const QString &error )
++{
++    p2p_error = error;
++    updateTextLabels();
++}
++
++void MainInterface::updateTextLabels()
++{
++    input_item_t *p_input_item = THEMIM->currentInputItem();
++    if( (p_input_item && input_item_IsP2P(p_input_item)) || !p_input_item ) {
++        if( p2p_error.size() > 0 ) {
++            nameLabel->setText( p2p_error );
++            nameLabel->setToolTip( p2p_error );
++            emit backgroundText( p2p_error );
++        }
++        else if( p2p_info.size() > 0 ) {
++            nameLabel->setText( p2p_info );
++            nameLabel->setToolTip( p2p_info );
++            emit backgroundText( p2p_info );
++        }
++        else if(p2p_status.size()>0) {
++            nameLabel->setText( p2p_status );
++            nameLabel->setToolTip( p2p_status );
++            emit backgroundText( p2p_status );
++        }
++        else if( p_input_item && (input_item_GetP2PIsAdFlag( p_input_item ) || input_item_GetP2PIsIntAdFlag( p_input_item )) ) {
++            nameLabel->setText( " " );
++            nameLabel->setToolTip( " " );
++        }
++        else {
++            nameLabel->setText( input_name + " " );
++            nameLabel->setToolTip( input_name + " " );
++        }
++    }
++    else {
++        nameLabel->setText( input_name + " " );
++        nameLabel->setToolTip( input_name + " " );
++        emit backgroundText( "" );
++    }
++}
++
++void MainInterface::updateMinWidth()
++{
++    computeMinimumSize();
++}
++
++void MainInterface::imNothongToPlay()
++{
++    if( b_videoFullScreen ) {
++        setVideoFullScreen( false );
++    
++        if( b_videoEmbedded ) {
++            if( stackCentralW->currentWidget() == videoWidget )
++                restoreStackOldWidget();
++            else if( playlistWidget &&
++                    playlistWidget->artContainer->currentWidget() == videoWidget )
++            {
++                playlistWidget->artContainer->setCurrentIndex( 0 );
++                stackCentralW->addWidget( videoWidget );
++            }
++            stackCentralOldWidget = bgWidget;
++        }
++        else
++            videoWidget->hide();
++    }
++}
++
++
++
++
++
++void MainInterface::toogleAdvertisementPanel(bool val)
++{
++    controls->toogleAdvertisementPanel(val);
++    if( fullscreenControls ) 
++        fullscreenControls->toogleAdvertisementPanel(val);
++}
++
++/*****************************************
++ *****************************************/
++void MainInterface::handleLoadUrlEvent(const AceWebBrowser::LoadItem &conf) 
++{
++    createBrowser(conf);
++}
++
++void MainInterface::handleClearLoadUrlEvent(AceWebBrowser::BrowserType type) 
++{
++    if(browserManager) {
++        browserManager->closeBrowser(type);
++    }
++}
++
++void MainInterface::createBrowser(AceWebBrowser::LoadItem conf) 
++{
++    if(!browserManager) return;
++    if(conf.type() != AceWebBrowser::BTYPE_PREROLL && !THEMIM->getIM()->isP2P()) return;
++    if(m_request_pause_ad) return;
++
++    qDebug() << "Player::createBrowser:" << conf;
++    
++    if(conf.type() == AceWebBrowser::BTYPE_WEBSTAT && conf.urlWithId()->id().startsWith("webstat-play")) {
++        qDebug() << "Player::createBrowser: check webstat play: id =" << conf.urlWithId()->id() << "last =" << m_last_webstat_play_id;
++        if(conf.urlWithId()->id() == m_last_webstat_play_id) {
++            qDebug() << "Player::createBrowser: webstat play already loaded: id =" << m_last_webstat_play_id;
++            return;
++        }
++        m_last_webstat_play_id = conf.urlWithId()->id();
++    }
++    
++    QString aceHost = "";
++    char *psz_host = var_GetString(THEP2P, "engine-http-host");
++    if(psz_host) {
++        aceHost.sprintf( "%s", psz_host );
++        free(psz_host);
++    }
++    int acePort = 0;
++    acePort = var_GetInteger(THEP2P, "engine-http-port");
++    
++    conf.setHostUserAgent("AcePlayer/"P2P_STD_VERSION"");
++    conf.setEngineHttpHost(aceHost);
++    conf.setEngineHttpPort(acePort);
++    QWidget *parent = 0;
++    if(conf.type() == AceWebBrowser::BTYPE_PAUSE 
++        || conf.type() == AceWebBrowser::BTYPE_OVERLAY 
++        || conf.type() == AceWebBrowser::BTYPE_SLIDER 
++        || conf.type() == AceWebBrowser::BTYPE_HIDDEN) {
++        parent = videoWidget;
++    }
++    else if (conf.type() == AceWebBrowser::BTYPE_PREROLL || conf.type() == AceWebBrowser::BTYPE_WEBSTAT) {
++        //|| conf.type() == AceWebBrowser::BTYPE_STOP) {
++        parent = browserPlaceholder;
++    }
++    if(!parent) return;
++    
++    if(conf.type() == AceWebBrowser::BTYPE_PREROLL && conf.useIE()) {
++#ifdef _WIN32
++        createIEBrowser(conf, parent);
++#endif
++        return;
++    }
++    
++    AceWebBrowser::Browser *browser = browserManager->createBrowser(conf, parent);
++    
++    if(conf.type() == AceWebBrowser::BTYPE_PAUSE) {
++        if(browser->isVisible()) {
++            qDebug() << "Player::createBrowser: got visible pause browser, skip reloading";
++            return;
++        }
++    }
++    
++    browser->setPlayerFullscreen(b_videoFullScreen);
++    browser->setPlayerState(THEMIM->getIM()->playingStatus(), THEMIM->getIM()->isAd());
++    
++    // player notifications
++    connect(parent, SIGNAL(notifySizeChanged(QSize)), browser, SLOT(handleParentSize(QSize)), Qt::UniqueConnection);
++    
++    connect(THEMIM->getIM(), SIGNAL(notifyStateChanged(int, bool)),
++            browser, SLOT(handleParentState(int, bool)), Qt::UniqueConnection);
++    connect(this, SIGNAL(notifyFullscreenChanged(bool)),
++            browser, SLOT(handleParentFullscreen(bool)), Qt::UniqueConnection);
++    connect(this, SIGNAL(notifyPauseClicked()),
++            browser, SLOT(handleParentPauseClicked()), Qt::UniqueConnection);
++    // browser register events
++    connect(browser, SIGNAL(registerBrowserShownEvent(AceWebBrowser::BrowserType,QString)),
++            SLOT(registerShow(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
++    connect(browser, SIGNAL(registerBrowserHideEvent(AceWebBrowser::BrowserType,QString)),
++            SLOT(registerHide(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
++    connect(browser, SIGNAL(registerBrowserClosedEvent(AceWebBrowser::BrowserType,QString,bool,bool,int)),
++            SLOT(registerClosed(AceWebBrowser::BrowserType,QString,bool,bool,int)), Qt::UniqueConnection);
++    connect(browser, SIGNAL(registerBrowserErrorEvent(AceWebBrowser::BrowserType,QString)),
++            SLOT(registerError(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
++    connect(browser, SIGNAL(registerSendEvent(AceWebBrowser::BrowserType, QString, QString)),
++            SLOT(registerBrowserSendEvent(AceWebBrowser::BrowserType, QString, QString)), Qt::UniqueConnection);
++    // browser notifications
++    connect(browser, SIGNAL(notifyBrowserVisiabilityChanged(AceWebBrowser::BrowserType,bool)),
++            SLOT(handleBrowserVisiability(AceWebBrowser::BrowserType,bool)), Qt::UniqueConnection);
++    connect(browser, SIGNAL(notifyParentCommandToShow(AceWebBrowser::BrowserType)),
++            SLOT(handleParentCommandToShow(AceWebBrowser::BrowserType)), Qt::UniqueConnection);
++    connect(browser, SIGNAL(notifyNeedExitFullscreen()), SLOT(handleExitFullscreen()), Qt::UniqueConnection);
++    connect(browser, SIGNAL(notifyBrowserPosition(AceWebBrowser::BrowserType, const QPoint&, const QSize&)), 
++            SLOT(handleBrowserPosition(AceWebBrowser::BrowserType, const QPoint&, const QSize&)), Qt::UniqueConnection);
++    // javascript object
++    connect(parent, SIGNAL(notifySizeChanged(QSize)),
++            browser->javaScriptObject(), SLOT(handlePlayerSizeChanged(QSize)), Qt::UniqueConnection);
++    connect(browser->javaScriptObject(), SIGNAL(jsoPlayerPlay()),
++            SLOT(handleJSOPlay()), Qt::UniqueConnection);
++    connect(browser->javaScriptObject(), SIGNAL(jsoPlayerPause()),
++            SLOT(handleJSOPause()), Qt::UniqueConnection);
++    connect(browser->javaScriptObject(), SIGNAL(jsoPlayerStop()),
++            SLOT(handleJSOStop()), Qt::UniqueConnection);
++    connect(browser->javaScriptObject(), SIGNAL(jsoLinkOpenLater(QString, bool, bool, QString)),
++            SLOT(handleJSOLinkOpenLater(QString, bool, bool, QString)), Qt::UniqueConnection);
++    /*connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerSetFullscreen(bool)),
++            SLOT(handleJSOSetFullscreen(bool)), Qt::UniqueConnection);*/
++    connect(browser->javaScriptObject(), SIGNAL(jsoPlayerToggleFullscreen()),
++            SLOT(handleJSOToggleFullscreen()), Qt::UniqueConnection);
++    browser->load(conf);
++}
++
++#ifdef _WIN32
++void MainInterface::createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent)
++{
++    qWarning() << "Player::createIEBrowser";
++    if(mIeDeleteTimer && mIeDeleteTimer->isActive()) {
++        mIeDeleteTimer->stop();
++    }
++    if(!ieBrowser) {
++        try {
++            ieBrowser = new AceWebBrowser::IEBrowser2(conf, parent);
++        }
++        catch(AceWebBrowser::BrowserException *e) {
++            qWarning() << "Player::createIEBrowser: Exception:" << e->message();
++            registerIEError(e->type(), e->id());
++            ieBrowser = 0;
++            return;
++        }
++        
++        // player notifications
++        connect(parent, SIGNAL(notifySizeChanged(QSize)),
++                ieBrowser, SLOT(handleParentSize(QSize)), Qt::UniqueConnection);
++        connect(THEMIM->getIM(), SIGNAL(notifyStateChanged(int, bool)),
++                ieBrowser, SLOT(handleParentState(int, bool)), Qt::UniqueConnection);
++        connect(this, SIGNAL(notifyFullscreenChanged(bool)),
++                ieBrowser, SLOT(handleParentFullscreen(bool)), Qt::UniqueConnection);
++        // browser register events
++        connect(ieBrowser, SIGNAL(registerBrowserSuccessEvent(AceWebBrowser::BrowserType,QString)),
++                SLOT(registerIESuccess(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
++        connect(ieBrowser, SIGNAL(registerBrowserErrorEvent(AceWebBrowser::BrowserType,QString)),
++                SLOT(registerIEError(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
++        connect(ieBrowser, SIGNAL(registerBrowserSendEvent(AceWebBrowser::BrowserType,QString,QString)),
++                SLOT(registerBrowserSendEvent(AceWebBrowser::BrowserType,QString,QString)), Qt::UniqueConnection);
++        // browser notifications
++        connect(ieBrowser, SIGNAL(notifyBrowserVisiabilityChanged(AceWebBrowser::BrowserType,bool)),
++            SLOT(handleBrowserVisiability(AceWebBrowser::BrowserType,bool)), Qt::UniqueConnection);
++        connect(ieBrowser, SIGNAL(notifyParentCommandToShow(AceWebBrowser::BrowserType)),
++                SLOT(handleParentCommandToShow(AceWebBrowser::BrowserType)), Qt::UniqueConnection);
++        connect(ieBrowser, SIGNAL(notifyNeedExitFullscreen()), SLOT(handleExitFullscreen()), Qt::UniqueConnection);
++        // javascript object
++        connect(parent, SIGNAL(notifySizeChanged(QSize)),
++                ieBrowser->javaScriptObject(), SLOT(handlePlayerSizeChanged(QSize)), Qt::UniqueConnection);
++        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerPlay()),
++                SLOT(handleJSOPlay()), Qt::UniqueConnection);
++        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerPause()),
++                SLOT(handleJSOPause()), Qt::UniqueConnection);
++        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerStop()),
++                SLOT(handleJSOStop()), Qt::UniqueConnection);
++        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoLinkOpenLater(QString, bool, bool, QString)),
++                SLOT(handleJSOLinkOpenLater(QString, bool, bool, QString)), Qt::UniqueConnection);
++        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerSetFullscreen(bool)),
++                SLOT(handleJSOSetFullscreen(bool)), Qt::UniqueConnection);
++        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerToggleFullscreen()),
++            SLOT(handleJSOToggleFullscreen()), Qt::UniqueConnection);
++    }
++    ieBrowser->load(conf);
++}
++
++void MainInterface::registerIESuccess(AceWebBrowser::BrowserType type, QString id)
++{
++    qDebug() << "Player::registerIESuccess: register preroll complete";
++    
++    if(ieBrowser) {
++        statusBar()->clearMessage();
++        if(!mIeDeleteTimer) {
++            mIeDeleteTimer = new QTimer(this);
++            mIeDeleteTimer->setSingleShot(true);
++            connect(mIeDeleteTimer, SIGNAL(timeout()), SLOT(deleteIEBrowser()));
++        }
++        mIeDeleteTimer->setInterval(1000);
++        mIeDeleteTimer->start();
++    }
++    p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_COMPLETE, qtu(id));
++}
++
++void MainInterface::registerIEError(AceWebBrowser::BrowserType type, QString id)
++{
++    qDebug() << "Player::registerIEError: register preroll failed";
++    
++    if(ieBrowser) {
++        statusBar()->clearMessage();
++        if(!mIeDeleteTimer) {
++            mIeDeleteTimer = new QTimer(this);
++            mIeDeleteTimer->setSingleShot(true);
++            connect(mIeDeleteTimer, SIGNAL(timeout()), SLOT(deleteIEBrowser()));
++        }
++        mIeDeleteTimer->setInterval(1000);
++        mIeDeleteTimer->start();
++    }
++    p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_ERROR, qtu(id));
++}
++
++void MainInterface::deleteIEBrowser() {
++    qDebug() << "Player::deleteIEBrowser";
++    if(ieBrowser) {
++        delete ieBrowser;
++        ieBrowser = 0;
++        statusBar()->clearMessage();
++    }
++}
++#endif
++
++void MainInterface::registerShow(AceWebBrowser::BrowserType type, QString id)
++{
++    qDebug() << "Player::registerShow: type" << (int)type << "id" << id;
++
++    if(type != AceWebBrowser::BTYPE_PREROLL && type != AceWebBrowser::BTYPE_HIDDEN) {
++        qDebug() << "Player::registerShow: register IMPRESSION";
++        p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_IMPRESSION, qtu(id));
++    }
++}
++
++void MainInterface::registerHide(AceWebBrowser::BrowserType type, QString id)
++{
++    qDebug() << "Player::registerHide: type" << (int)type << "id" << id;
++
++    if(type == AceWebBrowser::BTYPE_PREROLL) {
++        p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_COMPLETE, qtu(id));
++    }
++}
++
++void MainInterface::registerClosed(AceWebBrowser::BrowserType type, QString id, bool failed, bool browserMode, int group)
++{
++    qDebug() << "Player::registerClosed: type" << (int)type << "id" << id << "failed" << failed;
++
++    if(!failed) {
++        if(type == AceWebBrowser::BTYPE_PREROLL) {
++            qDebug() << "Player::registerClosed: register COMPLETE";
++            p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_COMPLETE, qtu(id));
++        }
++        else if(type == AceWebBrowser::BTYPE_HIDDEN) {
++            qDebug() << "Player::registerClosed: register COMPLETE_HIDDEN";
++            p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_COMPLETE_HIDDEN, qtu(id));
++        }
++        else if (type == AceWebBrowser::BTYPE_OVERLAY) {
++            qDebug() << "Player::registerClosed: register CLOSE";
++            p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_CLOSE, qtu(id));
++            availableBrowserShowing(AceWebBrowser::BTYPE_PAUSE, true);
++            if(browserMode && THEMIM->getIM()->playingStatus() == PAUSE_S) {
++                THEMIM->togglePlayPause();
++            }
++        }
++        else if (type == AceWebBrowser::BTYPE_PAUSE) {
++            int state = THEMIM->getIM()->playingStatus();
++            if(state == PAUSE_S) {
++                qDebug() << "Player::registerClosed: will request for new pause url after state chaged";
++                m_request_pause_ad = true;
++            }
++            else {
++                qDebug() << "Player::stateChanged: request for new pause url";
++                p2p_RequestLoadUrlAd(THEP2P, P2P_LOAD_URL_PAUSE, 0);
++                m_request_pause_ad = false;
++            }
++        }
++    }
++    if(type == AceWebBrowser::BTYPE_HIDDEN) {
++        p2p_RequestLoadUrlAd(THEP2P, P2P_LOAD_URL_HIDDEN, group);
++    }
++}
++
++void MainInterface::registerError(AceWebBrowser::BrowserType type, QString id)
++{
++    qDebug() << "Player::registerError: type" << type << "id" << id;
++
++    if(type == AceWebBrowser::BTYPE_PREROLL) {
++        qDebug() << "Player::registerError: register ERROR";
++        p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_ERROR, qtu(id));
++    }
++    else if(type == AceWebBrowser::BTYPE_HIDDEN) {
++        qDebug() << "Player::registerError: register ERROR_HIDDEN";
++        p2p_RegisterLoadUrlAdStatistics(THEP2P, (p2p_load_url_type_t)type, P2P_LOAD_URL_STAT_EVENT_ERROR_HIDDEN, qtu(id));
++    }
++}
++
++void MainInterface::registerBrowserSendEvent(AceWebBrowser::BrowserType type, QString event_name, QString id)
++{
++    if(type != AceWebBrowser::BTYPE_PREROLL) return;
++
++    if(event_name.size() > 50)
++        event_name.truncate(50);
++    event_name.remove(QRegExp("[^a-zA-Z0-9\\-\\_]"));
++    p2p_RegisterLoadUrlAdEvent(THEP2P, (p2p_load_url_type_t)type, qtu(event_name), qtu(id));
++}
++
++void MainInterface::handleBrowserVisiability(AceWebBrowser::BrowserType type, bool isVisible)
++{
++    qDebug() << "Player::handleBrowserVisiability: type" << type << "visible" << isVisible << "has_visible" << browserManager->isVisible();
++
++    if(type == AceWebBrowser::BTYPE_PREROLL) {
++        if(!isVisible) {
++            statusBar()->setSizeGripEnabled(true);
++            controls->showMainControls();
++            menuBar()->setVisible(true);
++            if(m_status_bar_visible_cached) {
++                setStatusBarVisibility(true);
++            }
++            inputC->setVisible(true);
++            restoreStackOldWidget();
++        }
++    }
++    
++    if(!isVisible) {
++        if(browserManager && (!browserManager->isVisible() 
++#ifdef _WIN32
++        || ieBrowser
++#endif
++        )){
++            emit enableFsControlsHiding(true);
++            emit placeFsControls(-1, -1);
++        }
++    }
++}
++
++void MainInterface::handleParentCommandToShow(AceWebBrowser::BrowserType type)
++{
++    qDebug() << "Player::handleParentCommandToShow" << type;
++    
++    if(type == AceWebBrowser::BTYPE_PREROLL) {
++#ifdef _WIN32
++        if(ieBrowser) {
++            if(menuBar()->isVisible()) {
++                statusBar()->setSizeGripEnabled(false);
++                controls->hideMainControls();
++                menuBar()->setVisible(false);
++                m_status_bar_visible_cached = b_statusbarVisible;
++                if(b_statusbarVisible) {
++                    setStatusBarVisibility(false);
++                }
++                inputC->setVisible(false);
++                
++                ieBrowser->setVisiabilityProcessingEnable(false);
++                showTab(browserPlaceholder);
++                ieBrowser->setVisiabilityProcessingEnable(true);
++            }
++        }
++        else {
++#endif
++            AceWebBrowser::Browser *preroll = browserManager->getBrowser(AceWebBrowser::BTYPE_PREROLL);
++            if(preroll && menuBar()->isVisible()) {
++                statusBar()->setSizeGripEnabled(false);
++                controls->hideMainControls();
++                menuBar()->setVisible(false);
++                m_status_bar_visible_cached = b_statusbarVisible;
++                if(b_statusbarVisible) {
++                    setStatusBarVisibility(false);
++                }
++                inputC->setVisible(false);
++                
++                preroll->setVisiabilityProcessingEnable(false);
++                showTab(browserPlaceholder);
++                preroll->setVisiabilityProcessingEnable(true);
++            }
++#ifdef _WIN32
++        }
++#endif
++    }
++}
++
++void MainInterface::handleBrowserPosition(AceWebBrowser::BrowserType type, const QPoint &p, const QSize &s)
++{
++    if(type == AceWebBrowser::BTYPE_PAUSE || type == AceWebBrowser::BTYPE_OVERLAY) {
++        if(b_videoFullScreen) {
++            QSize videoSize = videoWidget->frameSize();
++            emit enableFsControlsHiding(videoSize.width() > s.width() + 10 && videoSize.height() > s.height() + 10);
++            emit placeFsControls(p.y(), s.height());
++        }
++    }
++}
++
++void MainInterface::handleExitFullscreen()
++{
++    if(b_videoFullScreen) {
++        THEAM->fullscreen();
++    }
++}
++
++void MainInterface::handleJSOPlay()
++{
++    THEMIM->togglePlayPause();
++}
++
++void MainInterface::handleJSOPause()
++{
++    if(THEMIM->getIM()->playingStatus() == PLAYING_S || THEMIM->getIM()->playingStatus() == PAUSE_S) {
++        availableBrowserShowing(AceWebBrowser::BTYPE_PAUSE, false);
++        THEMIM->togglePlayPause();
++    }
++}
++
++void MainInterface::handleJSOStop()
++{
++    THEMIM->stop();
++}
++
++void MainInterface::handleJSOLinkOpenLater(QString url, bool preffered, bool aceweb, QString arguments)
++{
++    (void)preffered;
++    qDebug() << "Player::handleJSOLinkOpenLater:" << url;
++    m_link_2_open_later = url;
++    m_link_2_open_aceweb = aceweb;
++    m_link_2_open_args = arguments;
++}
++
++void MainInterface::handleJSOSetFullscreen(bool fs)
++{
++    qDebug() << "Player::handleJSOSetFullscreen:" << fs;
++    if(b_videoFullScreen != fs) {
++        THEAM->fullscreen();
++    }
++}
++
++void MainInterface::handleJSOToggleFullscreen()
++{
++    qDebug() << "Player::handleJSOToggleFullscreen";
++    THEAM->fullscreen();
++}
++
++void MainInterface::availableBrowserShowing(AceWebBrowser::BrowserType type, bool available)
++{
++    if(browserManager && browserManager->hasBrowser(type)) {
++        AceWebBrowser::Browser *browser = browserManager->getBrowser(type);
++        if(browser) {
++            browser->setShowAvailable(available);
++        }
++    }
++}
++
++void MainInterface::handleVoutChanged(bool hasVout) 
++{
++    if(browserManager) {
++        qDebug() << "checking if videowidget visible" << videoWidget->isVisible() << "has video" << hasVout;
++        browserManager->updateBrowsersOnVoutChanged(hasVout);
++    }
++}
++
++void MainInterface::handleInputState(int state, bool isAd)
++{
++    if(state == AceWebBrowser::BHPS_PLAYING && m_request_pause_ad) {
++        qDebug() << "Player::handleInputState: request for new pause url";
++        p2p_RequestLoadUrlAd(THEP2P, P2P_LOAD_URL_PAUSE, 0);
++        m_request_pause_ad = false;
++    }
++    else if(state == AceWebBrowser::BHPS_PAUSED && !isAd && THEMIM->getIM()->isP2P())
++        p2p_RequestLoadUrlAd(THEP2P, P2P_LOAD_URL_WEBSTAT_PAUSE, 0);
++    else if(state == AceWebBrowser::BHPS_STOPPED && !isAd)
++        p2p_RequestLoadUrlAd(THEP2P, P2P_LOAD_URL_WEBSTAT_STOP, 0);
++}
++
++void MainInterface::handleUserPauseAction()
++{
++    emit notifyPauseClicked();
++}
++
++void MainInterface::handleUserStopAction()
++{
++    if(m_link_2_open_later != "") {
++        if(m_link_2_open_aceweb) {
++            AceWebBrowser::OpenInAceWeb(QUrl(m_link_2_open_later), m_link_2_open_args);
++        }
++        else {
++            QDesktopServices::openUrl(m_link_2_open_later);
++        }
++        m_link_2_open_later = "";
++        m_link_2_open_aceweb = false;
++        m_link_2_open_args = "";
++    }
++}
++
+ /*****************************************************************************
+  * PopupMenuCB: callback triggered by the intf-popupmenu playlist variable.
+  *  We don't show the menu directly here because we don't want the
+@@ -1521,3 +2316,72 @@
+ 
+     return VLC_SUCCESS;
+ }
++
++static int IntfShowUserDataCB( vlc_object_t *p_this, const char *psz_variable,
++                           vlc_value_t old_val, vlc_value_t new_val, void *param )
++{
++    VLC_UNUSED( p_this ); VLC_UNUSED( psz_variable ); VLC_UNUSED( old_val );
++    VLC_UNUSED( new_val );
++    
++    intf_thread_t *p_intf = (intf_thread_t *)param;
++    p_intf->p_sys->p_mi->p2pUserDataDialogShow();
++
++    return VLC_SUCCESS;
++}
++
++static int IntfShowErrorDialogCB( vlc_object_t *p_this, const char *psz_variable,
++                           vlc_value_t old_val, vlc_value_t new_val, void *param )
++{
++    VLC_UNUSED( p_this ); VLC_UNUSED( psz_variable ); VLC_UNUSED( old_val );
++    
++    intf_thread_t *p_intf = (intf_thread_t *)param;
++    
++    p2p_showdialog_item_t *p_showdialog = (p2p_showdialog_item_t *)new_val.p_address;
++    if( p_showdialog ) {
++        QString title = "";
++        if( p_showdialog->title )
++            title.sprintf( "%s", p_showdialog->title );
++        QString text = "";
++        if( p_showdialog->text )
++            text.sprintf( "%s", p_showdialog->text );
++        p_intf->p_sys->p_mi->p2pErrorDialogShow(title, text);
++    }
++
++    return VLC_SUCCESS;
++}
++
++static int IntfShowMiningDialogCB( vlc_object_t *p_this, const char *psz_variable,
++                           vlc_value_t old_val, vlc_value_t new_val, void *param )
++{
++    VLC_UNUSED( p_this ); VLC_UNUSED( psz_variable ); VLC_UNUSED( old_val );
++    
++    intf_thread_t *p_intf = (intf_thread_t *)param;
++ 
++    p2p_showinfowindow_item_t *p_showinfownd = (p2p_showinfowindow_item_t *)new_val.p_address;
++    if(p_showinfownd) {
++        QString type = "";
++        if( p_showinfownd->type )
++            type.sprintf( "%s", p_showinfownd->type );
++        QString text = "";
++        if( p_showinfownd->text )
++            text.sprintf( "%s", p_showinfownd->text );
++        int buttons = p_showinfownd->buttons;
++        int action1 = p_showinfownd->btn1_action;
++        QString text1 = "";
++        if( p_showinfownd->btn1_text )
++            text1.sprintf( "%s", p_showinfownd->btn1_text );
++        QString url1 = "";
++        if( p_showinfownd->btn1_url )
++            url1.sprintf( "%s", p_showinfownd->btn1_url );
++        int action2 = p_showinfownd->btn2_action;
++        QString text2 = "";
++        if( p_showinfownd->btn2_text )
++            text2.sprintf( "%s", p_showinfownd->btn2_text );
++        QString url2 = "";
++        if( p_showinfownd->btn2_url )
++            url2.sprintf( "%s", p_showinfownd->btn2_url );
++        p_intf->p_sys->p_mi->p2pMiningDialogShow(type, text, buttons, action1, text1, url1, action2, text2, url2);
++    }
++    
++    return VLC_SUCCESS;
++}

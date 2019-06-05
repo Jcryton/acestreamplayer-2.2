@@ -1,0 +1,18 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/complete_preferences.cpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/complete_preferences.cpp	2014-01-17 16:59:59.842993015 +0200
+@@ -99,6 +99,7 @@
+         /* This is a category */
+         case CONFIG_CATEGORY:
+             if( p_item->value.i == -1 ) break;
++            if( p_item->value.i == CAT_WEB_PLUGIN ) break;
+ 
+             /* PrefsItemData Init */
+             data = new PrefsItemData();
+@@ -139,6 +140,7 @@
+         /* This is a subcategory */
+         case CONFIG_SUBCATEGORY:
+             if( p_item->value.i == -1 ) break;
++            if( p_item->value.i == SUBCAT_WEB_PLUGIN_INTERFACE ) break;
+ 
+             /* Special cases: move the main subcategories to the parent cat*/
+             if( data &&

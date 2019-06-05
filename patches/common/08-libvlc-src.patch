@@ -1,0 +1,2612 @@
+diff -ru vlc-2.1.4.orig/include/vlc/libvlc_events.h vlc-2.1.4/include/vlc/libvlc_events.h
+--- vlc-2.1.4.orig/include/vlc/libvlc_events.h	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.4/include/vlc/libvlc_events.h	2014-06-12 17:46:19.000000000 +0300
+@@ -73,6 +73,9 @@
+     libvlc_MediaPlayerSnapshotTaken,
+     libvlc_MediaPlayerLengthChanged,
+     libvlc_MediaPlayerVout,
++    libvlc_MediaPlayerLivePosChanged,           // generated for live broadcast (event description - u.media_player_livepos)
++    libvlc_MediaPlayerHotkeyAction,             // event type for hotkey action after libvlc_emit_hotkey (event description - u.media_player_hotkey)
++    libvlc_MediaPlayerAout,
+     libvlc_MediaPlayerScrambledChanged,
+     libvlc_MediaPlayerCorked = libvlc_MediaPlayerScrambledChanged + 3 + 1,
+     libvlc_MediaPlayerUncorked,
+@@ -84,6 +87,8 @@
+     libvlc_MediaListWillAddItem,
+     libvlc_MediaListItemDeleted,
+     libvlc_MediaListWillDeleteItem,
++    libvlc_MediaListItemSaveFormatChanged,      // generated if save type of acestream media changed (event description - u.media_list_item_saveformat_changed)
++    libvlc_MediaListItemMoved,                  // generated after libvlc_media_list_player_item_move if success (event description - u.media_list_item_moved)
+ 
+     libvlc_MediaListViewItemAdded=0x300,
+     libvlc_MediaListViewWillAddItem,
+@@ -101,9 +106,73 @@
+     libvlc_VlmMediaInstanceStatusPlaying,
+     libvlc_VlmMediaInstanceStatusPause,
+     libvlc_VlmMediaInstanceStatusEnd,
+-    libvlc_VlmMediaInstanceStatusError
++    libvlc_VlmMediaInstanceStatusError,
++
++    libvlc_AcestreamAuth=0x700,                 // acestrean engine AUTH event (event description - u.acestream_auth)
++    libvlc_AcestreamState,                      // acestrean engine STATE event (event description - u.acestream_state)
++    libvlc_AcestreamInfo,                       // acestrean engine INFO event (event description - u.acestream_info)
++    libvlc_AcestreamStatus,                     // acestrean engine STATUS event (event description - u.acestream_status)
++    libvlc_AcestreamError,                      // acestrean engine ERROR event (event description - u.acestream_error)
++    libvlc_AcestreamShowUrl,                    // deprecated
++    libvlc_AcestreamShowUserDataDialog,         // acestrean engine USERDATA event (without description webplugin must show USERDATADIALOG)
++    libvlc_AcestreamShowErrorDialog,            // show error dialog event (event description - u.acestream_showerrordialog)
++    libvlc_AcestreamForceExitFullscreen,        // webplugin must close fullscreen window (unneeded)
++    libvlc_AcestreamAdParams,                   // advertisements params (event description - u.acestream_adparams)
++    libvlc_AcestreamShowPlaylist,               // web plugin must show playlist (for js extensions)
++    libvlc_AcestreamStatusRaw,                  // acestream engine STATUS raw data (for js extensions)
++    libvlc_AcestreamLoadUrl,                    //
++    libvlc_AcestreamClearLoadUrl,               //
++    libvlc_AcestreamShowInfoWindow,           //
+ };
+ 
++typedef enum libvlc_hotkey_action_t {
++    libvlc_hotkey_None = 0,
++    libvlc_hotkey_PlayPause,
++    libvlc_hotkey_Play,
++    libvlc_hotkey_Pause,
++    libvlc_hotkey_Stop,
++    libvlc_hotkey_Prev,
++    libvlc_hotkey_Next,
++    libvlc_hotkey_Slower,
++    libvlc_hotkey_Faster,
++    libvlc_hotkey_ExitFullscreen,
++    libvlc_hotkey_VolUp,
++    libvlc_hotkey_VolDown,
++    libvlc_hotkey_JumpBackExtraShort,
++    libvlc_hotkey_JumpForwardExtraShort,
++    libvlc_hotkey_JumpBackShort,
++    libvlc_hotkey_JumpForwardShort,
++    libvlc_hotkey_JumpBackMedium,
++    libvlc_hotkey_JumpForwardMedium,
++    libvlc_hotkey_JumpBackLong,
++    libvlc_hotkey_JumpForwardLong,
++    libvlc_hotkey_FrameNext,
++    libvlc_hotkey_ShowPosition,
++    libvlc_hotkey_VolMute,
++    libvlc_hotkey_SubDelayUp,
++    libvlc_hotkey_SubDelayDown,
++    libvlc_hotkey_AudioTrack,
++    libvlc_hotkey_SubTrack,
++    libvlc_hotkey_AudioDelayUp,
++    libvlc_hotkey_AudioDelayDown,
++    libvlc_hotkey_Snapshot,
++    libvlc_hotkey_Record,
++    libvlc_hotkey_AspectRatio,
++    libvlc_hotkey_Crop,
++    libvlc_hotkey_Deinterlace,
++    libvlc_hotkey_CropTop,
++    libvlc_hotkey_UnCropTop,
++    libvlc_hotkey_CropLeft,
++    libvlc_hotkey_UnCropLeft,
++    libvlc_hotkey_CropBottom,
++    libvlc_hotkey_UnCropBottom,
++    libvlc_hotkey_CropRight,
++    libvlc_hotkey_UnCropRight,
++    libvlc_hotkey_RateNormal,
++    libvlc_hotkey_RateSlowerFine,
++    libvlc_hotkey_RateFasterFine,
++} libvlc_hotkey_action_t;
++
+ /**
+  * A LibVLC event
+  */
+@@ -172,6 +241,10 @@
+         {
+             int new_count;
+         } media_player_vout;
++        struct
++        {
++            int new_count;
++        } media_player_aout;
+ 
+         /* media list */
+         struct
+@@ -236,6 +236,117 @@
+             libvlc_media_t * new_media;
+         } media_player_media_changed;
+ 
++        /* acestream */
++        struct {
++            int auth;           // 0 - user not auth
++        } acestream_auth;
++        struct {
++            int state;          // libvlc_acestream_state_t from libvlc_acestream.h
++        } acestream_state;
++        struct {
++            const char *status; // status message
++        } acestream_status;
++        struct {
++            const char *status; // raw status message from engine (for js only)
++        } acestream_status_raw;
++        struct {
++            const char *info;   // info message
++        } acestream_info;
++        struct {
++            const char *error;  // error message
++        } acestream_error;
++        struct {
++            const char *clickurl;       // url to show on visit button click
++            const char *clicktext;      // text to place on visit button
++            const char *skipoffset;     // "hh:mm:ss" or "xx%" time or position to ad can be skipped
++            const char *noadsurl;       // url to show if user want diable advertisements
++            const char *noadstext;
++            const char *adinfotext;
++        } acestream_adparams;
++        struct {
++            const char *title;          // dialog title
++            const char *msg;            // dialog text
++        } acestream_showerrordialog;
++        
++        /* media list */
++        struct
++        {
++            libvlc_media_t *item;           // libvlc_media_t descriptor
++            int index;                      // index of media in media_list
++        } media_list_item_saveformat_changed;
++        struct
++        {
++            libvlc_media_t *item;           // libvlc_media_t descriptor
++            int from;                       // position from
++            int to;                         // position to
++        } media_list_item_moved;
++        
++        /* media player */
++        struct {
++            bool is_live;
++            int live_first;
++            int live_last;
++            int pos;
++            int first_ts;
++            int last_ts;
++            int last;
++            int buffer_pieces;
++        } media_player_livepos;             // live broadcast position event (to display input slider correctly)
++        
++        struct {
++            libvlc_hotkey_action_t type;    // libvlc_hotkey_action_t
++        } media_player_hotkey;
++
++        struct {
++            int type;
++            const char *id;
++            const char *url;
++            int width;
++            int height;
++            int left;
++            int top;
++            int bottom;
++            int right;
++            bool allow_dialogs;
++            bool allow_window_open;
++            bool enable_flash;
++            int cookies;
++            const char *embed_scripts;
++            const char *embed_code;
++            
++            bool preload;
++            int fullscreen;
++            
++            const char *content_type;
++            const char *creative_type;
++            const char *click_url;
++            
++            int user_agent;
++            int close_after_seconds;
++            int show_time;
++            
++            bool start_hidden;
++            bool url_filter;
++            int group_id;
++            bool useIE;
++        } acestream_loadurl;
++
++        struct {
++            int type;
++        } acestream_clearloadurl;
++        struct {
++            const char *type;
++            const char *text;
++            int height;
++            int buttons;
++            int btn1_action;
++            const char *btn1_text;
++            const char *btn1_url;
++            int btn2_action;
++            const char *btn2_text;
++            const char *btn2_url;
++        } acestream_showinfowindow;
++
+         struct
+         {
+             float volume;
+diff -ru vlc-2.1.2.orig/include/vlc/libvlc.h vlc-2.1.2/include/vlc/libvlc.h
+--- vlc-2.1.2.orig/include/vlc/libvlc.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc/libvlc.h	2014-01-22 12:52:20.137964593 +0200
+@@ -61,6 +61,8 @@
+ 
+ # ifdef __cplusplus
+ extern "C" {
++# else
++#  include <stdbool.h>
+ # endif
+ 
+ #include <vlc/libvlc_structures.h>
+@@ -625,6 +627,76 @@
+     return pts - libvlc_clock();
+ }
+ 
++/** \defgroup Additional methods for acestream web-plugin
++ * @{
++ */
++
++/**
++ * Return the localized text message
++ * \param msg message to localize
++ * \return localized message
++ */
++LIBVLC_API const char* libvlc_tr( const char *msg );
++
++/**
++ * Set the background color of video holder window (for Win only)
++ * \param p_instance libvlc instance
++ * \param color in format #FFFFFF
++ */
++LIBVLC_API void libvlc_set_video_bgcolor( libvlc_instance_t *p_instance, const char *color );
++
++/**
++ * Reports vlc that client app set or unset fullscreen
++ * \param p_instance libvlc instance
++ * \param val fullscreen or not
++ */
++LIBVLC_API void libvlc_set_video_fullscreen( libvlc_instance_t *p_instance, bool val );
++
++/**
++ * Reports vlc that client app perform vlc key action, as a result will generate event to client 
++ * with correct libvlc_hotkey_action_t (libvlc_event.h)
++ * \param p_instance libvlc instance
++ * \param key vlc key
++ */
++LIBVLC_API void libvlc_emit_hotkey( libvlc_instance_t *p_instance, uint32_t key );
++
++/**
++ * Return stored in configuration value if fullscreen controls is in min or widr view
++ * \param p_instance libvlc instance
++ * \return true - min view, false - vide view
++ */
++LIBVLC_API bool libvlc_fs_controls_min_view( libvlc_instance_t *p_instance );
++
++/**
++ * Set the configuration value of fullscreen controls view
++ * \param p_instance libvlc instance
++ * \param val true - min view, false - vide view
++ */
++LIBVLC_API void libvlc_set_fs_controls_min_view( libvlc_instance_t *p_instance, bool val );
++
++/**
++ * Return stored in configuration value if fullscreen controls enabled
++ * \param p_instance libvlc instance
++ * \return enabled or not
++ */
++LIBVLC_API bool libvlc_fscontrols_enabled( libvlc_instance_t *p_instance );
++
++/**
++ * Return stored in configuration value if enbaled play-pause on video holder window
++ * \param p_instance libvlc instance
++ * \return enabled or not
++ */
++LIBVLC_API bool libvlc_play_on_click_enabled( libvlc_instance_t *p_instance );
++
++/**
++ * Reports vlc that client's webkit supports flash
++ * \param p_instance libvlc instance
++ * \param support or not
++ */
++LIBVLC_API void libvlc_set_flash_enable(libvlc_instance_t *p_instance, bool val );
++
++/** @} */
++
+ /** @} */
+ 
+ # ifdef __cplusplus
+diff -ru vlc-2.1.2.orig/include/vlc/libvlc_media.h vlc-2.1.2/include/vlc/libvlc_media.h
+--- vlc-2.1.2.orig/include/vlc/libvlc_media.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc/libvlc_media.h	2014-01-16 16:09:33.252815884 +0200
+@@ -33,6 +33,8 @@
+ 
+ # ifdef __cplusplus
+ extern "C" {
++# else
++#  include <stdbool.h>
+ # endif
+ 
+ /** \defgroup libvlc_media LibVLC media
+@@ -233,7 +235,8 @@
+  */
+ LIBVLC_API libvlc_media_t *libvlc_media_new_location(
+                                    libvlc_instance_t *p_instance,
+-                                   const char * psz_mrl );
++                                   const char * psz_mrl,
++                                   const char *psz_title );
+ 
+ /**
+  * Create a media for a certain file path.
+@@ -594,6 +597,210 @@
+ void libvlc_media_tracks_release( libvlc_media_track_t **p_tracks,
+                                   unsigned i_count );
+ 
++/** \defgroup Additional methods for acestream web-plugin
++ * @{
++ */
++
++/** Save types of media  */
++typedef enum libvlc_acestream_save_type_t {
++    libvlc_ace_save_type_Unsavable = 0,         // media cannot be saved
++    libvlc_ace_save_type_Plain = 1,             // media can be saved in plain format
++    libvlc_ace_save_type_Encrypted = 2          // media can be saved in encrypeted format
++} libvlc_acestream_save_type_t;
++
++/**
++ * Check if media is acestream media
++ *
++ * \param p_md media descriptor object
++ * \return true - acestream media
++ */
++LIBVLC_API bool libvlc_media_is_acestream_media( libvlc_media_t *p_md );
++
++/**
++ * Return url of acestream media
++ *
++ * \param p_md media descriptor object
++ * \param result pointer to allocated mamory for writing result (memory must be allocated and free by caller)
++ * \return same as result
++ */
++LIBVLC_API char *libvlc_media_get_acestream_url( libvlc_media_t *p_md, char *result );
++
++/**
++ * Return infohash of acestream media
++ *
++ * \param p_md media descriptor object
++ * \param result pointer to allocated mamory for writing result (memory must be allocated and free by caller)
++ * \return same as result
++ */
++LIBVLC_API char *libvlc_media_get_acestream_infohash( libvlc_media_t *p_md, char *result );
++
++/**
++ * Return checksum of acestream media
++ *
++ * \param p_md media descriptor object
++ * \param result pointer to allocated mamory for writing result (memory must be allocated and free by caller)
++ * \return same as result
++ */
++LIBVLC_API char *libvlc_media_get_acestream_checksum( libvlc_media_t *p_md, char *result );
++
++/**
++ * Return title of acestream media (same as libvlc_media_get_meta( p_md, libvlc_meta_Title ))
++ *
++ * \param p_md media descriptor object
++ * \param result pointer to allocated mamory for writing result (memory must be allocated and free by caller)
++ * \return same as result
++ */
++LIBVLC_API char *libvlc_media_get_acestream_title( libvlc_media_t *p_md, char *result );
++
++/**
++ * Return filename of acestream media
++ *
++ * \param p_md media descriptor object
++ * \param result pointer to allocated mamory for writing result (memory must be allocated and free by caller)
++ * \return same as result
++ */
++LIBVLC_API char *libvlc_media_get_acestream_filename( libvlc_media_t *p_md, char *result );
++
++/**
++ * Return active quality index of acestrem media
++ *
++ * \param p_md media descriptor object
++ * \return index of quality index of quality from 0 to libvlc_media_get_acestream_qualities_size
++ */
++LIBVLC_API int libvlc_media_get_acestream_current_quality( libvlc_media_t *p_md );
++
++/**
++ * Set index of quality for acestream media (media will be played in index quality)
++ *
++ * \param p_md media descriptor object 
++ * \param quality_index index of quality index of quality from 0 to libvlc_media_get_acestream_qualities_size
++ */
++LIBVLC_API void libvlc_media_set_acestream_current_quality( libvlc_media_t *p_md, int quality_index);
++
++/**
++ * Return count of qulities for acestream media
++ *
++ * \param p_md media descriptor object
++ * \return count of qualities
++ */
++LIBVLC_API int libvlc_media_get_acestream_qualities_size( libvlc_media_t *p_md );
++
++/**
++ * Return quality descritpion
++ *
++ * \param p_md media descriptor object
++ * \param quality_index index of quality from 0 to libvlc_media_get_acestream_qualities_size
++ * \param result pointer to allocated mamory for writing result (memory must be allocated and free by caller)
++ * \return same as result
++ */
++LIBVLC_API char *libvlc_media_get_acestream_quality_value_by_index( libvlc_media_t *p_md, int quality_index, char *result );
++
++/**
++ * Return group id of acestream media (if acestream file have more then 1 media item they will have same group)
++ *
++ * \param p_md media descriptor object
++ * \return group id
++ */
++LIBVLC_API int libvlc_media_get_acestream_group_id( libvlc_media_t *p_md );
++
++/**
++ * Return group size of acestream medias with same group id as p_md
++ *
++ * \param p_md media descriptor object
++ * \return group size
++ */
++LIBVLC_API int libvlc_media_get_acestream_group_size( libvlc_media_t *p_md );
++
++/**
++ * Return index of media in acestream media file
++ *
++ * \param p_md media descriptor object
++ * \return index
++ */
++LIBVLC_API int libvlc_media_get_acestream_index( libvlc_media_t *p_md );
++
++/**
++ * Return developer id (developer id that was specified in libvlc_acestream_object_load)
++ *
++ * \param p_md media descriptor object
++ * \return developer id
++ */
++LIBVLC_API int libvlc_media_get_acestream_developer( libvlc_media_t *p_md );
++
++/**
++ * Return affiliate id (affiliate id that was specified in libvlc_acestream_object_load)
++ *
++ * \param p_md media descriptor object
++ * \return affiliate id
++ */
++LIBVLC_API int libvlc_media_get_acestream_affiliate( libvlc_media_t *p_md );
++
++/**
++ * Return zone id (zone id that was specified in libvlc_acestream_object_load)
++ *
++ * \param p_md media descriptor object
++ * \return zone id
++ */
++LIBVLC_API int libvlc_media_get_acestream_zone( libvlc_media_t *p_md );
++
++/**
++ * Return acestream media type
++ *
++ * \param p_md media descriptor object
++ * \return type (defined in libvlc_acestream.h libvlc_acestream_id_type_t) 
++ */
++LIBVLC_API int libvlc_media_get_acestream_url_type( libvlc_media_t *p_md ); //libvlc_acestream_id_type_t
++
++/**
++ * Return if media is active (checkboxes in webplugin playlist)
++ *
++ * \param p_md media descriptor object
++ * \return media will be load be acestream
++ */
++LIBVLC_API bool libvlc_media_get_acestream_is_active( libvlc_media_t *p_md );
++
++/**
++ * Activate or deactivate media
++ *
++ * \param p_md media descriptor object
++ * \param active activate or deactivate
++ */
++LIBVLC_API void libvlc_media_set_acestream_active( libvlc_media_t *p_md, bool active );
++
++/**
++ * Check if acestream media is advertisement
++ *
++ * \param p_md media descriptor object
++ * \return is advertisement
++ */
++LIBVLC_API bool libvlc_media_get_acestream_is_ad( libvlc_media_t *p_md );
++
++/**
++ * Check if acestream media is interruptable advertisement
++ *
++ * \param p_md media descriptor object
++ * \return is interruptable advertisement
++ */
++LIBVLC_API bool libvlc_media_get_acestream_is_interruptable_ad( libvlc_media_t *p_md );
++
++/**
++ * Check if acestream media is live broadcast
++ *
++ * \param p_md media descriptor object
++ * \return is live broadcast
++ */
++LIBVLC_API bool libvlc_media_get_acestream_is_live( libvlc_media_t *p_md );
++
++/**
++ * Return saveable type of acestream media
++ *
++ * \param p_md media descriptor object
++ * \return libvlc_acestream_save_type_t (default value libvlc_ace_save_type_Unsavable)
++ */
++LIBVLC_API libvlc_acestream_save_type_t libvlc_media_get_acestream_save_type( libvlc_media_t *p_md );
++
++/** @} acestream */
++
+ /** @}*/
+ 
+ # ifdef __cplusplus
+diff -ru vlc-2.1.2.orig/include/vlc/libvlc_media_list.h vlc-2.1.2/include/vlc/libvlc_media_list.h
+--- vlc-2.1.2.orig/include/vlc/libvlc_media_list.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc/libvlc_media_list.h	2014-01-16 14:01:34.179219662 +0200
+@@ -200,6 +200,15 @@
+ LIBVLC_API libvlc_event_manager_t *
+     libvlc_media_list_event_manager( libvlc_media_list_t *p_ml );
+ 
++/**
++ * Move item in media_list form pos_from to pos_to, after moving will occur event libvlc_MediaListItemMoved
++ *
++ * \param p_mlp media list player instance
++ * \param pos_from position from
++ * \param pos_to position to
++ */ 
++LIBVLC_API int libvlc_media_list_item_move( libvlc_media_list_t *p_ml, int pos_from, int pos_to );
++
+ /** @} media_list */
+ 
+ # ifdef __cplusplus
+diff -ru vlc-2.1.2.orig/include/vlc/libvlc_media_list_player.h vlc-2.1.2/include/vlc/libvlc_media_list_player.h
+--- vlc-2.1.2.orig/include/vlc/libvlc_media_list_player.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc/libvlc_media_list_player.h	2014-01-16 16:09:02.852023930 +0200
+@@ -215,6 +215,37 @@
+ void libvlc_media_list_player_set_playback_mode(libvlc_media_list_player_t * p_mlp,
+                                                 libvlc_playback_mode_t e_mode );
+ 
++/** \defgroup Additional methods for acestream web-plugin
++ * @{
++ */
++ 
++/**
++ * Move item in media_list form pos_from to pos_to and reset current item in media_list_player
++ *
++ * \param p_mlp media list player instance
++ * \param pos_from position from
++ * \param pos_to position to
++ */ 
++LIBVLC_API void libvlc_media_list_player_item_move( libvlc_media_list_player_t *p_mlp, int pos_from, int pos_to );
++
++/**
++ * Set position shift for current item ( only for YouTube extension)
++ *
++ * \param p_mlp media list player instance
++ * \param pos position shift
++ */
++LIBVLC_API void libvlc_media_list_player_set_position_shift( libvlc_media_list_player_t *p_mlp, double pos );
++
++/**
++ * Get position shift for current item ( only for YouTube extension)
++ *
++ * \param p_mlp media list player instance
++ * \return position shift
++ */
++LIBVLC_API double libvlc_media_list_player_get_position_shift( libvlc_media_list_player_t *p_mlp );
++
++/** @} acestream */
++
+ /** @} media_list_player */
+ 
+ # ifdef __cplusplus
+diff -ru vlc-2.1.2.orig/include/vlc/libvlc_media_player.h vlc-2.1.2/include/vlc/libvlc_media_player.h
+--- vlc-2.1.2.orig/include/vlc/libvlc_media_player.h	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/include/vlc/libvlc_media_player.h	2014-01-16 16:08:49.462722199 +0200
+@@ -1650,6 +1650,150 @@
+ 
+ /** @} audio */
+ 
++/** \defgroup Additional methods for acestream web-plugin
++ * @{
++ */
++
++/**
++ * Set current audio visualization.  
++ *
++ * \param p_mi media player
++ * \param vis visualization value 
++ * [available values is: ""-disable, "spectrometer", "scope", "spectrum", "vuMeter", "dummy", "goom"]
++ */
++LIBVLC_API void libvlc_audio_set_visualization( libvlc_media_player_t *p_mi, const char *vis );
++
++/**
++ * Get current audio visualization. 
++ *
++ * \param p_mi media player
++ * \return visualization value
++ */
++LIBVLC_API char *libvlc_audio_get_visualization( libvlc_media_player_t *p_mi );
++
++/**
++ * Set current video deinterlace mode
++ *
++ * \param p_mi media player
++ * \param mode deinterlace mode 
++ * [available values is: "discard", "blend", "mean", "bob", "linear", "x", "yadif", "yadif2x", "phosphor", "ivtc"]
++ */
++LIBVLC_API void libvlc_video_set_deinterlace_mode( libvlc_media_player_t *p_mi, const char *mode );
++
++/**
++ * Get current video deinterlace mode
++ *
++ * \param p_mi media player
++ * \return deinterlace mode
++ */
++LIBVLC_API char *libvlc_video_get_deinterlace_mode( libvlc_media_player_t *p_mi );
++
++/**
++ * Set current video deinterlace
++ *
++ * \param p_mi media player
++ * \param state -1 - "auto", 0 - "off", 1 - "on"
++ */
++LIBVLC_API void libvlc_video_set_deinterlace_status( libvlc_media_player_t *p_mi, int state );
++
++/**
++ * Get current video deinterlace
++ *
++ * \param p_mi media player
++ * \return deinterlace status
++ */
++LIBVLC_API int libvlc_video_get_deinterlace_status( libvlc_media_player_t *p_mi );
++
++/**
++ * Execute jump in playback time
++ *
++ * \param p_mi media player
++ * \param type predefined vlc type of jump ("extrashort", "short", "medium", "long")
++ * \param direction -1 - "backward", 1 - "forward"
++ */
++LIBVLC_API void libvlc_media_player_time_jump( libvlc_media_player_t *p_mi, const char *type, int direction);
++
++/**
++ * Execute vlc faster or slower rate action
++ *
++ * \param p_mi media player
++ * \param direction -1 - "backward", 1 - "forward"
++ */
++LIBVLC_API void libvlc_set_next_rate( libvlc_media_player_t *p_mi, int direction );
++
++/**
++ * Execute vlc fasterfine or slowerfine rate action
++ *
++ * \param p_mi media player
++ * \param direction -1 - "backward", 1 - "forward"
++ */
++LIBVLC_API void libvlc_set_next_fine_rate( libvlc_media_player_t *p_mi, int direction );
++
++/**
++ * Show current playback position in osd
++ *
++ * \param p_mi media player
++ */
++LIBVLC_API void libvlc_show_osd_position( libvlc_media_player_t *p_mi );
++
++/**
++ * Simple take a snapshot of the current video window
++ *
++ * \param p_mi media player
++ */
++LIBVLC_API void libvlc_video_take_simple_snapshot( libvlc_media_player_t *p_mi );
++
++/**
++ * Begin record or stop record if recoding now
++ *
++ * \param p_mi media player
++ */
++LIBVLC_API void libvlc_media_player_record( libvlc_media_player_t *p_mi );
++
++/**
++ * Set next crop value depending of current
++ *
++ * \param p_mi media player
++ * \param current_crop current crop value
++ */
++LIBVLC_API void libvlc_video_set_next_crop( libvlc_media_player_t *p_mi, const char *current_crop );
++
++/**
++ * Set next aspect-ratio value depending of current
++ *
++ * \param p_mi media player
++ * \param current_aspect current aspect-ratio value
++ */
++LIBVLC_API void libvlc_video_set_next_aspect_ratio( libvlc_media_player_t *p_mi, const char *current_aspect );
++
++/**
++ * Crop/Uncrop one pixel of the video
++ *
++ * \param p_mi media player
++ * \param where part of the video 
++ * [available values is: "crop-left", "crop-top", "crop-right", "crop-bottom"]
++ * \param direction 1 - crop; -1 - uncrop
++ */
++LIBVLC_API void libvlc_video_change_crop( libvlc_media_player_t *p_mi, const char *where, int direction );
++
++/**
++ * Change spu delay
++ *
++ * \param p_mi media player
++  * \param direction 1 - up; -1 - down
++ */
++LIBVLC_API void libvlc_change_spu_delay( libvlc_media_player_t *p_mi, int direction );
++
++/**
++ * Change audio delay
++ *
++ * \param p_mi media player
++  * \param direction 1 - up; -1 - down
++ */
++LIBVLC_API void libvlc_change_audio_delay( libvlc_media_player_t *p_mi, int direction );
++
++/** @} acestream */
++
+ /** @} media_player */
+ 
+ # ifdef __cplusplus
+diff -ru vlc-2.1.2.orig/include/vlc/vlc.h vlc-2.1.2/include/vlc/vlc.h
+--- vlc-2.1.2.orig/include/vlc/vlc.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc/vlc.h	2014-01-16 14:00:49.471220713 +0200
+@@ -45,6 +45,7 @@
+ #include <vlc/libvlc_media_list_player.h>
+ #include <vlc/libvlc_media_library.h>
+ #include <vlc/libvlc_media_discoverer.h>
++#include <vlc/libvlc_acestream.h>
+ #include <vlc/libvlc_events.h>
+ #include <vlc/libvlc_vlm.h>
+ #include <vlc/deprecated.h>
+diff -ru vlc-2.1.4.orig/lib/audio.c vlc-2.1.4/lib/audio.c
+--- vlc-2.1.4.orig/lib/audio.c	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.4/lib/audio.c	2014-03-07 12:05:02.783951924 +0200
+@@ -37,6 +37,7 @@
+ #include <vlc_input.h>
+ #include <vlc_aout.h>
+ #include <vlc_modules.h>
++#include <vlc_vout_osd.h>
+ 
+ #include "libvlc_internal.h"
+ #include "media_player_internal.h"
+@@ -107,6 +108,7 @@
+     {
+         libvlc_audio_output_t *next = list->p_next;
+ 
++
+         free( list->psz_name );
+         free( list->psz_description );
+         free( list );
+@@ -232,8 +234,18 @@
+ void libvlc_audio_toggle_mute( libvlc_media_player_t *mp )
+ {
+     int mute = libvlc_audio_get_mute( mp );
+-    if( mute != -1 )
++    if( mute != -1 ) {
+         libvlc_audio_set_mute( mp, !mute );
++        
++        if(is_in_fullscreen(mp)) {
++            if(mute)
++                libvlc_show_osd_icon(mp, OSD_MUTE_ICON);
++            else {
++                int vol = libvlc_audio_get_volume(mp);
++                libvlc_show_osd_text(mp, _( "Volume %d%%" ), vol);
++            }
++        }
++    }
+ }
+ 
+ int libvlc_audio_get_mute( libvlc_media_player_t *mp )
+@@ -246,6 +258,9 @@
+         mute = aout_MuteGet( aout );
+         vlc_object_release( aout );
+     }
++    else {
++        mute = var_GetBool(mp, "audio-mute-saved");
++    }
+     return mute;
+ }
+ 
+@@ -256,7 +271,17 @@
+     {
+         mute = aout_MuteSet( aout, mute );
+         vlc_object_release( aout );
++        
++        if(is_in_fullscreen(mp)) {
++            if(!!mute)
++                libvlc_show_osd_icon(mp, OSD_MUTE_ICON);
++            else {
++                int vol = libvlc_audio_get_volume(mp);
++                libvlc_show_osd_text(mp, _( "Volume %d%%" ), vol);
++            }
++        }
+     }
++    var_SetBool(mp, "audio-mute-saved", mute);
+ }
+ 
+ int libvlc_audio_get_volume( libvlc_media_player_t *mp )
+@@ -270,14 +295,21 @@
+         vlc_object_release( aout );
+         volume = lroundf( vol * 100.f );
+     }
++    else {
++        float vol = var_GetFloat(mp, "audio-volume-saved");
++        volume = lroundf( vol * 100.f );
++    }
+     return volume;
+ }
+ 
+ int libvlc_audio_set_volume( libvlc_media_player_t *mp, int volume )
+ {
++    int display_volume = volume / 2;
+     float vol = volume / 100.f;
+-    if (!isgreaterequal(vol, 0.f))
++    if (!isgreaterequal(vol, 0.f) || vol > 2.f)
+     {
++        if(is_in_fullscreen(mp))
++            libvlc_show_osd_text(mp, _( "Volume %d%%" ), vol < 0 ? 0 : 100);
+         libvlc_printerr( "Volume out of range" );
+         return -1;
+     }
+@@ -288,7 +320,11 @@
+     {
+         ret = aout_VolumeSet( aout, vol );
+         vlc_object_release( aout );
++
++        if(is_in_fullscreen(mp))
++            libvlc_show_osd_text(mp, _( "Volume %d%%" ), display_volume);
+     }
++    var_SetFloat(mp, "audio-volume-saved", vol);
+     return ret;
+ }
+ 
+@@ -340,6 +376,7 @@
+     input_thread_t *p_input_thread = libvlc_get_input_thread( p_mi );
+     vlc_value_t val_list;
+     int i_ret = -1;
++    int track_index = -1;
+ 
+     if( !p_input_thread )
+         return -1;
+@@ -352,6 +389,7 @@
+             if( var_SetInteger( p_input_thread, "audio-es", i_track ) < 0 )
+                 break;
+             i_ret = 0;
++            track_index = i;
+             goto end;
+         }
+     }
+@@ -359,6 +397,17 @@
+ end:
+     var_FreeList( &val_list, NULL );
+     vlc_object_release( p_input_thread );
++    
++    if(i_ret == 0 && is_in_fullscreen(p_mi) && track_index > -1) {
++        libvlc_track_description_t *descr = libvlc_audio_get_track_description(p_mi);
++        if(!descr)
++            return i_ret;
++        for(size_t i = 0; i < track_index; i++)
++            descr = descr->p_next;
++        libvlc_show_osd_text(p_mi, _("Audio track: %s"), descr->psz_name);
++        libvlc_track_description_release(descr);
++    }
++    
+     return i_ret;
+ }
+ 
+@@ -429,3 +478,52 @@
+     }
+     return ret;
+ }
++
++char *libvlc_audio_get_visualization(libvlc_media_player_t *p_mi)
++{
++    audio_output_t *p_aout = GetAOut( p_mi );
++
++	char *psz_vis = "";
++	if( p_aout ) {
++		psz_vis = var_GetNonEmptyString(p_aout, "visual");
++		vlc_object_release( p_aout );
++	}
++	return psz_vis;
++}
++
++void libvlc_audio_set_visualization(libvlc_media_player_t *p_mi, const char *vis)
++{
++	if (vis == NULL)
++		vis = "";
++
++	audio_output_t *p_aout = GetAOut( p_mi );
++	if( p_aout ) {
++		var_SetString(p_aout, "visual", vis);
++		vlc_object_release( p_aout );
++	}
++}
++
++void libvlc_process_input_aout_event(libvlc_media_player_t *mp)
++{
++    audio_output_t *aout = GetAOut(mp);
++    if( aout != NULL )
++    {
++        float saved = var_GetFloat(mp, "audio-volume-saved");
++        float vol = 0;
++        if(mp->p_md && libvlc_media_get_acestream_is_ad(mp->p_md)) {
++            float ad = var_GetFloat(mp, "advolume");
++            vol = (saved > ad) ? ad : saved;
++        }
++        else {
++            vol = saved;
++        }
++        if(vol > 2.f)
++            vol = 2.f;
++        else if(vol < 0.f)
++            vol = 0.f;
++        aout_VolumeSet( aout, vol );
++        vlc_object_release( aout );
++
++        libvlc_audio_set_mute(mp, var_GetBool(mp, "audio-mute-saved"));
++    }
++}
+diff -ru vlc-2.1.2.orig/lib/core.c vlc-2.1.2/lib/core.c
+--- vlc-2.1.4.orig/lib/core.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.4/lib/core.c	2014-08-05 14:22:31.197226134 +0300
+@@ -38,10 +38,55 @@
+ 
+ static const char nomemstr[] = "Insufficient memory";
+ 
++#ifdef _WIN32
++static char *FromWide (const wchar_t *wide)
++{
++    size_t len;
++    len = WideCharToMultiByte (CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
++
++    char *out = (char *)malloc (len);
++    if (out)
++        WideCharToMultiByte (CP_UTF8, 0, wide, -1, out, len, NULL, NULL);
++    return out;
++}
++
++static void _libvlc_check_and_init_language()
++{
++    char *envLang = NULL;
++    envLang = getenv("LANG");
++    if(!envLang) 
++    {
++        HKEY h_key;
++#ifdef TORRENT_STREAM
++        if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\TorrentStream\\"), 0, KEY_READ, &h_key ) == ERROR_SUCCESS )
++#else
++        if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\AceStream\\"), 0, KEY_READ, &h_key ) == ERROR_SUCCESS )
++#endif
++        {
++            TCHAR szData[256];
++            DWORD len = 256;
++            if( RegQueryValueEx( h_key, TEXT("Lang"), NULL, NULL, (LPBYTE) &szData, &len ) == ERROR_SUCCESS )
++                envLang = FromWide( szData );
++        }
++
++        if (envLang && strncmp( envLang, "auto", 4 ) ) {
++            char tmp[11];
++            snprintf(tmp, 11, "LANG=%s", envLang);
++            putenv(tmp);
++        }
++        free(envLang);
++    }
++}
++#endif
++
+ libvlc_instance_t * libvlc_new( int argc, const char *const *argv )
+ {
+     libvlc_threads_init ();
+ 
++#ifdef _WIN32
++    _libvlc_check_and_init_language();
++#endif
++
+     libvlc_instance_t *p_new = malloc (sizeof (*p_new));
+     if (unlikely(p_new == NULL))
+         return NULL;
+@@ -69,6 +114,17 @@
+     p_new->ref_count = 1;
+     p_new->p_callback_list = NULL;
+     vlc_mutex_init(&p_new->instance_lock);
++
++    var_Create( p_libvlc_int, "web-fullscreen", VLC_VAR_BOOL );
++    var_SetBool( p_libvlc_int, "web-fullscreen", false );
++    var_Create( p_libvlc_int, "video-bgcolor", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
++    var_Create( p_libvlc_int, "flash-enable", VLC_VAR_BOOL );
++#ifdef _WIN32
++     var_SetBool( p_libvlc_int, "flash-enable", true );
++#else
++    var_SetBool( p_libvlc_int, "flash-enable", false );
++#endif
++
+     return p_new;
+ 
+ error:
+@@ -257,3 +313,61 @@
+ {
+     return mdate();
+ }
++
++p2p_object_t *getP2P( libvlc_instance_t *inst )
++{
++    return p2p_Get( inst->p_libvlc_int );
++}
++
++void deactivateP2P( libvlc_instance_t *inst ) 
++{
++    p2p_Deactivate(inst->p_libvlc_int);
++}
++
++const char* libvlc_tr( const char* base )
++{
++	return _(base);
++}
++
++void libvlc_set_video_bgcolor(libvlc_instance_t *p_instance, const char *bg)
++{
++	var_SetString(p_instance->p_libvlc_int, "video-bgcolor", bg);
++}
++
++void libvlc_set_video_fullscreen(libvlc_instance_t *p_instance, bool val)
++{
++	var_SetBool( p_instance->p_libvlc_int, "web-fullscreen", val );
++    p2p_object_t *p_p2p = getP2P(p_instance);
++    if(p_p2p)
++        var_SetBool( p_p2p, "vout-display-fullscreen", val );
++}
++
++void libvlc_emit_hotkey(libvlc_instance_t *p_instance, uint32_t key)
++{
++    var_SetInteger( p_instance->p_libvlc_int, "key-pressed", key );
++}
++
++bool libvlc_fs_controls_min_view( libvlc_instance_t *p_instance )
++{
++    return var_CreateGetBool( p_instance->p_libvlc_int, "fs-controller-min-view" );
++}
++
++void libvlc_set_fs_controls_min_view( libvlc_instance_t *p_instance, bool val )
++{
++    var_SetBool( p_instance->p_libvlc_int, "fs-controller-min-view", val );
++}
++
++bool libvlc_play_on_click_enabled( libvlc_instance_t *p_instance )
++{
++    return var_CreateGetBool( p_instance->p_libvlc_int, "play-on-click" );
++}
++
++bool libvlc_fscontrols_enabled( libvlc_instance_t *p_instance )
++{
++	return var_CreateGetBool( p_instance->p_libvlc_int, "fs-controller-enable" );
++}
++
++void libvlc_set_flash_enable(libvlc_instance_t *p_instance, bool val)
++{
++	var_SetBool( p_instance->p_libvlc_int, "flash-enable", val );
++}
+diff -ru vlc-2.1.4.orig/lib/event.c vlc-2.1.4/lib/event.c
+--- vlc-2.1.4.orig/lib/event.c	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.4/lib/event.c	2014-03-06 17:29:03.708936887 +0200
+@@ -280,6 +280,9 @@
+     DEF(MediaPlayerSnapshotTaken)
+     DEF(MediaPlayerLengthChanged)
+     DEF(MediaPlayerVout)
++    DEF(MediaPlayerLivePosChanged)
++    DEF(MediaPlayerHotkeyAction)
++    DEF(MediaPlayerAout)
+     DEF(MediaPlayerScrambledChanged)
+     DEF(MediaPlayerCorked)
+     DEF(MediaPlayerUncorked)
+@@ -291,6 +294,8 @@
+     DEF(MediaListWillAddItem)
+     DEF(MediaListItemDeleted)
+     DEF(MediaListWillDeleteItem)
++    DEF(MediaListItemSaveFormatChanged)
++    DEF(MediaListItemMoved)
+ 
+     DEF(MediaListViewItemAdded)
+     DEF(MediaListViewWillAddItem)
+@@ -309,6 +314,22 @@
+     DEF(VlmMediaInstanceStatusPause)
+     DEF(VlmMediaInstanceStatusEnd)
+     DEF(VlmMediaInstanceStatusError)
++
++    DEF(AcestreamAuth)
++    DEF(AcestreamState)
++    DEF(AcestreamInfo)
++    DEF(AcestreamStatus)
++    DEF(AcestreamError)
++    DEF(AcestreamShowUrl)
++    DEF(AcestreamShowUserDataDialog)
++    DEF(AcestreamShowErrorDialog)
++    DEF(AcestreamForceExitFullscreen)
++    DEF(AcestreamAdParams)
++    DEF(AcestreamShowPlaylist)
++    DEF(AcestreamStatusRaw)
++    DEF(AcestreamLoadUrl)
++    DEF(AcestreamClearLoadUrl)
++    DEF(AcestreamShowInfoWindow)
+ };
+ #undef DEF
+ 
+diff -ru vlc-2.1.2.orig/lib/libvlc_internal.h vlc-2.1.2/lib/libvlc_internal.h
+--- vlc-2.1.4.orig/lib/libvlc_internal.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.4/lib/libvlc_internal.h	2014-08-05 14:22:42.453226502 +0300
+@@ -120,4 +120,7 @@
+     return time * 1000ULL;
+ }
+ 
++p2p_object_t *getP2P( libvlc_instance_t *inst );
++void deactivateP2P( libvlc_instance_t *inst );
++
+ #endif
+diff -ru vlc-2.1.2.orig/lib/media.c vlc-2.1.2/lib/media.c
+--- vlc-2.1.2.orig/lib/media.c	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/lib/media.c	2014-01-16 16:40:27.705111174 +0200
+@@ -315,12 +315,12 @@
+  * Create a new media descriptor object
+  **************************************************************************/
+ libvlc_media_t *libvlc_media_new_location( libvlc_instance_t *p_instance,
+-                                           const char * psz_mrl )
++                                           const char * psz_mrl, const char *psz_title )
+ {
+     input_item_t * p_input_item;
+     libvlc_media_t * p_md;
+ 
+-    p_input_item = input_item_New( psz_mrl, NULL );
++    p_input_item = input_item_New( psz_mrl, psz_title );
+ 
+     if (!p_input_item)
+     {
+@@ -346,7 +346,7 @@
+         return NULL;
+     }
+ 
+-    libvlc_media_t *m = libvlc_media_new_location( p_instance, mrl );
++    libvlc_media_t *m = libvlc_media_new_location( p_instance, mrl, NULL );
+     free( mrl );
+     return m;
+ }
+@@ -356,7 +356,7 @@
+     char mrl[16];
+     snprintf( mrl, sizeof(mrl), "fd://%d", fd );
+ 
+-    return libvlc_media_new_location( p_instance, mrl );
++    return libvlc_media_new_location( p_instance, mrl, NULL );
+ }
+ 
+ /**************************************************************************
+@@ -873,3 +873,183 @@
+     }
+     free( p_tracks );
+ }
++
++bool libvlc_media_is_acestream_media( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_IsP2P( p_md->p_input_item );
++}
++
++char *libvlc_media_get_acestream_url( libvlc_media_t *p_md, char *out )
++{
++    assert( p_md );
++    
++    char *psz = input_item_GetP2PUrl( p_md->p_input_item );
++    if( psz ) {
++        strcpy( out, psz );
++        free( psz );
++    }
++
++    return out;
++}
++
++char *libvlc_media_get_acestream_infohash( libvlc_media_t *p_md, char *out )
++{
++    assert( p_md );
++    
++    char *psz = input_item_GetP2PInfohash( p_md->p_input_item );
++    if( psz ) {
++        strcpy( out, psz );
++        free( psz );
++    }
++    
++    return out;
++}
++
++char *libvlc_media_get_acestream_checksum( libvlc_media_t *p_md, char *out )
++{
++    assert( p_md );
++    
++    char *psz = input_item_GetP2PChecksum( p_md->p_input_item );
++    if( psz ) {
++        strcpy( out, psz );
++        free( psz );
++    }
++    
++    return out;
++}
++
++char *libvlc_media_get_acestream_quality_value_by_index( libvlc_media_t *p_md, int index, char *out )
++{
++    assert( p_md );
++    
++    char *psz = input_item_GetP2PQualityValue( p_md->p_input_item, index );
++    if( psz ) {
++        strcpy( out, psz );
++        free( psz );
++    }
++    
++    return out;
++}
++
++char *libvlc_media_get_acestream_title( libvlc_media_t *p_md, char *out )
++{
++    assert( p_md );
++    
++    char *psz = libvlc_media_get_meta( p_md, libvlc_meta_Title );
++    if( psz ) {
++        strcpy( out, psz );
++        free( psz );
++    }
++    
++    return out;
++}
++
++char *libvlc_media_get_acestream_filename( libvlc_media_t *p_md, char *out )
++{
++    assert( p_md );
++    
++    char *psz = input_item_GetP2PFileName( p_md->p_input_item );
++    if( psz ) {
++        strcpy( out, psz );
++        free( psz );
++    }
++    
++    return out;
++}
++
++int libvlc_media_get_acestream_current_quality( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PQualityCurrent( p_md->p_input_item );
++}
++
++void libvlc_media_set_acestream_current_quality( libvlc_media_t *p_md, int q )
++{
++    assert( p_md );
++    input_item_SetP2PQualityCurrent( p_md->p_input_item, q );
++}
++
++int libvlc_media_get_acestream_qualities_size( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PQualitySize( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_group_id( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PGroup( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_group_size( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PGroupSize( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_index( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PIndex( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_developer( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PDeveloper( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_affiliate( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PAffiliate( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_zone( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PZone( p_md->p_input_item );
++}
++
++int libvlc_media_get_acestream_url_type( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return (int)input_item_GetP2PType( p_md->p_input_item );
++}
++
++bool libvlc_media_get_acestream_is_active( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PActiveFlag( p_md->p_input_item );
++}
++
++void libvlc_media_set_acestream_active( libvlc_media_t *p_md, bool val )
++{
++    assert( p_md );
++    input_item_SetP2PActiveFlag( p_md->p_input_item, val );
++}
++
++bool libvlc_media_get_acestream_is_ad( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PIsAdFlag( p_md->p_input_item );
++}
++
++bool libvlc_media_get_acestream_is_interruptable_ad( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PIsIntAdFlag( p_md->p_input_item );
++}
++
++bool libvlc_media_get_acestream_is_live( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return input_item_GetP2PIsLiveFlag( p_md->p_input_item );
++}
++
++libvlc_acestream_save_type_t libvlc_media_get_acestream_save_type( libvlc_media_t *p_md )
++{
++    assert( p_md );
++    return (libvlc_acestream_save_type_t)input_item_GetP2PSaveFormat( p_md->p_input_item );
++}
+diff -ru vlc-2.1.2.orig/lib/media_discoverer.c vlc-2.1.2/lib/media_discoverer.c
+--- vlc-2.1.2.orig/lib/media_discoverer.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/lib/media_discoverer.c	2014-01-16 16:39:55.021461447 +0200
+@@ -122,8 +122,10 @@
+         if( p_md->p_input_item == p_item )
+         {
+             _libvlc_media_list_remove_index( p_mdis->p_mlist, i );
++            libvlc_media_release(p_md);
+             break;
+         }
++        libvlc_media_release(p_md);
+     }
+     libvlc_media_list_unlock( p_mdis->p_mlist );
+ }
+diff -ru vlc-2.1.2.orig/lib/media_list.c vlc-2.1.2/lib/media_list.c
+--- vlc-2.1.2.orig/lib/media_list.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/lib/media_list.c	2014-01-16 16:39:29.190383684 +0200
+@@ -176,6 +176,8 @@
+             libvlc_MediaListItemDeleted );
+     libvlc_event_manager_register_event_type( p_mlist->p_event_manager,
+             libvlc_MediaListWillDeleteItem );
++    libvlc_event_manager_register_event_type( p_mlist->p_event_manager, libvlc_MediaListItemSaveFormatChanged );
++    libvlc_event_manager_register_event_type( p_mlist->p_event_manager, libvlc_MediaListItemMoved );
+ 
+     vlc_mutex_init( &p_mlist->object_lock );
+     vlc_mutex_init( &p_mlist->refcount_lock ); // FIXME: spinlock?
+@@ -499,3 +501,98 @@
+ {
+     return p_mlist->p_event_manager;
+ }
++
++char *libvlc_media_list_build_acestream_indexes( libvlc_media_list_t * p_mlist, libvlc_media_t * p_md )
++{
++    if( !p_md || !libvlc_media_is_acestream_media(p_md) )
++        return NULL;
++    char *indexes = NULL;
++    int group_id = libvlc_media_get_acestream_group_id(p_md);
++    int group_size = libvlc_media_get_acestream_group_size(p_md);    
++    int index = libvlc_media_get_acestream_index(p_md);
++    int media_list_index = libvlc_media_list_index_of_item( p_mlist, p_md );
++    if( media_list_index == -1 )
++        return NULL;
++    
++    if( group_size == 1 || group_id == 0 ) {
++        indexes = (char*)malloc(sizeof(char) * 10);
++        sprintf( indexes, "%d", index );
++        return indexes;
++    }
++    
++    indexes = (char*)malloc(sizeof(char) * group_size * 4); //!!!
++    sprintf( indexes, "%d", index );
++
++    libvlc_media_t * p_iter_md;
++    int i;
++    if( media_list_index + 1 < vlc_array_count( &p_mlist->items ) ) {
++        for( i = media_list_index + 1; i < vlc_array_count( &p_mlist->items ); i++ ) {
++            p_iter_md = vlc_array_item_at_index( &p_mlist->items, i );
++            
++            if( libvlc_media_get_acestream_group_id( p_iter_md ) == group_id 
++                && libvlc_media_get_acestream_is_active( p_iter_md ) )
++            {
++                int iter_index = libvlc_media_get_acestream_index( p_iter_md );
++                sprintf( indexes, "%s,%d", indexes, iter_index );
++            }
++        }
++    }
++    for( i =  0 ; i < media_list_index; i++ ) {
++        p_iter_md = vlc_array_item_at_index( &p_mlist->items, i );
++        if( libvlc_media_get_acestream_group_id( p_iter_md ) == group_id 
++            && libvlc_media_get_acestream_is_active( p_iter_md ) )
++        {
++            int iter_index = libvlc_media_get_acestream_index( p_iter_md );
++            sprintf( indexes, "%s,%d", indexes, iter_index );
++        }
++    }
++    return indexes;
++}
++
++void libvlc_media_list_update_saveable( libvlc_media_list_t *p_mlist, const char *infohash, int index, p2p_save_format_t format )
++{
++    libvlc_media_t * p_md;
++    int i;
++    for ( i = 0; i < vlc_array_count( &p_mlist->items ); i++ ) {
++        p_md = vlc_array_item_at_index( &p_mlist->items, i );
++        if( libvlc_media_is_acestream_media(p_md) ) {
++            char *psz_infohash = input_item_GetP2PInfohash( p_md->p_input_item );
++            if( psz_infohash ) {
++                if( !strcmp( infohash, psz_infohash ) && index == libvlc_media_get_acestream_index(p_md) ) {
++                    input_item_SetP2PSaveType( p_md->p_input_item, format );
++                        
++                    libvlc_event_t event;
++                    event.type = libvlc_MediaListItemSaveFormatChanged;
++                    event.u.media_list_item_saveformat_changed.item = p_md;
++                    event.u.media_list_item_saveformat_changed.index = i;
++
++                    libvlc_event_send( p_mlist->p_event_manager, &event );                
++                }
++                free(psz_infohash);
++            }
++        }
++    }
++}
++
++int libvlc_media_list_item_move( libvlc_media_list_t *p_mlist, int i_pos_from, int i_pos_to )
++{
++    libvlc_media_t * p_md;
++
++    if( i_pos_from < 0 || i_pos_from >= vlc_array_count( &p_mlist->items ) || i_pos_to < 0 || i_pos_to >= vlc_array_count( &p_mlist->items ) ) {
++        libvlc_printerr( "Index out of bounds" );
++        return -1;
++    }
++
++    p_md = vlc_array_item_at_index( &p_mlist->items, i_pos_from );
++    vlc_array_remove( &p_mlist->items, i_pos_from );
++    vlc_array_insert( &p_mlist->items, p_md, i_pos_to );
++    
++    libvlc_event_t event;
++    event.type = libvlc_MediaListItemMoved;
++    event.u.media_list_item_moved.item = p_md;
++    event.u.media_list_item_moved.from = i_pos_from;
++    event.u.media_list_item_moved.to = i_pos_to;
++    libvlc_event_send( p_mlist->p_event_manager, &event );
++
++    return 0;
++}
+diff -ru vlc-2.1.2.orig/lib/media_list_internal.h vlc-2.1.2/lib/media_list_internal.h
+--- vlc-2.1.2.orig/lib/media_list_internal.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/lib/media_list_internal.h	2014-01-16 14:08:41.899209872 +0200
+@@ -63,4 +63,7 @@
+ int _libvlc_media_list_remove_index(
+         libvlc_media_list_t * p_mlist, int index );
+ 
++char* libvlc_media_list_build_acestream_indexes(libvlc_media_list_t *p_mlist, libvlc_media_t *p_md);
++void libvlc_media_list_update_saveable(libvlc_media_list_t *p_mlist, const char *infohash, int index, p2p_save_format_t format);
++
+ #endif
+diff -ru vlc-2.1.2.orig/lib/media_list_player.c vlc-2.1.2/lib/media_list_player.c
+--- vlc-2.1.2.orig/lib/media_list_player.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/lib/media_list_player.c	2014-01-16 16:39:14.729617760 +0200
+@@ -37,6 +37,8 @@
+ 
+ #include "media_internal.h" // Abuse, could and should be removed
+ #include "media_list_path.h"
++#include "media_list_internal.h"
++#include "media_list_player_internal.h"
+ 
+ //#define DEBUG_MEDIA_LIST_PLAYER
+ 
+@@ -68,6 +70,9 @@
+     libvlc_media_list_t *       p_mlist;
+     libvlc_media_player_t *     p_mi;
+     libvlc_playback_mode_t      e_playback_mode;
++
++    bool b_fullstopped;
++    double d_position_shift;
+ };
+ 
+ /* This is not yet exported by libvlccore */
+@@ -419,6 +424,9 @@
+         p_mlp->current_playing_item_path = path;
+     }
+ 
++    if(p_mlp->p_mi)
++        libvlc_media_player_stop(p_mlp->p_mi);
++
+     if (!path)
+         return;
+ 
+@@ -465,6 +473,9 @@
+         return NULL;
+     }
+ 
++    p_mlp->b_fullstopped = false;
++    p_mlp->d_position_shift = 0.0;
++
+     libvlc_retain(p_instance);
+     p_mlp->p_libvlc_instance = p_instance;
+     p_mlp->i_refcount = 1;
+@@ -597,6 +608,38 @@
+         unlock(p_mlp);
+         return; /* Will set to play */
+     }
++    
++    libvlc_media_t *p_md_current = libvlc_media_player_get_media( p_mlp->p_mi );
++    libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, p_mlp->current_playing_item_path);
++    if( p_md_current != p_md || p_mlp->b_fullstopped ) {
++        if( p_md ) {
++            if( libvlc_media_is_acestream_media( p_md ) ) {
++                if( libvlc_media_get_acestream_is_active( p_md ) ) {
++                    // start acestream media
++                    libvlc_media_list_lock( p_mlp->p_mlist );
++                    libvlc_media_player_acestream_media_start( p_mlp, p_md );
++                    if( p_md_current ) libvlc_media_release(p_md_current);
++                    libvlc_media_release( p_md );
++                    libvlc_media_list_unlock( p_mlp->p_mlist );
++                    unlock(p_mlp);
++                    return;
++                }
++                else {
++                    if( p_md_current ) libvlc_media_release(p_md_current);
++                    libvlc_media_release( p_md );
++                    set_relative_playlist_position_and_play(p_mlp, 1);
++                    unlock(p_mlp);
++                    return;
++                }
++            }
++            libvlc_media_release( p_md );
++        }
++    }
++        
++    if( p_md_current )
++        libvlc_media_release( p_md_current );
++    
++    p_mlp->b_fullstopped = false;
+     libvlc_media_player_play(p_mlp->p_mi);
+     unlock(p_mlp);
+ }
+@@ -651,16 +694,40 @@
+     lock(p_mlp);
+     libvlc_media_list_path_t path = libvlc_media_list_path_with_root_index(i_index);
+     set_current_playing_item(p_mlp, path);
++
++    libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++    if(p_md) {
++        if(libvlc_media_is_acestream_media(p_md)) {
++            if(libvlc_media_get_acestream_is_active(p_md)) {
++                // start acestream media
++                libvlc_media_list_lock(p_mlp->p_mlist);
++                libvlc_media_player_acestream_media_start(p_mlp, p_md);
++                libvlc_media_release(p_md);
++                libvlc_media_list_unlock(p_mlp->p_mlist);
++                unlock(p_mlp);
++                return 0;
++            }
++            else {
++                libvlc_media_release(p_md);
++                set_relative_playlist_position_and_play(p_mlp, 1);
++                unlock(p_mlp);
++                return 0;
++            }
++        }
++        libvlc_media_release(p_md);
++    }
++
++    p_mlp->b_fullstopped = false;
+     libvlc_media_player_play(p_mlp->p_mi);
+     unlock(p_mlp);
+ 
+     /* Send the next item event */
+     libvlc_event_t event;
+     event.type = libvlc_MediaListPlayerNextItemSet;
+-    libvlc_media_t * p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
+-    event.u.media_list_player_next_item_set.item = p_md;
++    libvlc_media_t * _p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++    event.u.media_list_player_next_item_set.item = _p_md;
+     libvlc_event_send(p_mlp->p_event_manager, &event);
+-    libvlc_media_release(p_md);
++    libvlc_media_release(_p_md);
+     return 0;
+ }
+ 
+@@ -679,6 +746,18 @@
+     }
+ 
+     set_current_playing_item(p_mlp, path);
++
++    if( libvlc_media_is_acestream_media( p_md ) )
++    {
++        // start acestream media
++        libvlc_media_list_lock(p_mlp->p_mlist);
++        libvlc_media_player_acestream_media_start( p_mlp, p_md );
++        libvlc_media_list_unlock(p_mlp->p_mlist);
++        unlock(p_mlp);
++        return 0;
++    }
++
++    p_mlp->b_fullstopped = false;
+     libvlc_media_player_play(p_mlp->p_mi);
+     unlock(p_mlp);
+     return 0;
+@@ -701,8 +780,8 @@
+         install_media_player_observer(p_mlp);
+     }
+ 
+-    free(p_mlp->current_playing_item_path);
+-    p_mlp->current_playing_item_path = NULL;
++    //free(p_mlp->current_playing_item_path);
++    //p_mlp->current_playing_item_path = NULL;
+ 
+     /* Send the event */
+     libvlc_event_t event;
+@@ -743,16 +822,58 @@
+ 
+     libvlc_media_list_path_t path = p_mlp->current_playing_item_path;
+ 
++    if( path ) {
++        libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++        // do not change item if ad
++        if( p_md 
++            && libvlc_media_is_acestream_media( p_md ) 
++            && ( libvlc_media_get_acestream_is_ad( p_md ) || libvlc_media_get_acestream_is_interruptable_ad( p_md ) ) ) 
++        {
++            libvlc_media_release(p_md);
++            libvlc_media_list_unlock(p_mlp->p_mlist);
++            return -1;
++        }
++        if( p_md )
++            libvlc_media_release( p_md );
++    }
++
++    libvlc_media_list_path_t prevpath = NULL;
++    if(path)
++        prevpath = libvlc_media_list_path_copy(path);
++
+     if(p_mlp->e_playback_mode != libvlc_playback_mode_repeat)
+     {
+         bool b_loop = (p_mlp->e_playback_mode == libvlc_playback_mode_loop);
+ 
++        int ml_size = libvlc_media_list_count( p_mlp->p_mlist );
++        int loop_count = 0;
++
+         if(i_relative_position > 0)
+         {
+             do
+             {
++                if( loop_count >= ml_size ) {
++                    if(prevpath)
++                        set_current_playing_item(p_mlp, prevpath);
++                    libvlc_media_list_unlock(p_mlp->p_mlist);
++                    return -1;
++                }
++
+                 path = get_next_path(p_mlp, b_loop);
+-                set_current_playing_item(p_mlp, path);
++                
++                if(path) {
++                    libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++                    if( p_md ) {
++                        if( libvlc_media_is_acestream_media( p_md ) && !libvlc_media_get_acestream_is_active( p_md ) ) {
++                            set_current_playing_item(p_mlp, path);
++                            ++loop_count;
++                            libvlc_media_release( p_md );
++                            continue;
++                        }
++                        libvlc_media_release( p_md );
++                    }
++                    set_current_playing_item(p_mlp, path);
++                }
+                 --i_relative_position;
+             }
+             while(i_relative_position > 0);
+@@ -761,8 +882,28 @@
+         {
+             do
+             {
++                if( loop_count >= ml_size ) {
++                    if(prevpath)
++                        set_current_playing_item(p_mlp, prevpath);
++                    libvlc_media_list_unlock(p_mlp->p_mlist);
++                    return -1;
++                }
++                
+                 path = get_previous_path(p_mlp, b_loop);
+-                set_current_playing_item(p_mlp, path);
++                
++                if(path) {
++                    libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++                    if( p_md ) {
++                        if( libvlc_media_is_acestream_media( p_md ) && !libvlc_media_get_acestream_is_active( p_md ) ) {
++                            set_current_playing_item(p_mlp, path);
++                            ++loop_count;
++                            libvlc_media_release( p_md );
++                            continue;
++                        }
++                        libvlc_media_release( p_md );
++                    }
++                    set_current_playing_item(p_mlp, path);
++                }
+                 ++i_relative_position;
+             }
+             while (i_relative_position < 0);
+@@ -782,6 +782,8 @@
+ 
+     if (!path)
+     {
++        if(prevpath)
++            set_current_playing_item(p_mlp, prevpath);
+         libvlc_media_list_unlock(p_mlp->p_mlist);
+         /* Send list played event */
+         libvlc_event_t event;
+@@ -790,6 +792,20 @@
+         return -1;
+     }
+ 
++    libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++    if( p_md && libvlc_media_is_acestream_media( p_md ) )
++    {
++        // start acestream media
++        libvlc_media_player_acestream_media_start( p_mlp, p_md );
++        libvlc_media_release(p_md);
++        libvlc_media_list_unlock(p_mlp->p_mlist);
++        return 0;
++    }
++    if( p_md ) 
++        libvlc_media_release( p_md );
++        
++    p_mlp->b_fullstopped = false;
++   
+     libvlc_media_player_play(p_mlp->p_mi);
+ 
+     libvlc_media_list_unlock(p_mlp->p_mlist);
+@@ -791,10 +948,10 @@
+     /* Send the next item event */
+     libvlc_event_t event;
+     event.type = libvlc_MediaListPlayerNextItemSet;
+-    libvlc_media_t * p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
+-    event.u.media_list_player_next_item_set.item = p_md;
++    libvlc_media_t * _p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, path);
++    event.u.media_list_player_next_item_set.item = _p_md;
+     libvlc_event_send(p_mlp->p_event_manager, &event);
+-    libvlc_media_release(p_md);
++    libvlc_media_release(_p_md);
+     return 0;
+ }
+ 
+@@ -831,3 +988,85 @@
+     p_mlp->e_playback_mode = e_mode;
+     unlock(p_mlp);
+ }
++
++libvlc_media_list_t *libvlc_media_list_player_get_media_list( libvlc_media_list_player_t *p_mlp )
++{
++    libvlc_media_list_t *p_mlist = NULL;
++    lock(p_mlp);
++    p_mlist = p_mlp->p_mlist;
++    unlock(p_mlp);
++    return p_mlist;
++}
++
++libvlc_media_player_t *libvlc_media_list_player_get_media_player( libvlc_media_list_player_t *p_mlp )
++{
++    libvlc_media_player_t *p_mlist = NULL;
++    lock(p_mlp);
++    p_mlist = p_mlp->p_mi;
++    unlock(p_mlp);
++    return p_mlist;
++}
++
++bool libvlc_media_player_acestream_media_start( libvlc_media_list_player_t *p_mlp, libvlc_media_t *p_md )
++{
++    bool ret = false;
++    char *psz_url = input_item_GetP2PUrl(p_md->p_input_item);
++    char *psz_indexes = libvlc_media_list_build_acestream_indexes(p_mlp->p_mlist, p_md);
++    p2p_uri_id_type_t type = input_item_GetP2PType(p_md->p_input_item);
++    int quality = libvlc_media_get_acestream_current_quality(p_md);
++    int developer = libvlc_media_get_acestream_developer(p_md);
++    int affilaite = libvlc_media_get_acestream_affiliate(p_md);
++    int zone = libvlc_media_get_acestream_zone(p_md);
++    
++    ret = p2p_Start(getP2P(p_mlp->p_libvlc_instance), psz_url, psz_indexes, type, quality, developer, affilaite, zone, p_mlp->d_position_shift);
++    
++    free(psz_url);
++    free(psz_indexes);
++    return ret;
++}
++
++void libvlc_media_list_player_set_fullstopped( libvlc_media_list_player_t *p_mlp )
++{
++    lock(p_mlp);
++    p_mlp->b_fullstopped = true;
++    unlock(p_mlp);
++}
++
++void libvlc_media_list_player_item_move( libvlc_media_list_player_t *p_mlp, int i_pos_from, int i_pos_to )
++{
++    lock(p_mlp);
++    
++    if (!p_mlp->current_playing_item_path) {
++        libvlc_media_list_lock(p_mlp->p_mlist);
++        libvlc_media_list_item_move(p_mlp->p_mlist, i_pos_from, i_pos_to);
++        libvlc_media_list_unlock(p_mlp->p_mlist);
++    }
++    else {
++        libvlc_media_t *p_md = libvlc_media_list_item_at_path(p_mlp->p_mlist, p_mlp->current_playing_item_path);
++        libvlc_media_list_lock(p_mlp->p_mlist);
++        libvlc_media_list_item_move(p_mlp->p_mlist, i_pos_from, i_pos_to);
++        libvlc_media_list_unlock(p_mlp->p_mlist);
++        if( p_md ) {
++            p_mlp->current_playing_item_path = libvlc_media_list_path_of_item( p_mlp->p_mlist, p_md );
++            libvlc_media_release( p_md );
++        }
++    }
++
++    unlock(p_mlp);
++}
++
++void libvlc_media_list_player_set_position_shift( libvlc_media_list_player_t *p_mlp, double pos )
++{
++    lock(p_mlp);
++    p_mlp->d_position_shift = pos;
++    unlock(p_mlp);
++}
++
++double libvlc_media_list_player_get_position_shift( libvlc_media_list_player_t *p_mlp )
++{
++    double shift = .0;
++    lock(p_mlp);
++    shift = p_mlp->d_position_shift;
++    unlock(p_mlp);
++    return shift;
++}
+diff -ru vlc-2.1.4.orig/lib/media_player.c vlc-2.1.4/lib/media_player.c
+--- vlc-2.1.4.orig/lib/media_player.c	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.4/lib/media_player.c	2014-10-16 11:57:13.097227339 +0300
+@@ -34,10 +34,14 @@
+ #include <vlc_input.h>
+ #include <vlc_vout.h>
+ #include <vlc_keys.h>
++#include <vlc_vout_osd.h>
+ 
+ #include "libvlc_internal.h"
+ #include "media_internal.h" // libvlc_media_set_state()
+ #include "media_player_internal.h"
++#include "math.h"
++
++static int hotkey_event( vlc_object_t * p_this, char const * psz_cmd, vlc_value_t oldval, vlc_value_t newval, void * p_userdata );
+ 
+ static int
+ input_seekable_changed( vlc_object_t * p_this, char const * psz_cmd,
+@@ -237,10 +241,12 @@
+                 event.type = libvlc_MediaPlayerOpening;
+                 break;
+             case PLAYING_S:
++                libvlc_show_osd_icon(p_mi, OSD_PLAY_ICON);
+                 libvlc_state = libvlc_Playing;
+                 event.type = libvlc_MediaPlayerPlaying;
+                 break;
+             case PAUSE_S:
++                libvlc_show_osd_icon(p_mi, OSD_PAUSE_ICON);
+                 libvlc_state = libvlc_Paused;
+                 event.type = libvlc_MediaPlayerPaused;
+                 break;
+@@ -318,6 +324,28 @@
+         event.u.media_player_vout.new_count = i_vout;
+         libvlc_event_send( p_mi->p_event_manager, &event );
+     }
++    else if( newval.i_int == INPUT_EVENT_AOUT ) {
++        libvlc_process_input_aout_event(p_mi);
++
++        event.type = libvlc_MediaPlayerAout;
++        event.u.media_player_vout.new_count = 1;
++        libvlc_event_send( p_mi->p_event_manager, &event );
++    }
++    else if( newval.i_int == INPUT_EVENT_P2P_LIVEPOS ) {
++        vlc_value_t var;
++        if( var_Get( getP2P( p_mi->p_libvlc_instance ), "livepos", &var ) == VLC_SUCCESS ) {
++            event.type = libvlc_MediaPlayerLivePosChanged;
++            event.u.media_player_livepos.is_live = var.p2p_livepos.is_live;
++            event.u.media_player_livepos.live_first = var.p2p_livepos.live_first;
++            event.u.media_player_livepos.live_last = var.p2p_livepos.live_last;
++            event.u.media_player_livepos.pos = var.p2p_livepos.pos;
++            event.u.media_player_livepos.first_ts = var.p2p_livepos.first_ts;
++            event.u.media_player_livepos.last_ts = var.p2p_livepos.last_ts;
++            event.u.media_player_livepos.last = var.p2p_livepos.last;
++            event.u.media_player_livepos.buffer_pieces = var.p2p_livepos.buffer_pieces;
++            libvlc_event_send( p_mi->p_event_manager, &event );
++        }
++    }
+ 
+     return VLC_SUCCESS;
+ }
+@@ -337,6 +365,7 @@
+     event.type = libvlc_MediaPlayerSnapshotTaken;
+     event.u.media_player_snapshot_taken.psz_filename = newval.psz_string;
+     libvlc_event_send(mp->p_event_manager, &event);
++    libvlc_show_osd_text(mp, "%s", newval.psz_string);
+ 
+     return VLC_SUCCESS;
+ }
+@@ -410,8 +439,9 @@
+     var_SetFloat (mp, "scale", 1.);
+     var_Create (mp, "aspect-ratio", VLC_VAR_STRING);
+     var_Create (mp, "crop", VLC_VAR_STRING);
+-    var_Create (mp, "deinterlace", VLC_VAR_INTEGER);
+-    var_Create (mp, "deinterlace-mode", VLC_VAR_STRING);
++    var_Create (mp, "deinterlace", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
++    var_Create (mp, "deinterlace-mode", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
++    var_Create (mp, "video-bgcolor", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+ 
+     var_Create (mp, "vbi-page", VLC_VAR_INTEGER);
+ 
+@@ -457,6 +487,15 @@
+     var_Create (mp, "amem-rate", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+     var_Create (mp, "amem-channels", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+ 
++    var_Create (mp, "advolume", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT);
++    var_Create (mp, "audio-mute-saved", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
++    var_Create (mp, "audio-volume-saved", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT);
++    
++    var_Create (mp, "start-position", VLC_VAR_FLOAT);
++    var_SetFloat(mp, "start-position", 0.0);
++    var_Create (mp, "start-deinterlace", VLC_VAR_STRING);
++    var_SetString(mp, "start-deinterlace", "");
++    
+     /* Video Title */
+     var_Create (mp, "video-title-show", VLC_VAR_BOOL);
+     var_Create (mp, "video-title-position", VLC_VAR_INTEGER);
+@@ -602,6 +602,7 @@
+     register_event(mp, PausableChanged);
+ 
+     register_event(mp, Vout);
++    register_event(mp, Aout);
+     register_event(mp, ScrambledChanged);
+     register_event(mp, Corked);
+     register_event(mp, Uncorked);
+@@ -618,6 +619,8 @@
+ 
+     register_event(mp, MediaChanged);
+ 
++    register_event(mp, LivePosChanged);
++    register_event(mp, HotkeyAction);
+     /* Attach a var callback to the global object to provide the glue between
+      * vout_thread that generates the event and media_player that re-emits it
+      * with its own event manager
+@@ -516,6 +558,7 @@
+      * want to expose it in such a limiting and ugly way.
+      */
+     var_AddCallback(mp->p_libvlc, "snapshot-file", snapshot_was_taken, mp);
++    var_AddCallback(mp->p_libvlc, "key-action", hotkey_event, mp);
+ 
+     libvlc_retain(instance);
+     return mp;
+@@ -548,9 +591,16 @@
+ {
+     assert( p_mi );
+ 
++    if( var_InheritBool(p_mi, "volume-save") ) {
++        config_PutInt(p_mi, "audio-mute-saved", var_GetBool(p_mi, "audio-mute-saved"));
++        config_PutFloat(p_mi, "audio-volume-saved", var_GetFloat(p_mi, "audio-volume-saved"));
++    }
++    config_PutInt(p_mi, "fs-controller-min-view", var_InheritBool(p_mi, "fs-controller-min-view"));
++
+     /* Detach Callback from the main libvlc object */
+     var_DelCallback( p_mi->p_libvlc,
+                      "snapshot-file", snapshot_was_taken, p_mi );
++    var_DelCallback(p_mi->p_libvlc, "key-action", hotkey_event, p_mi);
+ 
+     /* No need for lock_input() because no other threads knows us anymore */
+     if( p_mi->input.p_thread )
+@@ -1234,6 +1284,9 @@
+         return 0;
+     var_SetFloat( p_input_thread, "rate", rate );
+     vlc_object_release( p_input_thread );
++    
++    if( is_in_fullscreen(p_mi) )
++        libvlc_show_osd_text(p_mi, _("Speed: %.2fx"), rate);
+     return 0;
+ }
+ 
+@@ -1381,6 +1434,9 @@
+     if( p_input_thread != NULL )
+     {
+         var_TriggerCallback( p_input_thread, "frame-next" );
++
++        if(is_in_fullscreen(p_mi))
++            libvlc_show_osd_text(p_mi, "%s", _("Next frame"));
+         vlc_object_release( p_input_thread );
+     }
+ }
+@@ -1398,3 +1454,272 @@
+         var_SetBool( p_mi, "video-title-show", false );
+     }
+ }
++
++typedef struct {
++    int vlc_action;
++    libvlc_hotkey_action_t libvlc_hotkey;
++} libvlc_hotkey_action_map_t;
++
++static const libvlc_hotkey_action_map_t hotkeys[] =
++{
++    { ACTIONID_NONE, libvlc_hotkey_None },
++    { ACTIONID_PLAY_PAUSE, libvlc_hotkey_PlayPause },
++    { ACTIONID_PLAY, libvlc_hotkey_Play },
++    { ACTIONID_PAUSE, libvlc_hotkey_Pause },
++    { ACTIONID_STOP, libvlc_hotkey_Stop },
++    { ACTIONID_PREV, libvlc_hotkey_Prev },
++    { ACTIONID_NEXT, libvlc_hotkey_Next },
++    { ACTIONID_SLOWER, libvlc_hotkey_Slower },
++    { ACTIONID_FASTER, libvlc_hotkey_Faster },
++    { ACTIONID_TOGGLE_FULLSCREEN, libvlc_hotkey_ExitFullscreen },
++    { ACTIONID_VOL_UP, libvlc_hotkey_VolUp },
++    { ACTIONID_VOL_DOWN, libvlc_hotkey_VolDown },
++    { ACTIONID_JUMP_BACKWARD_EXTRASHORT, libvlc_hotkey_JumpBackExtraShort },
++    { ACTIONID_JUMP_FORWARD_EXTRASHORT, libvlc_hotkey_JumpForwardExtraShort },
++    { ACTIONID_JUMP_BACKWARD_SHORT, libvlc_hotkey_JumpBackShort },
++    { ACTIONID_JUMP_FORWARD_SHORT, libvlc_hotkey_JumpForwardShort },
++    { ACTIONID_JUMP_BACKWARD_MEDIUM, libvlc_hotkey_JumpBackMedium },
++    { ACTIONID_JUMP_FORWARD_MEDIUM, libvlc_hotkey_JumpForwardMedium },
++    { ACTIONID_JUMP_BACKWARD_LONG, libvlc_hotkey_JumpBackLong },
++    { ACTIONID_JUMP_FORWARD_LONG, libvlc_hotkey_JumpForwardLong },
++    { ACTIONID_FRAME_NEXT, libvlc_hotkey_FrameNext },
++    { ACTIONID_POSITION, libvlc_hotkey_ShowPosition },
++    { ACTIONID_VOL_MUTE, libvlc_hotkey_VolMute },
++    { ACTIONID_SUBDELAY_UP, libvlc_hotkey_SubDelayUp },
++    { ACTIONID_SUBDELAY_DOWN, libvlc_hotkey_SubDelayDown },
++    { ACTIONID_AUDIO_TRACK, libvlc_hotkey_AudioTrack },
++    { ACTIONID_SUBTITLE_TRACK, libvlc_hotkey_SubTrack },
++    { ACTIONID_AUDIODELAY_UP, libvlc_hotkey_AudioDelayUp },
++    { ACTIONID_AUDIODELAY_DOWN, libvlc_hotkey_AudioDelayDown },
++    { ACTIONID_SNAPSHOT, libvlc_hotkey_Snapshot },
++    { ACTIONID_RECORD, libvlc_hotkey_Record },
++    { ACTIONID_ASPECT_RATIO, libvlc_hotkey_AspectRatio },
++    { ACTIONID_CROP, libvlc_hotkey_Crop },
++    { ACTIONID_DEINTERLACE, libvlc_hotkey_Deinterlace },
++    { ACTIONID_CROP_TOP, libvlc_hotkey_CropTop },
++    { ACTIONID_UNCROP_TOP, libvlc_hotkey_UnCropTop },
++    { ACTIONID_CROP_LEFT, libvlc_hotkey_CropLeft },
++    { ACTIONID_UNCROP_LEFT, libvlc_hotkey_UnCropLeft },
++    { ACTIONID_CROP_BOTTOM, libvlc_hotkey_CropBottom },
++    { ACTIONID_UNCROP_BOTTOM, libvlc_hotkey_UnCropBottom },
++    { ACTIONID_CROP_RIGHT, libvlc_hotkey_CropRight },
++    { ACTIONID_UNCROP_RIGHT, libvlc_hotkey_UnCropRight },
++    { ACTIONID_LEAVE_FULLSCREEN, libvlc_hotkey_ExitFullscreen },
++    { ACTIONID_LEAVE_FULLSCREEN, libvlc_hotkey_ExitFullscreen },
++    { ACTIONID_RATE_NORMAL, libvlc_hotkey_RateNormal },
++    { ACTIONID_RATE_SLOWER_FINE, libvlc_hotkey_RateSlowerFine },
++    { ACTIONID_RATE_FASTER_FINE, libvlc_hotkey_RateFasterFine },
++};
++
++static int hotkeycmp( const void *a, const void *b )
++{
++    const int *act = (const int *)a;
++    const libvlc_hotkey_action_map_t *map = (const libvlc_hotkey_action_map_t *)b;
++    return *act - map->vlc_action;
++}
++
++static int hotkey_event(vlc_object_t * p_this, char const * psz_cmd, vlc_value_t oldval, vlc_value_t newval, void * p_userdata)
++{
++	VLC_UNUSED(oldval);
++	libvlc_media_player_t * p_mi = p_userdata;
++    
++    int action = newval.i_int;
++    
++    const libvlc_hotkey_action_map_t *map;
++    map = (const libvlc_hotkey_action_map_t *) bsearch( &action, (const void *)hotkeys, sizeof(hotkeys)/sizeof(hotkeys[0]), sizeof(*hotkeys), hotkeycmp );
++    if( map != NULL ) {
++        libvlc_hotkey_action_t libvlc_hotkey = map->libvlc_hotkey;
++        
++        libvlc_event_t event;
++        event.type = libvlc_MediaPlayerHotkeyAction;
++        event.u.media_player_hotkey.type = libvlc_hotkey;
++        libvlc_event_send( p_mi->p_event_manager, &event );
++    }
++
++	return VLC_SUCCESS;
++}
++
++void libvlc_media_player_time_jump( libvlc_media_player_t *p_mi, const char *type, int direction )
++{
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++    
++    int i_interval = 0;
++    if( !strcmp(type, "extrashort") ) {
++        i_interval = var_InheritInteger( p_input_thread, "extrashort-jump-size" );
++    }
++    else if( !strcmp(type, "short") ) {
++        i_interval = var_InheritInteger( p_input_thread, "short-jump-size" );
++    }
++    else if( !strcmp(type, "medium") ) {
++        i_interval = var_InheritInteger( p_input_thread, "medium-jump-size" );
++    }
++    else if( !strcmp(type, "long") ) {
++        i_interval = var_InheritInteger( p_input_thread, "long-jump-size" );
++    }
++    else {
++        vlc_object_release( p_input_thread );
++        return;
++    }
++    
++    if( i_interval > 0 ) {
++        int dir = direction < 0 ? -1 : 1;
++        mtime_t i_time = (mtime_t)(i_interval * dir) * 1000000L;
++        var_SetTime( p_input_thread, "time-offset", i_time );
++        
++        if(is_in_fullscreen(p_mi)) {
++            char psz_duration[22];
++            char psz_time[22];
++            vlc_value_t time, pos;
++            mtime_t i_seconds;
++
++            var_Get( p_input_thread, "time", &time );
++            i_seconds = time.i_time / 1000000;
++            secstotimestr ( psz_time, i_seconds );
++
++            var_Get( p_input_thread, "length", &time );
++            if( time.i_time > 0 ) {
++                secstotimestr( psz_duration, time.i_time / 1000000 );
++                libvlc_show_osd_text(p_mi, "%s / %s", psz_time, psz_duration);
++            }
++            else if( i_seconds > 0 )
++                libvlc_show_osd_text(p_mi, "%s", psz_time);
++        }
++    }
++    vlc_object_release( p_input_thread );
++}
++
++void libvlc_set_next_rate( libvlc_media_player_t *p_mi, int direction )
++{
++    static const float pf_rate[] = {
++        1.0/64, 1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0/3, 1.0/2, 2.0/3,
++        1.0/1,
++        3.0/2, 2.0/1, 3.0/1, 4.0/1, 8.0/1, 16.0/1, 32.0/1, 64.0/1,
++    };
++    const size_t i_rate_count = sizeof(pf_rate)/sizeof(*pf_rate);
++    
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++        
++    float f_rate = var_GetFloat( p_input_thread, "rate" );
++    vlc_object_release( p_input_thread );
++    if( direction < 0 ) {
++        float r = f_rate * .9;
++        for( size_t i = 1; i < i_rate_count; i++ )
++            if( r <= pf_rate[i] ) {
++                f_rate = pf_rate[i - 1];
++                break;
++            }
++    }
++    else {
++        float r = f_rate * 1.1;
++        for( size_t i = 0; i < i_rate_count; i++ )
++            if( r < pf_rate[i] ) {
++                f_rate = pf_rate[i];
++                break;
++            }
++    }
++    
++    libvlc_media_player_set_rate(p_mi, f_rate);
++}
++
++void libvlc_set_next_fine_rate( libvlc_media_player_t *p_mi, int direction )
++{
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++    const float f_rate_min = (float)INPUT_RATE_DEFAULT / INPUT_RATE_MAX;
++    const float f_rate_max = (float)INPUT_RATE_DEFAULT / INPUT_RATE_MIN;
++    float f_rate = var_GetFloat( p_input_thread, "rate" );
++    vlc_object_release( p_input_thread );
++    
++    int i_sign = f_rate < 0 ? -1 : 1;
++
++    int i_dir = direction < 0 ? -1 : 1;
++    f_rate = floor( fabs(f_rate) / 0.1 + i_dir + 0.05 ) * 0.1;
++
++    if( f_rate < f_rate_min )
++        f_rate = f_rate_min;
++    else if( f_rate > f_rate_max )
++        f_rate = f_rate_max;
++    f_rate *= i_sign;
++
++    libvlc_media_player_set_rate(p_mi, f_rate);
++}
++
++void libvlc_show_osd_position(libvlc_media_player_t *p_mi)
++{
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++        
++    char psz_duration[22];
++    char psz_time[22];
++    vlc_value_t time, pos;
++    mtime_t i_seconds;
++
++    var_Get( p_input_thread, "time", &time );
++    i_seconds = time.i_time / 1000000;
++    secstotimestr ( psz_time, i_seconds );
++
++    var_Get( p_input_thread, "length", &time );
++    if( time.i_time > 0 ) {
++        secstotimestr( psz_duration, time.i_time / 1000000 );
++        libvlc_show_osd_text(p_mi, "%s / %s", psz_time, psz_duration);
++    }
++    else if( i_seconds > 0 )
++        libvlc_show_osd_text(p_mi, "%s", psz_time);
++    vlc_object_release( p_input_thread );
++}
++
++void libvlc_media_player_record( libvlc_media_player_t *p_mi )
++{
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++
++    if( var_GetBool( p_input_thread, "can-record" ) ) {
++        const bool b_record = var_ToggleBool( p_input_thread, "record" );
++        libvlc_show_osd_text(p_mi, "%s", b_record ? _("Recording") : _("Recording done"));
++    }
++    vlc_object_release( p_input_thread );
++}
++
++void libvlc_change_spu_delay( libvlc_media_player_t *p_mi, int direction)
++{
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++
++    int64_t i_delay = var_GetTime( p_input_thread, "spu-delay" );
++    if(direction<0)
++        i_delay -= 50000;
++    else
++        i_delay += 50000;
++    var_SetTime( p_input_thread, "spu-delay", i_delay );
++    libvlc_show_osd_text(p_mi, _( "Subtitle delay %i ms" ), (int)(i_delay/1000));
++}
++
++void libvlc_change_audio_delay( libvlc_media_player_t *p_mi, int direction)
++{
++    input_thread_t *p_input_thread;
++    p_input_thread = libvlc_get_input_thread ( p_mi );
++    if( !p_input_thread )
++        return;
++
++    int64_t i_delay = var_GetTime( p_input_thread, "audio-delay" );
++    if(direction<0)
++        i_delay -= 50000;
++    else
++        i_delay += 50000;
++    var_SetTime( p_input_thread, "audio-delay", i_delay );
++    libvlc_show_osd_text(p_mi, _( "Audio delay %i ms" ), (int)(i_delay/1000));
++}
+diff -ru vlc-2.1.4.orig/lib/media_player_internal.h vlc-2.1.4/lib/media_player_internal.h
+--- vlc-2.1.4.orig/lib/media_player_internal.h	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.4/lib/media_player_internal.h	2014-03-06 17:30:33.440939708 +0200
+@@ -62,4 +62,14 @@
+         libvlc_media_player_t *p_mi,
+         const char *psz_variable );
+ 
++void libvlc_show_osd_icon(libvlc_media_player_t *, int);
++void libvlc_show_osd_text(libvlc_media_player_t *, const char *fmt, ...);
++
++inline static bool is_in_fullscreen(libvlc_media_player_t *p_mi)
++{
++    return var_GetBool(p_mi->p_libvlc, "web-fullscreen");
++}
++
++void libvlc_process_input_aout_event(libvlc_media_player_t *);
++
+ #endif
+diff -ru vlc-2.1.2.orig/lib/video.c vlc-2.1.2/lib/video.c
+--- vlc-2.1.2.orig/lib/video.c	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/lib/video.c	2014-01-16 16:26:21.348507885 +0200
+@@ -37,6 +37,8 @@
+ #include <vlc_input.h>
+ #include <vlc_vout.h>
+ 
++#include <vlc_vout_osd.h>
++#include <vlc_spu.h>
+ #include "media_player_internal.h"
+ #include <assert.h>
+ 
+@@ -258,7 +260,22 @@
+ 
+ char *libvlc_video_get_aspect_ratio( libvlc_media_player_t *p_mi )
+ {
+-    return var_GetNonEmptyString (p_mi, "aspect-ratio");
++    //return var_GetNonEmptyString (p_mi, "aspect-ratio");
++    char *psz_mi_aspect = var_GetNonEmptyString (p_mi, "aspect-ratio");
++    
++    if( !psz_mi_aspect || !strcmp(psz_mi_aspect, "") ) {
++        size_t n;
++        vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++        if( n > 0 ) {
++            vout_thread_t *p_vout = pp_vouts[0];
++            char *psz_aspect = var_GetNonEmptyString(p_vout, "aspect-ratio");
++            vlc_object_release (p_vout);
++            free (pp_vouts);
++            return psz_aspect;
++        }
++        free (pp_vouts);
++    }
++    return psz_mi_aspect;
+ }
+ 
+ void libvlc_video_set_aspect_ratio( libvlc_media_player_t *p_mi,
+@@ -275,6 +292,10 @@
+         vout_thread_t *p_vout = pp_vouts[i];
+ 
+         var_SetString (p_vout, "aspect-ratio", psz_aspect);
++
++        if(is_in_fullscreen(p_mi))
++            libvlc_show_osd_text(p_mi, _("Aspect ratio: %s"), strcmp(psz_aspect,"") ? psz_aspect : _("Default"));
++
+         vlc_object_release (p_vout);
+     }
+     free (pp_vouts);
+@@ -338,6 +359,16 @@
+ end:
+     vlc_object_release (p_input_thread);
+     var_FreeList (&list, NULL);
++    
++    if(i_ret == 0 && is_in_fullscreen(p_mi)) {
++        libvlc_track_description_t *descr = libvlc_video_get_spu_description(p_mi);
++        if(!descr)
++            return i_ret;
++        for(size_t i = 0; i < i_spu; i++)
++            descr = descr->p_next;
++        libvlc_show_osd_text(p_mi, _("Subtitle track: %s"), descr->psz_name);
++        libvlc_track_description_list_release(descr);
++    }
+     return i_ret;
+ }
+ 
+@@ -411,7 +442,22 @@
+ 
+ char *libvlc_video_get_crop_geometry (libvlc_media_player_t *p_mi)
+ {
+-    return var_GetNonEmptyString (p_mi, "crop");
++    //return var_GetNonEmptyString (p_mi, "crop");
++    char *psz_mi_crop = var_GetNonEmptyString (p_mi, "crop");
++    
++    if( !psz_mi_crop || !strcmp(psz_mi_crop, "") ) {
++        size_t n;
++        vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++        if( n > 0 ) {
++            vout_thread_t *p_vout = pp_vouts[0];
++            char *psz_crop = var_GetNonEmptyString (p_vout, "crop");
++            vlc_object_release (p_vout);
++            free (pp_vouts);
++            return psz_crop;
++        }
++        free (pp_vouts);
++    }
++    return psz_mi_crop;
+ }
+ 
+ void libvlc_video_set_crop_geometry( libvlc_media_player_t *p_mi,
+@@ -437,6 +483,10 @@
+         var_Change (p_vout, "crop", VLC_VAR_CLEARCHOICES, NULL, NULL);
+         var_Change (p_vout, "crop", VLC_VAR_ADDCHOICE, &val, &val);
+         var_SetString (p_vout, "crop", psz_geometry);
++        
++        if(is_in_fullscreen(p_mi))
++            libvlc_show_osd_text(p_mi, _("Crop: %s"), strcmp(psz_geometry,"") ? psz_geometry : _("Default"));
++
+         vlc_object_release (p_vout);
+     }
+     free (pp_vouts);
+@@ -933,3 +983,175 @@
+ {
+     return get_float( p_mi, "adjust", adjust_option_bynumber(option) );
+ }
++
++int libvlc_video_get_deinterlace_status( libvlc_media_player_t *p_mi )
++{
++    int i_mi_d = var_GetInteger(p_mi, "deinterlace");
++    size_t n;
++    vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++    if( n > 0 ) {
++        vout_thread_t *p_vout = pp_vouts[0];
++        int i_d = var_GetInteger(p_vout, "deinterlace");
++        vlc_object_release (p_vout);
++        free (pp_vouts);
++        return i_d;
++    }
++    free (pp_vouts);
++    return i_mi_d;
++}
++
++char *libvlc_video_get_deinterlace_mode( libvlc_media_player_t *p_mi )
++{
++    size_t n;
++    vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++    if( n > 0 ) {
++        vout_thread_t *p_vout = pp_vouts[0];
++        char *psz_d_mode = var_GetNonEmptyString (p_vout, "deinterlace-mode");
++        vlc_object_release (p_vout);
++        free (pp_vouts);
++        return psz_d_mode;
++    }
++    free (pp_vouts);
++    
++    return var_GetNonEmptyString(p_mi, "deinterlace-mode");
++}
++
++void libvlc_video_set_deinterlace_status(libvlc_media_player_t *p_mi, int state)
++{
++    var_SetInteger (p_mi, "deinterlace", state);
++    size_t n;
++    vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++    for (size_t i = 0; i < n; i++)
++    {
++        vout_thread_t *p_vout = pp_vouts[i];
++        var_SetInteger (p_vout, "deinterlace", state);
++        vlc_object_release (p_vout);
++    }
++    free (pp_vouts);
++    
++    if(is_in_fullscreen(p_mi)) {
++        if( state == 0 )
++            libvlc_show_osd_text(p_mi, "%s", _("Deinterlace off"));
++        else if(state == 1)
++            libvlc_show_osd_text(p_mi, "%s", _("Deinterlace on"));
++    }
++}
++
++void libvlc_video_set_deinterlace_mode(libvlc_media_player_t *p_mi, const char *mode)
++{
++    if (mode == NULL)
++        mode = "";
++    if (*mode && strcmp (mode, "blend") && strcmp (mode, "bob")
++     && strcmp (mode, "discard") && strcmp (mode, "linear")
++     && strcmp (mode, "mean") && strcmp (mode, "x")
++     && strcmp (mode, "yadif") && strcmp (mode, "yadif2x")
++     && strcmp (mode, "phosphor") && strcmp(mode, "ivtc"))
++        return;
++
++    var_SetString(p_mi, "deinterlace-mode", mode);
++    size_t n;
++    vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++    for (size_t i = 0; i < n; i++)
++    {
++        vout_thread_t *p_vout = pp_vouts[i];
++        var_SetString(p_vout, "deinterlace-mode", mode);
++        vlc_object_release (p_vout);
++    }
++    free (pp_vouts);
++}
++
++void libvlc_show_osd_icon(libvlc_media_player_t *p_mi, int icon_type)
++{
++    size_t n;
++	vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++	for (size_t i = 0; i < n; i++) {
++        vout_thread_t *p_vout = pp_vouts[i];
++        vout_OSDIcon(p_vout, SPU_DEFAULT_CHANNEL, icon_type);
++		vlc_object_release (p_vout);
++	}
++	free (pp_vouts);
++}
++
++void libvlc_show_osd_text(libvlc_media_player_t *p_mi, const char *fmt, ...)
++{
++    va_list args;
++    va_start (args, fmt);
++    
++    char *text;
++    if (vasprintf(&text, fmt, args) != -1) {
++        size_t n;
++        vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++        for (size_t i = 0; i < n; i++) {
++            vout_thread_t *p_vout = pp_vouts[i];
++            vout_OSDFormatedMessage(p_vout, SPU_DEFAULT_CHANNEL, text );
++            vlc_object_release (p_vout);
++        }
++        free (pp_vouts);
++        free(text);
++    }
++    
++    va_end (args);
++}
++
++void libvlc_video_take_simple_snapshot( libvlc_media_player_t *p_mi )
++{
++    size_t n;
++	vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++	for (size_t i = 0; i < n; i++) {
++        vout_thread_t *p_vout = pp_vouts[i];
++        var_TriggerCallback( p_vout, "video-snapshot" );
++		vlc_object_release (p_vout);
++	}
++	free (pp_vouts);
++}
++
++void libvlc_video_set_next_crop( libvlc_media_player_t *p_mi, const char *cur_cr )
++{
++	static const char *pf_crop[] = { "", "16:10", "16:9", "185:100", "221:100", "235:100", "239:100", "5:3", "4:3", "5:4", "1:1" };
++    const size_t i_crop_cnt = sizeof(pf_crop)/sizeof(*pf_crop);
++    
++	int i_idx = 0;
++	for(int i=0; i < i_crop_cnt; i++) {
++		if( !strcmp(cur_cr, pf_crop[i]) ) {
++			i_idx = i;
++			break;
++		}
++	}
++	i_idx = (i_idx>=(i_crop_cnt-1)) ? 0 : (i_idx+1);
++    libvlc_video_set_crop_geometry(p_mi, pf_crop[i_idx]);
++}
++
++void libvlc_video_set_next_aspect_ratio( libvlc_media_player_t *p_mi, const char *cur_ar )
++{
++	static const char *pf_aspectratio[] = { "", "1:1", "4:3", "16:9", "16:10", "221:100", "235:100", "239:100", "5:4" };
++    const size_t i_aspectratio_cnt = sizeof(pf_aspectratio)/sizeof(*pf_aspectratio);
++    
++	int i_idx = 0;
++	for(int i=0; i < i_aspectratio_cnt; i++) {
++		if( !strcmp(cur_ar, pf_aspectratio[i]) ) {
++			i_idx = i;
++			break;
++		}
++	}
++	i_idx = (i_idx>=(i_aspectratio_cnt-1)) ? 0 : (i_idx+1);
++    libvlc_video_set_aspect_ratio(p_mi, pf_aspectratio[i_idx]);
++}
++
++void libvlc_video_change_crop( libvlc_media_player_t *p_mi, const char *psz_crop, int dir)
++{
++    if (*psz_crop
++     && strcmp (psz_crop, "crop-top")    && strcmp (psz_crop, "crop-bottom")
++     && strcmp (psz_crop, "crop-right")  && strcmp (psz_crop, "crop-left"))
++        return;
++    size_t n;
++	vout_thread_t **pp_vouts = GetVouts (p_mi, &n);
++	for (size_t i = 0; i < n; i++) {
++        vout_thread_t *p_vout = pp_vouts[i];
++        if(dir < 0)
++            var_DecInteger( p_vout, psz_crop );
++        else
++            var_IncInteger( p_vout, psz_crop );
++		vlc_object_release (p_vout);
++	}
++	free (pp_vouts);
++}

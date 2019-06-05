@@ -1,0 +1,16 @@
+--- qt4/configure.orig	2013-06-07 08:16:41.000000000 +0300
++++ qt4/configure	2014-01-10 10:47:51.328431139 +0200
+@@ -7769,13 +7769,6 @@
+     canBuildWebKit="no"
+ fi
+ 
+-if [ "$CFG_SHARED" = "no" ]; then
+-    echo
+-    echo "WARNING: Using static linking will disable the WebKit module."
+-    echo
+-    canBuildWebKit="no"
+-fi
+-
+ CFG_CONCURRENT="yes"
+ if [ "$canBuildQtConcurrent" = "no" ]; then
+     QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_CONCURRENT"

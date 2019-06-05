@@ -1,0 +1,174 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/controller_widget.cpp	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/components/controller_widget.cpp	2014-01-17 17:08:41.230993693 +0200
+@@ -38,6 +38,7 @@
+ #include <QMenu>
+ #include <QWidgetAction>
+ #include <QMouseEvent>
++#include <QSignalMapper>
+ 
+ SoundWidget::SoundWidget( QWidget *_parent, intf_thread_t * _p_intf,
+                           bool b_shiny, bool b_special )
+@@ -120,6 +121,7 @@
+     CONNECT( this, valueReallyChanged( int ), this, userUpdateVolume( int ) );
+     CONNECT( THEMIM, volumeChanged( float ), this, libUpdateVolume( float ) );
+     CONNECT( THEMIM, soundMuteChanged( bool ), this, updateMuteStatus( bool ) );
++    CONNECT( this, clearCachedVolume( void ), THEMIM->getIM(), dropCachedVolume( void ) );
+ }
+ 
+ SoundWidget::~SoundWidget()
+@@ -154,6 +156,7 @@
+     setMuted( false );
+     playlist_VolumeSet( THEPL, i_sliderVolume / 100.f );
+     refreshLabels();
++    emit clearCachedVolume();
+ }
+ 
+ /* libvlc changed value event slot */
+@@ -296,3 +299,147 @@
+         vlc_object_release( p_vout );
+ }
+ 
++void SaveButton::updateButton( bool b_saveableplaying )
++{
++    setVisible( b_saveableplaying );
++}
++
++LiveButton::LiveButton() : QPushButton(), stopped(true), live(false)
++{ 
++    setVisible(false);
++    CONNECT( this, clicked(), this, buttonClicked() );
++}
++
++void LiveButton::updateButton(bool is_live_stream)
++{
++    setVisible( is_live_stream );
++}
++
++void LiveButton::updateState( bool val ) 
++{
++    if( !stopped ) {
++        live = val;
++        setIcon( live ? QIcon( ":/toolbar/live-live" ) : QIcon( ":/toolbar/live-nolive" ));
++        setToolTip( live ? qtr(N_("You are watching live broadcast")) : qtr(N_("Skip ahead to live broadcast")) );
++    }
++}
++
++void LiveButton::updateStopped( bool val )
++{
++    stopped = val;
++    if( stopped ) {
++        live = false;
++        setIcon(QIcon( ":/toolbar/live" ));
++        setToolTip("");
++    }
++}
++
++void LiveButton::buttonClicked()
++{
++    if( !live ) 
++        emit clickSignal(-1);
++}
++
++QualityButton::QualityButton() : QToolButton(), current_quality(-1)
++{
++    setVisible(false);
++    setPopupMode(QToolButton::InstantPopup);
++    
++    menu = new QMenu( "Qualities" );
++    map = new QSignalMapper(menu);
++    connect(map, SIGNAL(mapped(int)), SLOT(doMenuAction(int)));
++    setMenu(menu);
++}
++
++void QualityButton::createMenu( QStringList q_list, int q_cur_id )
++{
++    qualities = q_list;
++    current_quality = q_cur_id;
++
++    if(menu)
++        menu->clear();
++
++    if( qualities.size() == 0 ) {
++        setVisible(false);
++        return;
++    }
++    
++    for( int i=0; i< qualities.size(); ++i ) {
++        if( current_quality == i ) {
++            setText(qualities.at(i));
++        }
++        else {
++            QAction *action = new QAction(qualities.at(i), menu);
++            connect(action, SIGNAL(triggered()), map, SLOT(map()));
++            map->setMapping(action, i);
++            menu->addAction(action);
++        }
++    }
++    setVisible(true);
++}
++
++void QualityButton::doMenuAction( int q_id )
++{
++    createMenu( qualities, q_id );
++    emit clickSignal( q_id );
++}
++
++void QualityButton::updateButton( QStringList q_list, int q_cur )
++{
++    if( q_list.empty() ) {
++        setVisible(false);
++        return;
++    }
++    if( qualities == q_list && current_quality == q_cur ) {
++        if( !isVisible() )
++            setVisible(true);
++        return;
++    }
++    createMenu( q_list, q_cur );
++}
++
++SkipAdButton::SkipAdButton() : QToolButton(), is_waiting(true)
++{
++    CONNECT( this, clicked(), this, buttonClicked() );
++}
++
++void SkipAdButton::waitLabelValue(int wait) {
++    if(wait == -1) {
++        setText( QString(qtr("Skip this ad")) );
++        is_waiting = false;
++    }
++    else {
++        setText( QString::number(wait) + " " + QString(qtr("Advertising")) );
++        is_waiting = true;
++    }
++}
++
++void SkipAdButton::buttonClicked()
++{
++    if(!is_waiting)
++        emit clickSignal();
++}
++
++VisitAdButton::VisitAdButton() : QToolButton()
++{
++}
++
++void VisitAdButton::enableChanged(bool val)
++{
++    setVisible(val);
++}
++
++void VisitAdButton::updateText(QString val)
++{
++    setText( val == "" ? QString(qtr("Go to advertiser's site")) : val );
++}
++
++DisableAdButton::DisableAdButton() : QToolButton()
++{
++}
++
++void DisableAdButton::enableChanged(bool val)
++{
++    setVisible(val);
++}
++

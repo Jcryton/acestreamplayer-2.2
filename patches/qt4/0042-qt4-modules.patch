@@ -1,0 +1,35 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/ui/sprefs_interface.ui	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/ui/sprefs_interface.ui	2014-01-17 13:42:05.000000000 +0200
+@@ -410,6 +410,32 @@
+      </layout>
+     </widget>
+    </item>
++   <item row="2" column="0" colspan="2">
++    <widget class="QGroupBox" name="browserPlugin">
++     <property name="title">
++      <string>Browser Plugin</string>
++     </property>
++     <layout class="QGridLayout" name="gridLayout_6" columnminimumwidth="0,0">
++      <item row="0" column="0">
++       <widget class="QCheckBox" name="pluginFSController">
++        <property name="text">
++         <string>Show controls in full screen mode</string>
++        </property>
++       </widget>
++      </item>
++      <item row="0" column="1">
++       <widget class="QCheckBox" name="playOnClick">
++        <property name="enabled">
++         <bool>true</bool>
++        </property>
++        <property name="text">
++         <string>Perform play/pause action on plugin's area single click</string>
++        </property>
++       </widget>
++      </item>
++     </layout>
++    </widget>
++   </item>
+    <item>
+     <widget class="QGroupBox" name="OneInterfaceBox">
+      <property name="title">

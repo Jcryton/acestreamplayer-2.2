@@ -1,0 +1,549 @@
+diff -ru vlc-2.1.2.orig/bin/Makefile.am vlc-2.1.2/bin/Makefile.am
+--- vlc-2.1.2.orig/bin/Makefile.am	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/bin/Makefile.am	2014-01-17 12:36:15.000000000 +0200
+@@ -9,8 +9,8 @@
+ 
+ SUFFIXES = .rc.in .rc
+ 
+-AM_CPPFLAGS = $(CPPFLAGS_vlc)
+-AM_CFLAGS = $(CFLAGS_vlc)
++AM_CPPFLAGS = $(CPPFLAGS_acestreamplayer)
++AM_CFLAGS = $(CFLAGS_acestreamplayer)
+ if HAVE_DBUS
+ AM_CPPFLAGS += -DHAVE_DBUS
+ endif
+@@ -32,11 +32,11 @@
+ vlc_wrapper_SOURCES = rootwrap.c
+ vlc_wrapper_LDADD = $(SOCKET_LIBS)
+ 
+-vlc_LDFLAGS = $(LDFLAGS_vlc)
++vlc_LDFLAGS = $(LDFLAGS_acestreamplayer)
+ if HAVE_DARWIN
+ vlc_LDFLAGS += -Wl,-framework,CoreFoundation
+ endif
+-vlc_LDADD = ../lib/libvlc.la $(LIBPTHREAD)
++vlc_LDADD = ../lib/libtsplayer.la $(LIBPTHREAD)
+ 
+ vlc_static_SOURCES = $(vlc_SOURCES)
+ vlc_static_CFLAGS = $(AM_CFLAGS) \
+@@ -66,7 +66,7 @@
+ vlc_cache_gen_LDADD = \
+ 	$(GNUGETOPT_LIBS) \
+ 	../compat/libcompat.la \
+-	../lib/libvlc.la
++	../lib/libtsplayer.la
+ if HAVE_WIN32
+ vlc_cache_gen_LDADD += vlc_win32_rc.$(OBJEXT)
+ vlc_cache_gen_DEPENDENCIES = vlc_win32_rc.$(OBJEXT)
+diff -ru vlc-2.1.2.orig/bin/Makefile.in vlc-2.1.2/bin/Makefile.in
+--- vlc-2.1.4.orig/bin/Makefile.in	2014-02-21 16:21:30.000000000 +0200
++++ vlc-2.1.2/bin/Makefile.in	2014-08-07 13:55:39.490437830 +0300
+@@ -1119,7 +1119,13 @@
+ 	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(bindir)$$dir'"; \
+ 	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(bindir)$$dir" || exit $$?; \
+ 	    } \
+-	; done
++	; done; \
++	if test -f '$(DESTDIR)$(bindir)/vlc' \
++	; then mv '$(DESTDIR)$(bindir)/vlc' '$(DESTDIR)$(bindir)/acestreamplayer'; \
++	fi; \
++	if test -f '$(DESTDIR)$(bindir)/vlc-wrapper' \
++	; then mv '$(DESTDIR)$(bindir)/vlc-wrapper' '$(DESTDIR)$(bindir)/acestreamplayer-wrapper'; \
++	fi
+ 
+ uninstall-binPROGRAMS:
+ 	@$(NORMAL_UNINSTALL)
+diff -ru vlc-2.1.2.orig/lib/Makefile.am vlc-2.1.2/lib/Makefile.am
+--- vlc-2.1.2.orig/lib/Makefile.am	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/lib/Makefile.am	2014-01-17 12:53:16.627640005 +0200
+@@ -1,7 +1,7 @@
+ AUTOMAKE_OPTIONS = subdir-objects
+ pkgconfigdir = $(libdir)/pkgconfig
+-AM_CPPFLAGS = -DMODULE_STRING=\"libvlc\"
+-AM_CFLAGS = $(CFLAGS_libvlc)
++AM_CPPFLAGS = -DMODULE_STRING=\"libtsplayer\"
++AM_CFLAGS = $(CFLAGS_libtsplayer)
+ 
+ SUFFIXES = .pc.in .pc
+ 
+@@ -20,6 +20,7 @@
+ 	../include/vlc/libvlc_media_player.h \
+ 	../include/vlc/libvlc_structures.h \
+ 	../include/vlc/libvlc_vlm.h \
++    ../include/vlc/libvlc_acestream.h \
+ 	../include/vlc/vlc.h
+ 
+ nodist_pkginclude_HEADERS = ../include/vlc/libvlc_version.h
+@@ -28,14 +29,15 @@
+ 	$(AM_V_GEN)cd "$(top_builddir)" && \
+ 	$(SHELL) ./config.status --file="src/$@"
+ 
+-lib_LTLIBRARIES = libvlc.la
++lib_LTLIBRARIES = libtsplayer.la
+ 
+-libvlc_la_SOURCES = \
++libtsplayer_la_SOURCES = \
+ 	libvlc_internal.h \
+ 	event_internal.h \
+ 	media_internal.h \
+ 	media_list_internal.h \
+ 	media_player_internal.h \
++    media_list_player_internal.h \
+ 	core.c \
+ 	error.c \
+ 	log.c \
+@@ -52,20 +54,22 @@
+ 	media_list_player.c \
+ 	media_library.c \
+ 	media_discoverer.c
++	acestream_internal.h \
++	acestream.c
+ EXTRA_DIST = libvlc.pc.in libvlc.sym ../include/vlc/libvlc_version.h.in
+ 
+-libvlc_la_LIBADD = \
+-	../src/libvlccore.la ../compat/libcompat.la $(LIBPTHREAD) $(LIBM)
+-libvlc_la_LDFLAGS = \
+-	$(LDFLAGS_libvlc) \
++libtsplayer_la_LIBADD = \
++	../src/libtsplayercore.la ../compat/libcompat.la $(LIBPTHREAD) $(LIBM)
++libtsplayer_la_LDFLAGS = \
++	$(LDFLAGS_libtsplayer) \
+ 	-no-undefined \
+ 	-version-info 10:0:5 \
+ 	-export-symbols $(srcdir)/libvlc.sym
+-libvlc_la_DEPENDENCIES = libvlc.sym
++libtsplayer_la_DEPENDENCIES = libvlc.sym
+ if HAVE_WIN32
+-libvlc_la_DEPENDENCIES += ../src/libvlc_win32_rc.$(OBJEXT)
+-libvlc_la_LDFLAGS += -Wl,../src/libvlc_win32_rc.$(OBJEXT) -avoid-version \
++libtsplayer_la_DEPENDENCIES += ../src/libvlc_win32_rc.$(OBJEXT)
++libtsplayer_la_LDFLAGS += -Wl,../src/libvlc_win32_rc.$(OBJEXT) -avoid-version \
+					 -Wc,--static -Wc,-static-libgcc
+ endif
+ if HAVE_OS2
+ libvlc_la_LDFLAGS += -avoid-version
+diff -ru vlc-2.1.2.orig/modules/Makefile.am vlc-2.1.2/modules/Makefile.am
+--- vlc-2.1.2.orig/modules/Makefile.am	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/Makefile.am	2014-01-16 13:01:26.000000000 +0200
+@@ -18,7 +18,9 @@
+ 	video_chroma \
+ 	video_filter \
+ 	video_output \
+-	visualization
++	visualization \
++	p2p_access \
++	sqlite
+ EXTRA_SUBDIRS = \
+ 	access_output \
+ 	mux \
+diff -ru vlc-2.1.2.orig/Makefile.am vlc-2.1.2/Makefile.am
+--- vlc-2.1.2.orig/Makefile.am	2013-12-05 19:51:35.000000000 +0200
++++ vlc-2.1.2/Makefile.am	2014-01-17 12:43:18.494855563 +0200
+@@ -600,13 +600,13 @@
+ libcompat:
+ 	cd compat && $(MAKE) $(AM_MAKEFLAGS)
+ 
+-libvlccore: libcompat
+-	cd src && $(MAKE) $(AM_MAKEFLAGS) libvlccore.la
++libtsplayercore: libcompat
++	cd src && $(MAKE) $(AM_MAKEFLAGS) libtsplayercore.la
+ 
+-libvlc: libvlccore
+-	cd lib && $(MAKE) $(AM_MAKEFLAGS) libvlc.la
++libtsplayer: libtsplayercore
++	cd lib && $(MAKE) $(AM_MAKEFLAGS) libtsplayer.la
+ 
+-core: libvlc vlc$(EXEEXT)
++core: libtsplayer vlc$(EXEEXT)
+ 	cd bin && $(MAKE) $(AM_MAKEFLAGS) vlc$(EXEEXT) vlc-static$(EXEEXT)
+ 
+ doc:
+@@ -618,7 +618,7 @@
+ # Building aliases
+ ###############################################################################
+ 
+-ALL_ALIASES = cvlc rvlc svlc qvlc nvlc
++ALL_ALIASES = cacestreamplayer racestreamplayer sacestreamplayer qacestreamplayer nacestreamplayer
+ bin_SCRIPTS = $(ALIASES)
+ CLEANFILES += $(ALIASES) $(noinst_SCRIPTS)
+ EXTRA_SCRIPTS = $(ALL_ALIASES)
+@@ -627,19 +627,19 @@
+ 
+ MKALIAS = bindir="$(bindir)" transform="$(transform)" program_prefix="$(program_prefix)" program_suffix="$(program_suffix)" $(top_srcdir)/make-alias $@
+ 
+-cvlc: make-alias Makefile
++cacestreamplayer: make-alias Makefile
+ 	$(AM_V_GEN)$(MKALIAS) dummy
+ 
+-rvlc: make-alias Makefile
++racestreamplayer: make-alias Makefile
+ 	$(AM_V_GEN)$(MKALIAS) rc
+ 
+-svlc: make-alias Makefile
++sacestreamplayer: make-alias Makefile
+ 	$(AM_V_GEN)$(MKALIAS) skins2
+ 
+-qvlc: make-alias Makefile
++qacestreamplayer: make-alias Makefile
+ 	$(AM_V_GEN)$(MKALIAS) qt4
+ 
+-nvlc: make-alias Makefile
++nacestreamplayer: make-alias Makefile
+ 	$(AM_V_GEN)$(MKALIAS) ncurses
+ 
+ if BUILD_VLC
+@@ -674,7 +674,7 @@
+ .PHONY: update-po
+ 
+ update-po:
+-	cd po && $(MAKE) POTFILES vlc.pot update-po
++	cd po && $(MAKE) POTFILES acestreamplayer.pot update-po
+ 
+ ###############################################################################
+ # OS Packaging rules
+diff -ru vlc-2.1.2.orig/share/Makefile.am vlc-2.1.2/share/Makefile.am
+--- vlc-2.1.2.orig/share/Makefile.am	2013-12-03 11:12:35.000000000 +0200
++++ vlc-2.1.2/share/Makefile.am	2014-01-13 15:17:22.000000000 +0200
+@@ -4,12 +4,12 @@
+ 
+ appdatadir = $(datadir)/applications
+ if !HAVE_WIN32
+-appdata_DATA = vlc.desktop
++appdata_DATA = acestreamplayer.desktop
+ endif
+-EXTRA_DIST += vlc.desktop.in
++EXTRA_DIST += acestreamplayer.desktop.in
+ CLEANFILES += $(appdata_DATA)
+ 
+-vlc.desktop: vlc.desktop.in $(top_builddir)/config.status
++acestreamplayer.desktop: acestreamplayer.desktop.in $(top_builddir)/config.status
+ 	$(AM_V_GEN)sed -e 's,\@bindir\@,$(bindir),g' < "$<" > tmp-$@
+ 	$(AM_V_at)$(DESKTOP_FILE_VALIDATE) tmp-$@
+ 	$(AM_V_at)mv -f tmp-$@ $@
+@@ -22,18 +22,18 @@
+ icons256dir = $(iconsdatadir)/256x256/apps
+ 
+ if !HAVE_WIN32
+-dist_vlcdata_DATA = icons/vlc.ico
+-dist_icons16_DATA = icons/16x16/vlc.png icons/16x16/vlc.xpm
+-dist_icons32_DATA = icons/32x32/vlc.png icons/32x32/vlc.xpm \
+-			icons/32x32/vlc-xmas.xpm
+-dist_icons48_DATA = icons/48x48/vlc.png icons/48x48/vlc-xmas.png
+-dist_icons128_DATA = icons/128x128/vlc.png icons/128x128/vlc-xmas.png
+-dist_icons256_DATA = icons/256x256/vlc.png
++dist_vlcdata_DATA = icons/appicon.ico
++dist_icons16_DATA = icons/16x16/acestreamplayer.png icons/16x16/acestreamplayer.xpm
++dist_icons32_DATA = icons/32x32/acestreamplayer.png icons/32x32/acestreamplayer.xpm \
++			icons/32x32/acestreamplayer-xmas.xpm
++dist_icons48_DATA = icons/48x48/acestreamplayer.png icons/48x48/acestreamplayer-xmas.png
++dist_icons128_DATA = icons/128x128/acestreamplayer.png icons/128x128/acestreamplayer-xmas.png
++dist_icons256_DATA = icons/256x256/acestreamplayer.png
+ 
+ nobase_dist_vlcdata_SCRIPTS = \
+-	utils/gnome-vlc-default.sh \
+-	utils/audio-vlc-default.sh \
+-	utils/video-vlc-default.sh \
++	utils/gnome-acestreamplayer-default.sh \
++	utils/audio-acestreamplayer-default.sh \
++	utils/video-acestreamplayer-default.sh \
+ 	$(NULL)
+ endif
+ 
+@@ -54,7 +54,7 @@
+ endif
+ 
+ DIST_icons = \
+-	vlc512x512.png
++	acestreamplayer512x512.png
+ 
+ DIST_skins2 = \
+ 	skins2/fonts/FreeSans.ttf \
+@@ -103,7 +103,6 @@
+ 
+ if BUILD_LUA
+ nobase_vlclib_DATA = \
+-	lua/extensions/VLSub.luac \
+ 	lua/intf/cli.luac \
+ 	lua/intf/dummy.luac \
+ 	lua/intf/dumpmeta.luac \
+@@ -186,7 +185,6 @@
+ EXTRA_DIST += \
+ 	lua/README.txt \
+ 	lua/extensions/README.txt \
+-	lua/extensions/VLSub.lua \
+ 	lua/intf/README.txt \
+ 	lua/intf/cli.lua \
+ 	lua/intf/dummy.lua \
+@@ -354,7 +352,7 @@
+ 	lua/http/old/style.css
+ 
+ DIST_solid = \
+-	solid/vlc-openbd.desktop \
+-	solid/vlc-opencda.desktop \
+-	solid/vlc-opendvd.desktop \
+-	solid/vlc-openvcd.desktop
++	solid/acestreamplayer-openbd.desktop \
++	solid/acestreamplayer-opencda.desktop \
++	solid/acestreamplayer-opendvd.desktop \
++	solid/acestreamplayer-openvcd.desktop
+diff -ru vlc-2.1.2.orig/src/Makefile.am vlc-2.1.2/src/Makefile.am
+--- vlc-2.1.2.orig/src/Makefile.am	2013-12-03 11:12:35.000000000 +0200
++++ vlc-2.1.2/src/Makefile.am	2014-01-17 12:53:01.835040079 +0200
+@@ -112,6 +112,8 @@
+ 	../include/vlc_vod.h \
+ 	../include/vlc_vout_wrapper.h \
+ 	../include/vlc_windows_interfaces.h \
++	../include/vlc_sql.h \
++	../include/p2p_object.h \
+ 	$(NULL)
+ 
+ ../include/vlc_about.h: Makefile.am $(top_srcdir)/COPYING $(top_srcdir)/THANKS $(top_srcdir)/AUTHORS
+@@ -160,14 +162,14 @@
+ # Building libvlc
+ ###############################################################################
+ 
+-lib_LTLIBRARIES = libvlccore.la
++lib_LTLIBRARIES = libtsplayercore.la
+ 
+ AM_CPPFLAGS = $(INCICONV) $(IDN_CFLAGS) \
+ 	-DMODULE_STRING=\"core\" \
+ 	-DLOCALEDIR=\"$(localedir)\" \
+ 	-DPKGDATADIR=\"$(vlcdatadir)\" \
+ 	-DPKGLIBDIR=\"$(vlclibdir)\"
+-AM_CFLAGS = $(CFLAGS_libvlccore)
++AM_CFLAGS = $(CFLAGS_libtsplayercore)
+ if HAVE_DYNAMIC_PLUGINS
+ AM_CPPFLAGS += -DHAVE_DYNAMIC_PLUGINS
+ endif
+@@ -176,62 +178,62 @@
+ AM_CFLAGS += $(DBUS_CFLAGS)
+ endif
+ 
+-libvlccore_la_SOURCES = $(SOURCES_libvlc)
+-libvlccore_la_LDFLAGS = \
+-	$(LDFLAGS_libvlccore) \
++libtsplayercore_la_SOURCES = $(SOURCES_libtsplayer)
++libtsplayercore_la_LDFLAGS = \
++	$(LDFLAGS_libtsplayercore) \
+ 	-no-undefined \
+ 	-export-symbols $(srcdir)/libvlccore.sym \
+ 	-version-info 8:0:0
+-libvlccore_la_LIBADD = $(LIBS_libvlccore) \
++libtsplayercore_la_LIBADD = $(LIBS_libtsplayercore) \
+ 	../compat/libcompat.la \
+ 	$(LTLIBINTL) $(LTLIBICONV) \
+ 	$(IDN_LIBS) $(LIBPTHREAD) $(SOCKET_LIBS) $(LIBDL) $(LIBM)
+-libvlccore_la_DEPENDENCIES = libvlccore.sym
++libtsplayercore_la_DEPENDENCIES = libvlccore.sym
+ if HAVE_WIN32
+-libvlccore_la_DEPENDENCIES += libvlc_win32_rc.$(OBJEXT)
+-libvlccore_la_LDFLAGS += -Wl,libvlc_win32_rc.$(OBJEXT) -avoid-version \
++libtsplayercore_la_DEPENDENCIES += libvlc_win32_rc.$(OBJEXT)
++libtsplayercore_la_LDFLAGS += -Wl,libvlc_win32_rc.$(OBJEXT) -avoid-version \
+						 -Wc,--static -Wc,-static-libgcc
+ endif
+ if HAVE_OS2
+ libvlccore_la_LDFLAGS += -avoid-version
+ endif
+ if HAVE_DBUS
+-libvlccore_la_LIBADD += $(DBUS_LIBS)
++libtsplayercore_la_LIBADD += $(DBUS_LIBS)
+ endif
+ 
+ libvlc_win32_rc.$(OBJEXT): libvlc_win32_rc.rc
+ 	$(WINDRES) --include-dir $(top_srcdir)/share --include-dir $(top_srcdir)/extras/package/win32 -i $< -o $@
+ 
+-EXTRA_libvlccore_la_SOURCES = \
+-	$(SOURCES_libvlc_darwin) \
+-	$(SOURCES_libvlc_android) \
+-	$(SOURCES_libvlc_linux) \
+-	$(SOURCES_libvlc_win32) \
+-	$(SOURCES_libvlc_os2) \
+-	$(SOURCES_libvlc_other) \
+-	$(SOURCES_libvlc_httpd) \
+-	$(SOURCES_libvlc_sout) \
+-	$(SOURCES_libvlc_vlm) \
++EXTRA_libtsplayercore_la_SOURCES = \
++	$(SOURCES_libtsplayer_darwin) \
++	$(SOURCES_libtsplayer_android) \
++	$(SOURCES_libtsplayer_linux) \
++	$(SOURCES_libtsplayer_win32) \
++	$(SOURCES_libtsplayer_os2) \
++	$(SOURCES_libtsplayer_other) \
++	$(SOURCES_libtsplayer_httpd) \
++	$(SOURCES_libtsplayer_sout) \
++	$(SOURCES_libtsplayer_vlm) \
+ 	$(NULL)
+ if HAVE_DARWIN
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_darwin)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_darwin)
+ else
+ if HAVE_ANDROID
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_android)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_android)
+ else
+ if HAVE_LINUX
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_linux)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_linux)
+ else
+ if HAVE_WIN32
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_win32)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_win32)
+ else
+ if HAVE_SYMBIAN
+-#libvlccore_la_SOURCES += $(SOURCES_libvlc_symbian)
++#libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_symbian)
+ else
+ if HAVE_OS2
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_os2)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_os2)
+ else
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_other)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_other)
+ endif
+ endif
+ endif
+@@ -235,16 +237,16 @@
+ endif
+ endif
+ if BUILD_HTTPD
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_httpd)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_httpd)
+ endif
+ if ENABLE_SOUT
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_sout)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_sout)
+ if ENABLE_VLM
+-libvlccore_la_SOURCES += $(SOURCES_libvlc_vlm)
++libtsplayercore_la_SOURCES += $(SOURCES_libtsplayer_vlm)
+ endif
+ endif
+ 
+-SOURCES_libvlc_darwin = \
++SOURCES_libtsplayer_darwin = \
+ 	darwin/dirs.c \
+ 	posix/filesystem.c \
+ 	posix/plugin.c \
+@@ -255,7 +257,7 @@
+ 	darwin/netconf.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_android = \
++SOURCES_libtsplayer_android = \
+ 	android/dirs.c \
+ 	android/thread.c \
+ 	posix/filesystem.c \
+@@ -268,7 +270,7 @@
+ 	posix/rand.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_linux = \
++SOURCES_libtsplayer_linux = \
+ 	posix/dirs.c \
+ 	posix/filesystem.c \
+ 	posix/netconf.c \
+@@ -281,7 +283,7 @@
+ 	posix/rand.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_win32 = \
++SOURCES_libtsplayer_win32 = \
+ 	win32/dirs.c \
+ 	win32/filesystem.c \
+ 	win32/netconf.c \
+@@ -292,14 +294,14 @@
+ 	win32/rand.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_symbian = \
++SOURCES_libtsplayer_symbian = \
+ 	symbian/path.cpp \
+ 	symbian/dirs.c \
+ 	win32/plugin.c \
+ 	posix/rand.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_os2 = \
++SOURCES_libtsplayer_os2 = \
+ 	os2/getaddrinfo.c \
+ 	os2/dirs.c \
+ 	os2/filesystem.c \
+@@ -310,7 +312,7 @@
+ 	os2/rand.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_other = \
++SOURCES_libtsplayer_other = \
+ 	posix/dirs.c \
+ 	posix/filesystem.c \
+ 	posix/netconf.c \
+@@ -321,7 +323,7 @@
+ 	posix/rand.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_common = \
++SOURCES_libtsplayer_common = \
+ 	libvlc.c \
+ 	libvlc.h \
+ 	libvlc-module.c \
+@@ -347,6 +349,10 @@
+ 	playlist/item.c \
+ 	playlist/search.c \
+ 	playlist/services_discovery.c \
++	p2p_object/p2p_object_internal.h \
++    p2p_object/p2p_video_click.c \
++	p2p_object/p2p_object.c \
++	sql/sql.c \
+ 	input/item.c \
+ 	input/access.c \
+ 	input/clock.c \
+@@ -478,11 +484,11 @@
+ 	misc/subpicture.h \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_httpd = \
++SOURCES_libtsplayer_httpd = \
+ 	network/httpd.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_sout = \
++SOURCES_libtsplayer_sout = \
+ 	stream_output/stream_output.c \
+ 	stream_output/stream_output.h \
+ 	stream_output/announce.c \
+@@ -490,14 +496,14 @@
+ 	stream_output/sdp.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc_vlm = \
++SOURCES_libtsplayer_vlm = \
+ 	input/vlm.c \
+ 	input/vlm_event.c \
+ 	input/vlmshell.c \
+ 	$(NULL)
+ 
+-SOURCES_libvlc = \
+-	$(SOURCES_libvlc_common) \
++SOURCES_libtsplayer = \
++	$(SOURCES_libtsplayer_common) \
+ 	$(NULL)
+ 
+ # Unit/regression tests
+@@ -516,7 +522,7 @@
+ TESTS = $(check_PROGRAMS)
+ 
+ test_block_SOURCES = test/block_test.c
+-test_block_LDADD = $(LDADD) $(LIBS_libvlccore)
++test_block_LDADD = $(LDADD) $(LIBS_libtsplayercore)
+ test_block_DEPENDENCIES =
+ 
+ test_dictionary_SOURCES = test/dictionary.c
+@@ -529,7 +535,7 @@
+ test_headers_SOURCES = test/headers.c
+ 
+ AM_LDFLAGS = -no-install
+-LDADD = libvlccore.la \
++LDADD = libtsplayercore.la \
+ 	../compat/libcompat.la
+ 
+ ###############################################################################

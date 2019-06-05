@@ -1,0 +1,96 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/open_panels.cpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/open_panels.cpp	2014-01-17 15:02:10.902986940 +0200
+@@ -1391,3 +1391,93 @@
+     module_config_free( p_config );
+ }
+ 
++/**************************************************************************
++ * Open Content Id                                                                                       *
++ **************************************************************************/
++ContentIdOpenPanel::ContentIdOpenPanel( QWidget *_parent, intf_thread_t *_p_intf ) : OpenPanel( _parent, _p_intf )
++{
++    ui.setupUi( this );
++    QString title = QString("%1 Player").arg(P2P_PRODUCT_NAME);
++    ui.groupBox->setTitle(qtr(qtu(title)));
++    QString tip_text = QString("Enter the id of the %1 content here.").arg(P2P_PRODUCT_NAME);
++    ui.cidComboBox->setToolTip(qtr(qtu(tip_text)));
++    
++	CONNECT( ui.cidComboBox, editTextChanged( const QString& ), this, updateMRL());
++    
++    if( var_InheritBool( p_intf, "qt-recentplay" ) ) {
++        b_recentList = true;
++        ui.cidComboBox->addItems( getSettings()->value( "OpenDialog/contentId" ).toStringList() );
++        ui.cidComboBox->setMaxCount( 10 );
++    }
++    else
++        b_recentList = false;
++        
++    ui.cidComboBox->setValidator( new ContentIdValidator( this ) );
++    ui.cidComboBox->setFocus();
++}
++
++ContentIdOpenPanel::~ContentIdOpenPanel()
++{
++    if( !b_recentList ) return;
++
++    QStringList cidList;
++    for( int i = 0; i < ui.cidComboBox->count(); i++ )
++        cidList << ui.cidComboBox->itemText( i );
++
++    if( cidList.count() > 0 ) {
++        cidList.removeDuplicates();
++        getSettings()->setValue( "OpenDialog/contentId", cidList );
++    }
++}
++
++void ContentIdOpenPanel::clear()
++{
++        ui.cidComboBox->clear();
++}
++
++void ContentIdOpenPanel::onAccept()
++{
++    if( ui.cidComboBox->findText( ui.cidComboBox->currentText() ) == -1 )
++        ui.cidComboBox->insertItem( 0, ui.cidComboBox->currentText());
++}
++
++void ContentIdOpenPanel::onFocus()
++{
++    ui.cidComboBox->setFocus();
++    ui.cidComboBox->lineEdit()->selectAll();
++}
++
++void ContentIdOpenPanel::updateMRL()
++{
++    QString cid = ui.cidComboBox->lineEdit()->text();
++    if( cid.isEmpty() )
++        return;
++    
++    emit methodChanged( qfu( "network-caching" ) );
++    
++    QStringList qsl;
++    qsl << cid;
++    emit mrlUpdated( qsl, "" );
++}
++
++QValidator::State ContentIdValidator::validate( QString& str, int& pos ) const
++{
++    str = str.trimmed();
++    
++    if( str == "" )
++        return QValidator::Intermediate;
++    if( str.contains( "acestream://", Qt::CaseInsensitive ) && str.length() != 52 )
++        return QValidator::Invalid;
++    if( !str.contains( "acestream://", Qt::CaseInsensitive ) && str.length() != 40 )
++        return QValidator::Invalid;
++    if( str.contains( " " ) )
++        return QValidator::Invalid;
++    if( str.contains( "acestream://", Qt::CaseInsensitive ) )
++        str = str.replace( "acestream://", "", Qt::CaseInsensitive );
++    return QValidator::Acceptable;
++}
++
++void ContentIdValidator::fixup( QString& str ) const
++{
++    str = str.trimmed();
++}

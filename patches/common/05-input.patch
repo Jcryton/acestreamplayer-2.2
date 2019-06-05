@@ -1,0 +1,1337 @@
+diff -ru vlc-2.1.2.orig/include/vlc_input.h vlc-2.1.2/include/vlc_input.h
+--- vlc-2.1.2.orig/include/vlc_input.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_input.h	2014-01-16 16:15:25.248727084 +0200
+@@ -400,6 +400,7 @@
+     /* A vout_thread_t object has been created/deleted by *the input* */
+     INPUT_EVENT_VOUT,
+ 
++    INPUT_EVENT_P2P_LIVEPOS,
+ } input_event_type_e;
+ 
+ /**
+@@ -486,6 +487,7 @@
+     /* External clock managments */
+     INPUT_GET_PCR_SYSTEM,   /* arg1=mtime_t *, arg2=mtime_t *       res=can fail */
+     INPUT_MODIFY_PCR_SYSTEM,/* arg1=int absolute, arg2=mtime_t      res=can fail */
++    INPUT_GET_ABORT_FLAG,
+ };
+ 
+ /** @}*/
+@@ -533,6 +535,14 @@
+     input_Control( p_input, INPUT_GET_STATE, &state );
+     return state;
+ }
++
++static inline bool input_IsAborted( input_thread_t * p_input )
++{
++    bool b = false;
++    input_Control( p_input, INPUT_GET_ABORT_FLAG, &b );
++    return b;
++}
++
+ /**
+  * It will add a new subtitle source to the input.
+  * Provided for convenience.
+diff -ru vlc-2.1.2.orig/include/vlc_input_item.h vlc-2.1.2/include/vlc_input_item.h
+--- vlc-2.1.2.orig/include/vlc_input_item.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_input_item.h	2014-01-16 13:46:45.827240263 +0200
+@@ -33,6 +33,7 @@
+ #include <vlc_meta.h>
+ #include <vlc_epg.h>
+ #include <vlc_events.h>
++#include <p2p_object.h>
+ 
+ #include <string.h>
+ 
+@@ -52,6 +53,85 @@
+     struct info_t **pp_infos;     /**< Pointer to an array of infos */
+ };
+ 
++struct p2p_data_t
++{
++    char* psz_url;
++    char* psz_filename;
++    char* psz_infohash;
++    char* psz_checksum;
++    char** ppsz_qualities;
++    int i_current_quality;
++    int i_qualities;
++
++    p2p_uri_id_type_t i_type;
++    p2p_save_format_t i_save_type;
++    int i_group;
++    int i_group_size;
++    int i_index;
++    int i_developer;
++    int i_affiliate;
++    int i_zone;
++    
++    bool b_play_flag;
++
++    bool b_active;
++    bool b_is_ad;
++	bool b_is_intad;
++	bool b_is_live;
++    bool b_copied;
++    
++    bool b_playback_0;
++    bool b_playback_25;
++    bool b_playback_50;
++    bool b_playback_75;
++    bool b_playback_100;
++    bool b_duration;
++};
++
++/* create p2p_data_t object */
++VLC_API p2p_data_t* input_item_NewP2PData( input_item_t* );
++VLC_API void input_item_ClearP2PData( input_item_t* );
++VLC_API input_item_t* input_item_CopyFull(input_item_t* ) VLC_USED;
++VLC_API void input_item_ClearOptions( input_item_t* );
++VLC_API void input_item_SetDecodedName( input_item_t*, const char* );
++
++VLC_API bool input_item_IsP2P( input_item_t* );
++VLC_API p2p_data_t* input_item_GetP2PData( input_item_t* );
++VLC_API void input_item_SetP2PData( input_item_t*, p2p_data_t* );
++VLC_API void input_item_AddP2PQuality( p2p_data_t*, const char* );
++
++VLC_API char* input_item_GetP2PUrl( input_item_t* );
++VLC_API char* input_item_GetP2PFileName( input_item_t* );
++VLC_API char* input_item_GetP2PInfohash( input_item_t* );
++VLC_API char* input_item_GetP2PChecksum( input_item_t* );
++VLC_API char* input_item_GetP2PQualityValue( input_item_t*, int );
++VLC_API int input_item_GetP2PQualityCurrent( input_item_t* );
++VLC_API int input_item_GetP2PQualitySize( input_item_t* );
++VLC_API p2p_uri_id_type_t input_item_GetP2PType( input_item_t* );
++VLC_API p2p_save_format_t input_item_GetP2PSaveFormat( input_item_t* );
++VLC_API int input_item_GetP2PGroup( input_item_t* );
++VLC_API int input_item_GetP2PGroupSize( input_item_t* );
++VLC_API int input_item_GetP2PIndex( input_item_t* );
++VLC_API int input_item_GetP2PDeveloper( input_item_t* );
++VLC_API int input_item_GetP2PAffiliate( input_item_t* );
++VLC_API int input_item_GetP2PZone( input_item_t* );
++VLC_API bool input_item_GetP2PPlayCommandFlag( input_item_t* );
++VLC_API bool input_item_GetP2PActiveFlag( input_item_t* );
++VLC_API bool input_item_GetP2PIsAdFlag( input_item_t* );
++VLC_API bool input_item_GetP2PIsIntAdFlag( input_item_t* );
++VLC_API bool input_item_GetP2PIsLiveFlag( input_item_t* );
++VLC_API void input_item_UnblockP2PIsAdFlag( input_item_t* );
++
++VLC_API bool input_item_GetP2PCheckAndSetPlayback( input_item_t*, p2p_playback_value_t );
++VLC_API bool input_item_GetP2PCheckAndSetDuration( input_item_t* );
++
++VLC_API void input_item_SetP2PPlayCommandFlags( input_item_t*, bool, bool, bool );
++VLC_API void input_item_unSetP2PPlayCommandFlag( input_item_t* );
++VLC_API void input_item_SetP2PSaveType( input_item_t*, p2p_save_format_t );
++VLC_API void input_item_ToggleP2PActiveFlag( input_item_t * );
++VLC_API void input_item_SetP2PActiveFlag( input_item_t*, bool );
++VLC_API void input_item_SetP2PQualityCurrent( input_item_t*, int );
++
+ struct input_item_t
+ {
+     int        i_id;                 /**< Identifier of the item */
+@@ -88,6 +168,8 @@
+     uint8_t     i_type;              /**< Type (file, disc, ... see input_item_type_e) */
+     bool        b_fixed_name;        /**< Can the interface change the name ?*/
+     bool        b_error_when_reading;/**< Error When Reading */
++
++    p2p_data_t *p_p2p_data;
+ };
+ 
+ enum input_item_type_e
+diff -ru vlc-2.1.2.orig/src/input/item.c vlc-2.1.2/src/input/item.c
+--- vlc-2.1.2.orig/src/input/item.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/input/item.c	2014-01-16 13:44:45.995243096 +0200
+@@ -350,6 +350,7 @@
+         if( -1==r )
+             p_i->psz_name=NULL; /* recover from undefined value */
+     }
++    p_i->i_duration = 0;
+ 
+     vlc_mutex_unlock( &p_i->lock );
+ }
+@@ -422,6 +423,8 @@
+ 
+     vlc_event_manager_fini( &p_item->event_manager );
+ 
++    input_item_ClearP2PData(p_item);
++    
+     free( p_item->psz_name );
+     free( p_item->psz_uri );
+     if( p_item->p_stats != NULL )
+@@ -826,6 +829,8 @@
+     p_input->i_id = atomic_fetch_add(&last_input_id, 1);
+     vlc_mutex_init( &p_input->lock );
+ 
++    p_input->p_p2p_data = NULL;
++    
+     p_input->psz_name = NULL;
+     if( psz_name )
+         input_item_SetName( p_input, psz_name );
+@@ -890,6 +895,34 @@
+             p_new_input->p_meta = vlc_meta_New();
+             vlc_meta_Merge( p_new_input->p_meta, p_input->p_meta );
+         }
++
++        if( p_input->p_p2p_data ) 
++        {
++        	p2p_data_t *p_p2pdt = input_item_NewP2PData( p_new_input );
++            
++            p_p2pdt->psz_url = strdup(p_input->p_p2p_data->psz_url);
++            p_p2pdt->psz_filename = strdup(p_input->p_p2p_data->psz_filename);
++            p_p2pdt->psz_infohash = p_input->p_p2p_data->psz_infohash ? strdup(p_input->p_p2p_data->psz_infohash) : NULL;
++            p_p2pdt->psz_checksum = p_input->p_p2p_data->psz_checksum ? strdup(p_input->p_p2p_data->psz_checksum) : NULL;
++            
++            for( size_t i = 0; i < p_input->p_p2p_data->i_qualities; i++ )
++                INSERT_ELEM( p_p2pdt->ppsz_qualities, p_p2pdt->i_qualities, p_p2pdt->i_qualities, strdup( p_input->p_p2p_data->ppsz_qualities[i] ) );
++            p_p2pdt->i_current_quality = p_input->p_p2p_data->i_current_quality;
++            
++            
++            p_p2pdt->i_type = p_input->p_p2p_data->i_type;
++            p_p2pdt->i_save_type = p_input->p_p2p_data->i_save_type;
++            p_p2pdt->i_group = p_input->p_p2p_data->i_group + 1;
++            p_p2pdt->i_group_size = 1;
++            p_p2pdt->i_index = p_input->p_p2p_data->i_index;
++            p_p2pdt->i_developer = p_input->p_p2p_data->i_developer;
++            p_p2pdt->i_affiliate = p_input->p_p2p_data->i_affiliate;
++            p_p2pdt->i_zone = p_input->p_p2p_data->i_zone;
++            p_p2pdt->b_active = p_input->p_p2p_data->b_active;
++            p_p2pdt->b_copied = true;
++            
++        	p_new_input->p_p2p_data = p_p2pdt;
++        }
+     }
+ 
+     vlc_mutex_unlock( &p_input->lock );
+@@ -1082,3 +1115,502 @@
+     TAB_APPEND(item->i_es, item->es, fmt_copy);
+     vlc_mutex_unlock( &item->lock );
+ }
++
++bool input_item_IsP2P( input_item_t *p_i )
++{
++	vlc_mutex_lock( &p_i->lock );
++	bool res = p_i->p_p2p_data != NULL;
++	vlc_mutex_unlock( &p_i->lock );
++	return res;
++}
++
++p2p_data_t *input_item_NewP2PData( input_item_t *p_i )
++{
++    p2p_data_t *p_p2pdt = (p2p_data_t*)malloc(sizeof(p2p_data_t));
++	p_p2pdt->psz_url = NULL;
++    p_p2pdt->psz_filename = NULL;
++    p_p2pdt->psz_infohash = NULL;
++    p_p2pdt->psz_checksum = NULL;
++        
++    p_p2pdt->i_qualities = 0;
++    TAB_INIT( p_p2pdt->i_qualities, p_p2pdt->ppsz_qualities );
++    p_p2pdt->i_current_quality = 0;
++    
++    p_p2pdt->i_type = P2P_TYPE_TORRENT_URL;
++    p_p2pdt->i_save_type = P2P_SAVE_UNSAVEABLE;
++    p_p2pdt->i_group = 0;
++    p_p2pdt->i_group_size = 0;
++    p_p2pdt->i_index = 0;
++    p_p2pdt->i_developer = 0;
++    p_p2pdt->i_affiliate = 0;
++    p_p2pdt->i_zone = 0;
++    
++    p_p2pdt->b_play_flag = false;
++    p_p2pdt->b_active = true;
++    p_p2pdt->b_is_ad = false;
++    p_p2pdt->b_is_intad = false;
++    p_p2pdt->b_is_live = false;
++    p_p2pdt->b_copied = false;
++    
++    p_p2pdt->b_duration = p_p2pdt->b_playback_0 = p_p2pdt->b_playback_25 = p_p2pdt->b_playback_50 = p_p2pdt->b_playback_75 = p_p2pdt->b_playback_100 = false;
++    
++    if( p_i )
++        input_item_SetP2PData( p_i, p_p2pdt );
++
++    return p_p2pdt;
++}
++
++void input_item_ClearP2PData( input_item_t *p_i )
++{
++    p2p_data_t *p_p2pdt = input_item_GetP2PData( p_i );
++
++    if( p_p2pdt ) {
++        if( p_p2pdt->psz_url ) {
++            free( p_p2pdt->psz_url );
++            p_p2pdt->psz_url = NULL;
++        }
++        if( p_p2pdt->psz_filename ) {
++            free( p_p2pdt->psz_filename );
++            p_p2pdt->psz_filename = NULL;
++        }
++        if( p_p2pdt->psz_infohash ) {
++            free( p_p2pdt->psz_infohash );
++            p_p2pdt->psz_infohash = NULL;
++        }
++        if( p_p2pdt->psz_checksum ) {
++            free( p_p2pdt->psz_checksum );
++            p_p2pdt->psz_checksum = NULL;
++        }
++        for( size_t i = 0; i < p_p2pdt->i_qualities; i++ )
++            free( p_p2pdt->ppsz_qualities[i] );
++        TAB_CLEAN( p_p2pdt->i_qualities, p_p2pdt->ppsz_qualities );
++
++        free( p_p2pdt );
++        p_p2pdt = NULL;
++    }
++}
++
++input_item_t *input_item_CopyFull( input_item_t *p_input )
++{
++    vlc_mutex_lock( &p_input->lock );
++
++    input_item_t *p_new_input =
++        input_item_NewWithType( p_input->psz_uri, p_input->psz_name,
++                                0, NULL, 0, p_input->i_duration,
++                                p_input->i_type );
++
++    if( p_new_input )
++    {
++        for( int i = 0 ; i< p_input->i_options; i++ )
++        {
++            input_item_AddOption( p_new_input,
++                                  p_input->ppsz_options[i],
++                                  p_input->optflagv[i] );
++        }
++
++        if( p_input->p_meta )
++        {
++            p_new_input->p_meta = vlc_meta_New();
++            vlc_meta_Merge( p_new_input->p_meta, p_input->p_meta );
++        }
++        
++        if( p_input->p_p2p_data ) 
++        {
++        	p2p_data_t *p_p2pdt = input_item_NewP2PData( p_new_input );
++            
++            p_p2pdt->psz_url = strdup(p_input->p_p2p_data->psz_url);
++            p_p2pdt->psz_filename = strdup(p_input->p_p2p_data->psz_filename);
++            p_p2pdt->psz_infohash = p_input->p_p2p_data->psz_infohash ? strdup(p_input->p_p2p_data->psz_infohash) : NULL;
++            p_p2pdt->psz_checksum = p_input->p_p2p_data->psz_checksum ? strdup(p_input->p_p2p_data->psz_checksum) : NULL;
++            
++            for( size_t i = 0; i < p_input->p_p2p_data->i_qualities; i++ )
++                INSERT_ELEM( p_p2pdt->ppsz_qualities, p_p2pdt->i_qualities, p_p2pdt->i_qualities, strdup( p_input->p_p2p_data->ppsz_qualities[i] ) );
++            p_p2pdt->i_current_quality = p_input->p_p2p_data->i_current_quality;
++            
++            p_p2pdt->i_type = p_input->p_p2p_data->i_type;
++            p_p2pdt->i_save_type = p_input->p_p2p_data->i_save_type;
++            p_p2pdt->i_group = p_input->p_p2p_data->i_group + 1;
++            p_p2pdt->i_group_size = p_input->p_p2p_data->i_group_size;
++            p_p2pdt->i_index = p_input->p_p2p_data->i_index;
++            p_p2pdt->i_developer = p_input->p_p2p_data->i_developer;
++            p_p2pdt->i_affiliate = p_input->p_p2p_data->i_affiliate;
++            p_p2pdt->i_zone = p_input->p_p2p_data->i_zone;
++            p_p2pdt->b_active = p_input->p_p2p_data->b_active;
++
++        	p_new_input->p_p2p_data = p_p2pdt;
++        }
++    }
++
++    vlc_mutex_unlock( &p_input->lock );
++
++    return p_new_input;
++}
++
++p2p_data_t *input_item_GetP2PData( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    p2p_data_t *p_p2pdt = p_i->p_p2p_data ? p_i->p_p2p_data : NULL;
++    vlc_mutex_unlock( &p_i->lock );
++    return p_p2pdt;
++}
++
++void input_item_SetP2PData( input_item_t *p_i, p2p_data_t *p_p2pdt )
++{
++    input_item_ClearP2PData( p_i );
++    
++    vlc_mutex_lock( &p_i->lock );
++    p_i->p_p2p_data = p_p2pdt;
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++void input_item_ClearOptions( input_item_t *p_i )
++{
++    if( p_i ) {
++        for( size_t i = 0; i < p_i->i_options; i++ )
++            free( p_i->ppsz_options[i] );
++        TAB_CLEAN( p_i->i_options, p_i->ppsz_options );
++        TAB_INIT( p_i->i_options, p_i->ppsz_options );
++    }
++}
++
++void input_item_SetDecodedName( input_item_t *p_item, const char *psz_name )
++{
++    vlc_mutex_lock( &p_item->lock );
++
++    free( p_item->psz_name );
++    decode_URI( psz_name );
++    p_item->psz_name = strdup( psz_name );
++
++    vlc_mutex_unlock( &p_item->lock );
++}
++
++void input_item_AddP2PQuality( p2p_data_t *p_p2pdt, const char *q_val )
++{
++    INSERT_ELEM( p_p2pdt->ppsz_qualities, p_p2pdt->i_qualities, p_p2pdt->i_qualities, strdup( q_val ) );
++}
++
++char *input_item_GetP2PUrl( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    char *psz_s = NULL;
++    if( p_i->p_p2p_data )
++        psz_s = p_i->p_p2p_data->psz_url ? strdup( p_i->p_p2p_data->psz_url ) : NULL;
++    vlc_mutex_unlock( &p_i->lock );
++    return psz_s;
++}
++
++char *input_item_GetP2PFileName( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    char *psz_s = NULL;
++    if( p_i->p_p2p_data )
++        psz_s = p_i->p_p2p_data->psz_filename ? strdup( p_i->p_p2p_data->psz_filename ) : NULL;
++    vlc_mutex_unlock( &p_i->lock );
++    return psz_s;
++}
++
++char *input_item_GetP2PInfohash( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    char *psz_s = NULL;
++    if( p_i->p_p2p_data )
++        psz_s = p_i->p_p2p_data->psz_infohash ? strdup( p_i->p_p2p_data->psz_infohash ) : NULL;
++    vlc_mutex_unlock( &p_i->lock );
++    return psz_s;
++}
++
++char *input_item_GetP2PChecksum( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    char *psz_s = NULL;
++    if( p_i->p_p2p_data )
++        psz_s = p_i->p_p2p_data->psz_checksum ? strdup( p_i->p_p2p_data->psz_checksum ) : NULL;
++    vlc_mutex_unlock( &p_i->lock );
++    return psz_s;
++}
++
++char *input_item_GetP2PQualityValue( input_item_t *p_i, int q_index )
++{
++    vlc_mutex_lock( &p_i->lock );
++    char *psz_s = NULL;
++    if( p_i->p_p2p_data ) {
++        if( q_index >= 0 && q_index < p_i->p_p2p_data->i_qualities  ) {
++            psz_s = p_i->p_p2p_data->ppsz_qualities[q_index] ? strdup( p_i->p_p2p_data->ppsz_qualities[q_index] ) : NULL;
++        }
++    }
++    vlc_mutex_unlock( &p_i->lock );
++    return psz_s;
++}
++
++int input_item_GetP2PQualityCurrent( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    int i = -1;
++    if( p_i->p_p2p_data && p_i->p_p2p_data->i_qualities > 0 )
++        i = p_i->p_p2p_data->i_current_quality;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PQualitySize( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    int i = 0;
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_qualities;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++p2p_uri_id_type_t input_item_GetP2PType( input_item_t *p_i )
++{
++    p2p_uri_id_type_t i = P2P_TYPE_UNSUPPORT;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_type;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++p2p_save_format_t input_item_GetP2PSaveFormat( input_item_t *p_i )
++{
++    p2p_save_format_t i = P2P_SAVE_UNSAVEABLE;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_save_type;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PGroup( input_item_t *p_i )
++{
++    int i = 0;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_group;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PGroupSize( input_item_t *p_i )
++{
++    int i = 0;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_group_size;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PIndex( input_item_t *p_i )
++{
++    int i = 0;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_index;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PDeveloper( input_item_t *p_i )
++{
++    int i = 0;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_developer;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PAffiliate( input_item_t *p_i )
++{
++    int i = 0;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_affiliate;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++int input_item_GetP2PZone( input_item_t *p_i )
++{
++    int i = 0;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        i = p_i->p_p2p_data->i_zone;
++    vlc_mutex_unlock( &p_i->lock );
++    return i;
++}
++
++bool input_item_GetP2PPlayCommandFlag( input_item_t *p_i )
++{
++    bool b = false;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        b = p_i->p_p2p_data->b_play_flag;
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++bool input_item_GetP2PActiveFlag( input_item_t *p_i )
++{
++    bool b = true;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        b = p_i->p_p2p_data->b_active;
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++bool input_item_GetP2PIsAdFlag( input_item_t *p_i )
++{
++    bool b = false;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        b = p_i->p_p2p_data->b_is_ad;
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++void input_item_UnblockP2PIsAdFlag( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        p_i->p_p2p_data->b_is_ad = false;
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++bool input_item_GetP2PIsIntAdFlag( input_item_t *p_i )
++{
++    bool b = false;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        b = p_i->p_p2p_data->b_is_intad;
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++bool input_item_GetP2PIsLiveFlag( input_item_t *p_i )
++{
++    bool b = false;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data )
++        b = p_i->p_p2p_data->b_is_live;
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++bool input_item_GetP2PCheckAndSetDuration(input_item_t *p_i)
++{
++    bool b = false;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        if( !p_i->p_p2p_data->b_duration )
++            b = p_i->p_p2p_data->b_duration = true;
++    }
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++bool input_item_GetP2PCheckAndSetPlayback( input_item_t *p_i, p2p_playback_value_t pb )
++{
++    bool b = false;
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        switch( pb ) {
++            case P2P_PLAYBACK_0 : {
++                if( !p_i->p_p2p_data->b_playback_0 )
++                    b = p_i->p_p2p_data->b_playback_0 = true;
++                break;
++            }
++            case P2P_PLAYBACK_25 : {
++                if( !p_i->p_p2p_data->b_playback_25 )
++                    b = p_i->p_p2p_data->b_playback_25 = true;            
++                break;
++            }
++            case P2P_PLAYBACK_50 : {
++                if( !p_i->p_p2p_data->b_playback_50 )
++                    b = p_i->p_p2p_data->b_playback_50 = true;
++                break;
++            }
++            case P2P_PLAYBACK_75 : {
++                if( !p_i->p_p2p_data->b_playback_75 )
++                    b = p_i->p_p2p_data->b_playback_75 = true;
++                break;
++            }
++            case P2P_PLAYBACK_100 : {
++                if( !p_i->p_p2p_data->b_playback_100 && p_i->p_p2p_data->b_playback_0 )
++                    b = p_i->p_p2p_data->b_playback_100 = true;
++                break;
++            }
++            default :
++                break;
++        }
++    }
++    vlc_mutex_unlock( &p_i->lock );
++    return b;
++}
++
++void input_item_SetP2PPlayCommandFlags( input_item_t *p_i, bool ad, bool intad, bool live )
++{
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        p_i->p_p2p_data->b_is_ad = ad;
++        p_i->p_p2p_data->b_is_intad = intad;
++        p_i->p_p2p_data->b_is_live = live;
++        p_i->p_p2p_data->b_playback_0 = false;
++        p_i->p_p2p_data->b_playback_25 = false;
++        p_i->p_p2p_data->b_playback_50 = false;
++        p_i->p_p2p_data->b_playback_75 = false;
++        p_i->p_p2p_data->b_playback_100 = false;
++        p_i->p_p2p_data->b_duration = false;
++        p_i->p_p2p_data->b_play_flag = true;
++    }
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++void input_item_unSetP2PPlayCommandFlag( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        p_i->p_p2p_data->b_play_flag = false;
++    }
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++void input_item_SetP2PSaveType( input_item_t *p_i, p2p_save_format_t format )
++{
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        p_i->p_p2p_data->i_save_type = format;
++    }
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++void input_item_ToggleP2PActiveFlag( input_item_t *p_i )
++{
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        p_i->p_p2p_data->b_active = !p_i->p_p2p_data->b_active;
++    }
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++void input_item_SetP2PActiveFlag( input_item_t *p_i, bool val )
++{
++    vlc_mutex_lock( &p_i->lock );
++    if( p_i->p_p2p_data ) {
++        p_i->p_p2p_data->b_active = val;
++    }
++    vlc_mutex_unlock( &p_i->lock );
++}
++
++void input_item_SetP2PQualityCurrent( input_item_t *p_i, int q )
++{
++    vlc_mutex_lock( &p_i->lock );
++	if( p_i->p_p2p_data ) {
++        if(q >= 0 && q < p_i->p_p2p_data->i_qualities)
++            p_i->p_p2p_data->i_current_quality = q;
++    }
++	vlc_mutex_unlock( &p_i->lock );
++}
+diff -ru vlc-2.1.2.orig/src/input/input_internal.h vlc-2.1.2/src/input/input_internal.h
+--- vlc-2.1.2.orig/src/input/input_internal.h	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/input/input_internal.h	2014-01-16 16:50:58.049776207 +0200
+@@ -166,6 +166,10 @@
+     bool b_abort;
+     bool is_running;
+     vlc_thread_t thread;
++
++    bool b_p2p_callbacks_bint;
++    //float f_start_position;
++    int64_t i_start_position;
+ };
+ 
+ /***************************************************************************
+@@ -214,6 +218,8 @@
+     INPUT_CONTROL_SET_RECORD_STATE,
+ 
+     INPUT_CONTROL_SET_FRAME_NEXT,
++    
++    INPUT_CONTROL_SET_P2P_LIVEPOS,
+ };
+ 
+ /* Internal helpers */
+@@ -245,6 +251,9 @@
+ 
+ void input_ConfigVarInit ( input_thread_t * );
+ 
++void input_ControlVarP2PBind( input_thread_t * );
++void input_ControlVarP2PUnbind( input_thread_t * );
++
+ /* Subtitles */
+ char **subtitles_Detect( input_thread_t *, char* path, const char *fname );
+ int subtitles_Filter( const char *);
+diff -ru vlc-2.1.2.orig/src/input/event.h vlc-2.1.2/src/input/event.h
+--- vlc-2.1.2.orig/src/input/event.h	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/input/event.h	2014-01-16 16:52:45.679933096 +0200
+@@ -79,4 +79,6 @@
+  *****************************************************************************/
+ void input_SendEventBookmark( input_thread_t *p_input );
+ 
++void input_SendEventLivePos( input_thread_t *p_input );
++
+ #endif
+diff -ru vlc-2.1.2.orig/src/input/event.c vlc-2.1.2/src/input/event.c
+--- vlc-2.1.2.orig/src/input/event.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/input/event.c	2014-01-20 15:26:49.997954148 +0200
+@@ -64,6 +64,22 @@
+ {
+     vlc_value_t val;
+ 
++    // p2p playback events 
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( p_input_item && input_item_IsP2P( p_input_item ) ) {
++        p2p_object_t *p_p2p = p2p_Get(p_input);
++        if( !input_item_GetP2PIsLiveFlag( p_input_item ) ) {
++            if( f_position > 0 && f_position < 0.25 && input_item_GetP2PCheckAndSetPlayback( p_input_item, P2P_PLAYBACK_0 ) )
++                p2p_Playback( p_p2p, p_input_item->psz_uri, P2P_PLAYBACK_0 );
++			else if( f_position >= 0.25 && f_position < 0.5 && input_item_GetP2PCheckAndSetPlayback( p_input_item, P2P_PLAYBACK_25 ) )
++                p2p_Playback( p_p2p, p_input_item->psz_uri, P2P_PLAYBACK_25 );
++            else if( f_position >= 0.5 && f_position < 0.75 && input_item_GetP2PCheckAndSetPlayback( p_input_item, P2P_PLAYBACK_50 ) )
++                p2p_Playback( p_p2p, p_input_item->psz_uri, P2P_PLAYBACK_50 );
++			else if( f_position >= 0.75 && f_position < 1 && input_item_GetP2PCheckAndSetPlayback( p_input_item, P2P_PLAYBACK_75 ) )
++                p2p_Playback( p_p2p, p_input_item->psz_uri, P2P_PLAYBACK_75 );
++        }
++    }
++
+     /* */
+     val.f_float = f_position;
+     var_Change( p_input, "position", VLC_VAR_SETVALUE, &val, NULL );
+@@ -79,11 +95,22 @@
+     vlc_value_t val;
+ 
+     /* FIXME ugly + what about meta change event ? */
+-    if( var_GetTime( p_input, "length" ) == i_length )
++    if( var_GetTime( p_input, "length" ) == i_length && i_length != 0 )
+         return;
+ 
+     input_item_SetDuration( p_input->p->p_item, i_length );
+ 
++    // p2p duration send
++    int i_msec = (int)((i_length + 500ULL)/ 1000ULL);
++    if( i_msec >= 0 ) {
++        input_item_t *p_input_item = input_GetItem( p_input );
++        if( p_input_item && input_item_IsP2P( p_input_item ) ) {
++            p2p_object_t *p_p2p = p2p_Get(p_input);
++            if( !input_item_GetP2PIsLiveFlag( p_input_item ) && input_item_GetP2PCheckAndSetDuration(p_input_item) )
++                p2p_Duration( p_p2p, p_input_item->psz_uri, i_msec );
++        }
++    }
++
+     val.i_time = i_length;
+     var_Change( p_input, "length", VLC_VAR_SETVALUE, &val, NULL );
+ 
+@@ -179,6 +206,25 @@
+ {
+     vlc_value_t val;
+ 
++    // p2p statistic events + playback 100 
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( p_input_item && input_item_IsP2P( p_input_item ) ) {
++        p2p_object_t *p_p2p = p2p_Get(p_input);
++        if( i_state == END_S ) {
++            // send playback 100 only if input not abort 
++            if( !p_input->p->b_abort && !input_item_GetP2PIsLiveFlag( p_input_item ) && input_item_GetP2PCheckAndSetPlayback( p_input_item, P2P_PLAYBACK_100 ) )
++                p2p_Playback( p_p2p, p_input_item->psz_uri, P2P_PLAYBACK_100 );
++            p2p_StatEvent( p_p2p, P2P_STAT_STOP, 0 );
++        }
++        else if( i_state == PLAYING_S ) {
++            p2p_StatEvent( p_p2p, P2P_STAT_PLAY, 0 );
++        }
++        else if( i_state == PAUSE_S ) {
++            int64_t i_time = var_GetTime( p_input, "time" );
++            p2p_StatEvent( p_p2p, P2P_STAT_PAUSE, i_time / 1000000);
++        }
++    }
++
+     val.i_int = i_state;
+     var_Change( p_input, "state", VLC_VAR_SETVALUE, &val, NULL );
+ 
+@@ -325,6 +371,10 @@
+     Trigger( p_input, INPUT_EVENT_BOOKMARK );
+ }
+ 
++void input_SendEventLivePos( input_thread_t *p_input )
++{
++    Trigger( p_input, INPUT_EVENT_P2P_LIVEPOS );
++}
+ /*****************************************************************************
+  *
+  *****************************************************************************/
+diff -ru vlc-2.1.2.orig/src/input/input.c vlc-2.1.2/src/input/input.c
+--- vlc-2.1.2.orig/src/input/input.c	2013-12-07 16:58:05.000000000 +0200
++++ vlc-2.1.2/src/input/input.c	2014-01-16 16:52:07.686939645 +0200
+@@ -334,6 +334,7 @@
+     p_input->p->i_time  = 0;
+     p_input->p->i_stop  = 0;
+     p_input->p->i_run   = 0;
++    p_input->p->i_start_position = 0;
+     p_input->p->i_title = 0;
+     p_input->p->title = NULL;
+     p_input->p->i_title_offset = p_input->p->i_seekpoint_offset = 0;
+@@ -345,6 +346,7 @@
+     TAB_INIT( p_input->p->i_attachment, p_input->p->attachment );
+     p_input->p->p_sout   = NULL;
+     p_input->p->b_out_pace_control = false;
++    p_input->p->b_p2p_callbacks_bint = false;
+ 
+     vlc_gc_incref( p_item ); /* Released in Destructor() */
+     p_input->p->p_item = p_item;
+@@ -644,6 +646,13 @@
+         val.i_time = p_input->p->i_start;
+         input_ControlPush( p_input, INPUT_CONTROL_SET_TIME, &val );
+     }
++    else if( p_input->p->i_start_position > 0 ) 
++    {
++        //val.f_float = (p_input->p->f_start_position < 1) ? p_input->p->f_start_position : (float)(p_input->p->f_start_position / 100.0);
++        //input_ControlPush( p_input, INPUT_CONTROL_SET_POSITION, &val );
++        val.i_time = p_input->p->i_start_position;
++        input_ControlPush( p_input, INPUT_CONTROL_SET_TIME, &val );
++    }
+     else
+     {
+         val.f_float = 0.0;
+@@ -944,6 +953,9 @@
+                                      * var_GetFloat( p_input, "stop-time" ));
+     p_input->p->i_run   = (int64_t)(1000000.0
+                                      * var_GetFloat( p_input, "run-time" ));
++    //p_input->p->f_start_position = (float)var_InheritFloat( p_input, "start-position" );
++    p_input->p->i_start_position = (int64_t)(1000000.0 
++                                     * var_GetFloat( p_input, "start-position" ));
+     if( p_input->p->i_run < 0 )
+     {
+         msg_Warn( p_input, "invalid run-time ignored" );
+@@ -960,6 +972,15 @@
+         s.i_time = p_input->p->i_start;
+         input_ControlPush( p_input, INPUT_CONTROL_SET_TIME, &s );
+     }
++    else if( p_input->p->i_start_position > 0 ) {
++        vlc_value_t s;
++
++        msg_Dbg( p_input, "starting at time: %ds", p_input->p->i_start_position );
++        //s.f_float = (p_input->p->f_start_position < 1) ? p_input->p->f_start_position : (float)(p_input->p->f_start_position / 100.0);
++        //input_ControlPush( p_input, INPUT_CONTROL_SET_POSITION, &s );
++        s.i_time = p_input->p->i_start_position;
++        input_ControlPush( p_input, INPUT_CONTROL_SET_TIME, &s );
++    }
+     if( p_input->p->i_stop > 0 && p_input->p->i_stop <= p_input->p->i_start )
+     {
+         msg_Warn( p_input, "invalid stop-time ignored" );
+@@ -2131,6 +2152,10 @@
+                            - INPUT_CONTROL_NAV_ACTIVATE + DEMUX_NAV_ACTIVATE );
+             break;
+ 
++        case INPUT_CONTROL_SET_P2P_LIVEPOS :
++            input_SendEventLivePos( p_input );
++            break;
++            
+         default:
+             msg_Err( p_input, "not yet implemented" );
+             break;
+@@ -2994,6 +3019,19 @@
+     {
+         input_item_SetErrorWhenReading( p_input->p->p_item, p_input->b_error );
+         input_SendEventState( p_input, i_state );
++
++        if(i_state == END_S) {
++            if( p_input->p->b_p2p_callbacks_bint ) {
++                input_ControlVarP2PUnbind(p_input);
++                p_input->p->b_p2p_callbacks_bint = false;
++            }
++        }
++        else if(i_state == PLAYING_S) {
++            if( !p_input->p->b_p2p_callbacks_bint ) {
++                input_ControlVarP2PBind(p_input);
++                p_input->p->b_p2p_callbacks_bint = true;
++            }
++        }
+     }
+ }
+ 
+diff -ru vlc-2.1.2.orig/src/input/control.c vlc-2.1.2/src/input/control.c
+--- vlc-2.1.2.orig/src/input/control.c	2013-07-20 12:49:18.000000000 +0300
++++ vlc-2.1.2/src/input/control.c	2014-01-16 16:54:01.577964788 +0200
+@@ -76,6 +76,13 @@
+ 
+     switch( i_query )
+     {
++        case INPUT_GET_ABORT_FLAG :
++            pb_bool = (bool*)va_arg( args, bool* );
++            vlc_mutex_lock( &p_input->p->p_item->lock );
++            *pb_bool = p_input->p->b_abort;
++            vlc_mutex_unlock( &p_input->p->p_item->lock );
++            return VLC_SUCCESS;
++
+         case INPUT_GET_POSITION:
+             pf = (double*)va_arg( args, double * );
+             *pf = var_GetFloat( p_input, "position" );
+diff -ru vlc-2.1.4.orig/src/input/resource.c vlc-2.1.4/src/input/resource.c
+--- vlc-2.1.4.orig/src/input/resource.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.4/src/input/resource.c	2014-10-16 16:00:55.350317782 +0300
+@@ -73,6 +73,8 @@
+ 
+     bool            b_aout_busy;
+     audio_output_t *p_aout;
++    
++    bool b_saved_options_inherited;
+ };
+ 
+ /* */
+@@ -157,6 +159,10 @@
+ 
+     input_item_t *p_item = input_GetItem( p_resource->p_input );
+ 
++    if( p_item && input_item_IsP2P(p_item) 
++            && (input_item_GetP2PIsAdFlag(p_item) || input_item_GetP2PIsIntAdFlag(p_item) || var_GetBool(p2p_Get(p_resource->p_input), "item-will-replay")))
++        return;
++
+     char *psz_nowplaying = input_item_GetNowPlayingFb( p_item );
+     if( psz_nowplaying && *psz_nowplaying )
+     {
+@@ -239,6 +245,41 @@
+         if( !p_vout )
+             return NULL;
+ 
++        if( p_resource->p_input && !p_resource->b_saved_options_inherited ) {
++            input_item_t *p_item = input_GetItem( p_resource->p_input );
++            if( p_item && !input_item_GetP2PIsAdFlag( p_item ) && !input_item_GetP2PIsIntAdFlag( p_item ) ) {
++                char *aspect = var_GetString( p_resource->p_input, "aspect-ratio" );
++                if( aspect ) {
++                    var_SetString( p_vout, "aspect-ratio", aspect );
++                    free(aspect);
++                }
++                char *crop = var_GetString( p_resource->p_input, "crop" );
++                if( crop ) {
++                    var_SetString( p_vout, "crop", crop );
++                    free(crop);
++                }
++                int deinterlace_status = var_GetInteger( p_resource->p_input, "deinterlace" );
++                if( deinterlace_status ) {
++                    var_SetInteger( p_vout, "deinterlace", deinterlace_status );
++                }
++                char *deinterlace_mode = var_GetString( p_resource->p_input, "deinterlace-mode" );
++                if( deinterlace_mode ) {
++                    var_SetString( p_vout, "deinterlace-mode", deinterlace_mode );
++                    free(deinterlace_mode);
++                }
++                // process start-deinterlace
++                char *start_deinterlace_mode = var_GetString( p_resource->p_input, "start-deinterlace" );
++                if (start_deinterlace_mode && strcmp(start_deinterlace_mode, "")) {
++                    if (var_GetInteger( p_resource->p_input, "deinterlace" ) == 0) {
++                        var_SetInteger( p_vout, "deinterlace", 1 );
++                        var_SetString( p_vout, "deinterlace-mode", start_deinterlace_mode );
++                    }
++                    free(start_deinterlace_mode);
++                }
++            }
++            p_resource->b_saved_options_inherited = true;
++        }
++
+         DisplayVoutTitle( p_resource, p_vout );
+ 
+         vlc_mutex_lock( &p_resource->lock_hold );
+@@ -251,7 +292,63 @@
+     {
+         assert( p_vout );
+ 
++        // save input options
++        if( p_resource->p_input ) {
++            input_item_t *p_item = input_GetItem( p_resource->p_input );
++            if( p_item && input_item_IsP2P( p_item ) ) {
++                if( !input_item_GetP2PIsAdFlag( p_item ) && !input_item_GetP2PIsIntAdFlag( p_item ) ) {
++                    char *infohash = input_item_GetP2PInfohash( p_item );
++                    if( infohash ) {
++                        // save aspect-ratio 
++                        p2p_object_t *p_p2p = p2p_Get( p_resource->p_input );
++                        char *aspect = var_GetString( p_vout, "aspect-ratio" );
++                        if( aspect ) {
++                            p2p_SaveOption( p_p2p, infohash, "aspect-ratio", aspect );
++                            free(aspect);
++                        }
++                        // save crop 
++                        char *crop = var_GetString( p_vout, "crop" );
++                        if( crop ) {
++                            p2p_SaveOption( p_p2p, infohash, "crop", crop );
++                            free(crop);
++                        }
++                        // save deinterlace 
++                        int deinterlase_state = var_GetInteger(p_vout, "deinterlace");
++                        if( deinterlase_state ) {
++                            char *state_txt;
++                            if(asprintf (&state_txt, "%d", deinterlase_state) != -1) {
++                                p2p_SaveOption( p_p2p, infohash, "deinterlace", state_txt );
++                                free(state_txt);
++                            }
++                            char *deinterlace_mode = var_GetString(p_vout,  "deinterlace-mode");
++                            if( deinterlace_mode ) {
++                                p2p_SaveOption( p_p2p, infohash, "deinterlace-mode", deinterlace_mode ); 
++                                free(deinterlace_mode);
++                            }
++                            else
++                                p2p_SaveOption( p_p2p, infohash, "deinterlace-mode", "" );
++                        }
++                        else {
++                            p2p_SaveOption( p_p2p, infohash, "deinterlace", "" );
++                            p2p_SaveOption( p_p2p, infohash, "deinterlace-mode", "" );
++                        }
++                        // save quality 
++                        if( input_item_GetP2PQualitySize( p_item ) > 0 ) {
++                            int quality = input_item_GetP2PQualityCurrent( p_item );
++                            char *q_txt;
++                            if(asprintf (&q_txt, "%d", quality) != -1) {
++                                p2p_SaveOption( p_p2p, infohash, "quality-id", q_txt );
++                                free(q_txt);
++                            }
++                        }
++                        free(infohash);
++                    }
++                }
++            }
++        }
++
+         vlc_mutex_lock( &p_resource->lock_hold );
++        p_resource->b_saved_options_inherited = false;
+         TAB_REMOVE( p_resource->i_vout, p_resource->pp_vout, p_vout );
+         const int i_vout_active = p_resource->i_vout;
+         vlc_mutex_unlock( &p_resource->lock_hold );
+@@ -419,6 +516,7 @@
+ 
+     atomic_init( &p_resource->refs, 1 );
+     p_resource->p_parent = p_parent;
++    p_resource->b_saved_options_inherited = false; // to fix vout options inheritanse
+     vlc_mutex_init( &p_resource->lock );
+     vlc_mutex_init( &p_resource->lock_hold );
+     return p_resource;
+diff -ru vlc-2.1.4.orig/src/input/var.c vlc-2.1.4/src/input/var.c
+--- vlc-2.1.4.orig/src/input/var.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.4/src/input/var.c	2014-10-16 14:47:39.045607528 +0300
+@@ -34,6 +34,9 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
++#include <vlc_vout.h>
++#include <vlc_vout_osd.h>
++
+ #include "input_internal.h"
+ 
+ /*****************************************************************************
+@@ -70,6 +73,31 @@
+                               vlc_value_t oldval, vlc_value_t newval,
+                               void *p_data );
+ 
++static int P2PInfoCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data );
++static int P2PStatusCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data );
++static int P2PErrorCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data );
++static int P2PLivePosCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data );
++
++void input_ControlVarP2PBind( input_thread_t *p_input )
++{
++    if( !p_input->b_preparsing ) {
++        var_AddCallback( p2p_Get(p_input), "info", P2PInfoCB, p_input );
++        var_AddCallback( p2p_Get(p_input), "status", P2PStatusCB, p_input );
++        var_AddCallback( p2p_Get(p_input), "error", P2PErrorCB, p_input );
++        var_AddCallback( p2p_Get(p_input), "livepos", P2PLivePosCB, p_input );
++    }
++}
++
++void input_ControlVarP2PUnbind( input_thread_t *p_input )
++{
++    if( !p_input->b_preparsing ) {
++        var_DelCallback( p2p_Get(p_input), "info", P2PInfoCB, p_input );
++        var_DelCallback( p2p_Get(p_input), "status", P2PStatusCB, p_input );
++        var_DelCallback( p2p_Get(p_input), "error", P2PErrorCB, p_input );
++        var_DelCallback( p2p_Get(p_input), "livepos", P2PLivePosCB, p_input );
++    }
++}
++
+ typedef struct
+ {
+     const char *psz_name;
+@@ -455,6 +483,9 @@
+         var_Create( p_input, "start-time", VLC_VAR_FLOAT|VLC_VAR_DOINHERIT );
+         var_Create( p_input, "stop-time", VLC_VAR_FLOAT|VLC_VAR_DOINHERIT );
+         var_Create( p_input, "run-time", VLC_VAR_FLOAT|VLC_VAR_DOINHERIT );
++        var_Create( p_input, "start-position", VLC_VAR_FLOAT|VLC_VAR_DOINHERIT );
++        var_Create( p_input, "start-deinterlace", VLC_VAR_STRING|VLC_VAR_DOINHERIT );
++
+         var_Create( p_input, "input-fast-seek", VLC_VAR_BOOL|VLC_VAR_DOINHERIT );
+ 
+         var_Create( p_input, "input-slave",
+@@ -568,6 +599,12 @@
+     input_thread_t *p_input = (input_thread_t*)p_this;
+     VLC_UNUSED(oldval); VLC_UNUSED(p_data); VLC_UNUSED(psz_cmd);
+ 
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( p_input_item && input_item_IsP2P( p_input_item ) && input_item_GetP2PIsAdFlag( p_input_item ) ) {
++        var_SetString( p2p_Get(p_input), "status", "Cannot seek" );
++        return VLC_SUCCESS;
++    }
++
+     newval.i_int = INPUT_RATE_DEFAULT / newval.f_float;
+     input_ControlPush( p_input, INPUT_CONTROL_SET_RATE, &newval );
+ 
+@@ -581,6 +618,12 @@
+     input_thread_t *p_input = (input_thread_t*)p_this;
+     VLC_UNUSED(oldval); VLC_UNUSED(p_data);
+ 
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( p_input_item && input_item_IsP2P( p_input_item ) && input_item_GetP2PIsAdFlag( p_input_item ) ) {
++        var_SetString( p2p_Get(p_input), "status", "Cannot seek" );
++        return VLC_SUCCESS;
++    }
++
+     if( !strcmp( psz_cmd, "position-offset" ) )
+     {
+         float f_position = var_GetFloat( p_input, "position" ) + newval.f_float;
+@@ -599,6 +642,19 @@
+             vlc_value_t val;
+ 
+             val.i_time = i_length * newval.f_float;
++
++            /* p2p statistics seek event */
++            input_item_t *p_input_item = input_GetItem( p_input );
++            if( p_input_item && input_item_IsP2P( p_input_item ) ) {
++                p2p_object_t *p_p2p = p2p_Get(p_input);
++                if( input_item_GetP2PIsLiveFlag( p_input_item ) ) {
++                    p2p_StatEvent( p_p2p, P2P_STAT_SEEK, 0 );
++                }
++                else {
++                    p2p_StatEvent( p_p2p, P2P_STAT_SEEK, (int)((val.i_time + 500ULL)/ 1000ULL / 1000) );
++                }
++            }
++
+             var_Change( p_input, "time", VLC_VAR_SETVALUE, &val, NULL );
+         }
+ 
+@@ -614,6 +670,12 @@
+     input_thread_t *p_input = (input_thread_t*)p_this;
+     VLC_UNUSED(oldval); VLC_UNUSED(p_data);
+ 
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( p_input_item && input_item_IsP2P( p_input_item ) && input_item_GetP2PIsAdFlag( p_input_item ) ) {
++        var_SetString( p2p_Get(p_input), "status", "Cannot seek" );
++        return VLC_SUCCESS;
++    }
++
+     if( !strcmp( psz_cmd, "time-offset" ) )
+     {
+         mtime_t i_time = var_GetTime( p_input, "time" ) + newval.i_time;
+@@ -627,6 +689,18 @@
+         const mtime_t i_length = var_GetTime( p_input, "length" );
+         if( i_length > 0 && newval.i_time >= 0 && newval.i_time <= i_length )
+         {
++            /* p2p statistics seek event */
++            input_item_t *p_input_item = input_GetItem( p_input );
++            if( p_input_item && input_item_IsP2P( p_input_item ) ) {
++                p2p_object_t *p_p2p = p2p_Get(p_input);
++                if( input_item_GetP2PIsLiveFlag( p_input_item ) ) {
++                    p2p_StatEvent( p_p2p, P2P_STAT_SEEK, 0 );
++                }
++                else {
++                    p2p_StatEvent( p_p2p, P2P_STAT_SEEK, (int)((newval.i_time + 500ULL)/ 1000ULL / 1000) );
++                }
++            }
++
+             vlc_value_t val;
+ 
+             val.f_float = (double)newval.i_time/(double)i_length;
+@@ -697,6 +771,13 @@
+     vlc_value_t val, count;
+     VLC_UNUSED(oldval); VLC_UNUSED(p_data);
+ 
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( p_input_item && input_item_IsP2P( p_input_item ) && input_item_GetP2PIsAdFlag( p_input_item ) ) {
++        var_SetString( p2p_Get(p_input), "status", "Cannot seek" );
++        return VLC_SUCCESS;
++    }
++
++    
+     if( !strcmp( psz_cmd, "next-chapter" ) )
+     {
+         input_ControlPush( p_input, INPUT_CONTROL_SET_SEEKPOINT_NEXT, NULL );
+@@ -827,3 +908,108 @@
+     return VLC_SUCCESS;
+ }
+ 
++static int P2PInfoCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data )
++{
++    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(newval);
++    
++    p2p_object_t *p_p2p = (p2p_object_t *)p_this;
++    input_thread_t *p_input = (input_thread_t *)p_data;
++    if( !p_input ) {
++        return VLC_SUCCESS;
++    }
++    
++    vout_thread_t* p_vout = input_GetVout(p_input);
++    if( !p_vout ) {
++        return VLC_SUCCESS;
++    }
++    char *psz_info = var_GetString( p_p2p, "info" ); 
++    if( psz_info ) {
++        vout_P2POSDMessage( p_vout, 0, psz_info );
++        free(psz_info);
++    }
++    else {
++        vout_P2POSDMessage( p_vout, 6000000, "" );
++    }
++    vlc_object_release( p_vout );
++
++    return VLC_SUCCESS;
++}
++
++static int P2PStatusCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data )
++{
++    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(newval);
++    
++    p2p_object_t *p_p2p = (p2p_object_t *)p_this;
++    input_thread_t *p_input = (input_thread_t *)p_data;
++    if( !p_input ) 
++        return VLC_SUCCESS;
++    input_item_t *p_input_item = input_GetItem( p_input );
++    if( !p_input_item )
++        return VLC_SUCCESS;
++    if( !input_item_IsP2P( p_input_item ) )
++        return VLC_SUCCESS;
++     if( input_item_GetP2PIsAdFlag( p_input_item ) || input_item_GetP2PIsIntAdFlag( p_input_item ) )
++        return VLC_SUCCESS;
++    
++    vout_thread_t* p_vout = input_GetVout(p_input);
++    if( !p_vout )
++        return VLC_SUCCESS;
++
++    bool b_fullscreen = var_GetBool( p_vout, "fullscreen" );
++    bool b_web_fullscreen = var_GetBool( p_vout->p_libvlc, "web-fullscreen" );
++    if( b_fullscreen || b_web_fullscreen) {
++        char *psz_info = var_GetString( p_p2p, "info" );
++        if( !psz_info || !strcmp( psz_info, "" ) ) {
++            char *psz_status = var_GetString( p_p2p, "status" );
++            if( psz_status ) {
++                vout_P2POSDMessage(p_vout, 6000000, psz_status);
++                free( psz_status );
++            }
++            else
++                vout_P2POSDMessage( p_vout, 6000000, "" );
++        }
++        if( psz_info ) free( psz_info );
++    }
++    vlc_object_release( p_vout );
++
++    return VLC_SUCCESS;
++}
++
++static int P2PErrorCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data )
++{
++    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(newval);
++    
++    p2p_object_t *p_p2p = (p2p_object_t *)p_this;
++    input_thread_t *p_input = (input_thread_t *)p_data;
++    if( !p_input )
++        return VLC_SUCCESS;
++    vout_thread_t* p_vout = input_GetVout(p_input);
++    if( !p_vout )
++        return VLC_SUCCESS;
++        
++    bool b_fullscreen = var_GetBool( p_vout, "fullscreen" );
++    bool b_web_fullscreen = var_GetBool( p_vout->p_libvlc, "web-fullscreen" );
++    if( b_fullscreen || b_web_fullscreen ) {
++        char *psz_error = var_GetString( p_p2p, "error" );
++        if( psz_error ) {
++            vout_P2POSDMessage(p_vout, 6000000, psz_error);
++            free( psz_error );
++        }
++    }
++    vlc_object_release( p_vout );
++
++    return VLC_SUCCESS;
++}
++
++static int P2PLivePosCB( vlc_object_t *p_this, char const *psz_cmd, vlc_value_t oldval, vlc_value_t newval, void *p_data )
++{
++    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval);
++    
++    p2p_object_t *p_p2p = (p2p_object_t *)p_this;
++    input_thread_t *p_input = (input_thread_t *)p_data;
++    if( !p_input )
++        return VLC_SUCCESS;
++
++    input_ControlPush( p_input, INPUT_CONTROL_SET_P2P_LIVEPOS, &newval );
++    return VLC_SUCCESS;
++}

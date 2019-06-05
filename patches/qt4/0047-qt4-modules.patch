@@ -1,0 +1,57 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/vlc.qrc	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/vlc.qrc	2014-01-17 15:44:08.582989163 +0200
+@@ -1,11 +1,11 @@
+ <RCC>
+     <qresource prefix="/logo">
+-        <file alias="vlc256.png">../../../share/icons/256x256/vlc.png</file>
+-        <file alias="vlc128.png">../../../share/icons/128x128/vlc.png</file>
+-        <file alias="vlc16.png">../../../share/icons/16x16/vlc.png</file>
+-        <file alias="vlc48.png">../../../share/icons/48x48/vlc.png</file>
+-        <file alias="vlc128-xmas.png">../../../share/icons/128x128/vlc-xmas.png</file>
+-        <file alias="vlc48-xmas.png">../../../share/icons/48x48/vlc-xmas.png</file>
++        <file alias="vlc256.png">../../../share/icons/256x256/acestreamplayer.png</file>
++        <file alias="vlc128.png">../../../share/icons/128x128/acestreamplayer.png</file>
++        <file alias="vlc16.png">../../../share/icons/16x16/acestreamplayer.png</file>
++        <file alias="vlc48.png">../../../share/icons/48x48/acestreamplayer.png</file>
++        <file alias="vlc128-xmas.png">../../../share/icons/128x128/acestreamplayer-xmas.png</file>
++        <file alias="vlc48-xmas.png">../../../share/icons/48x48/acestreamplayer-xmas.png</file>
+     </qresource>
+     <qresource prefix="/menu">
+         <file alias="help">pixmaps/menus/help_16px.png</file>
+@@ -67,6 +67,10 @@
+         <file alias="space">pixmaps/space.png</file>
+         <file alias="slower2">pixmaps/slower2.png</file>
+         <file alias="faster2">pixmaps/faster2.png</file>
++        <file alias="save" >pixmaps/save.png</file>
++        <file alias="live" >pixmaps/toolbar/live.png</file>
++        <file alias="live-live" >pixmaps/toolbar/live_live.png</file>
++        <file alias="live-nolive" >pixmaps/toolbar/live_nolive.png</file>
+     </qresource>
+     <qresource prefix="/buttons/playlist">
+         <file alias="playlist_add">pixmaps/playlist/add.png</file>
+@@ -90,6 +94,7 @@
+         <file alias="net">pixmaps/types/type_net.png</file>
+         <file alias="node">pixmaps/types/type_node.png</file>
+         <file alias="playlist">pixmaps/types/type_playlist.png</file>
++        <file alias="acestream" >pixmaps/types/acestream.png</file>
+     </qresource>
+     <qresource prefix="/">
+         <file alias="down_arrow">pixmaps/arrow_down_dark.png</file>
+@@ -102,6 +107,17 @@
+         <file alias="search_clear">pixmaps/search_clear.png</file>
+         <file alias="dropzone">pixmaps/playlist/dropzone.png</file>
+         <file alias="valid">pixmaps/valid.png</file>
++        <file alias="loader" >res/loader.html</file>
++    </qresource>
++    <qresource prefix="/images">
++        <file alias="back">res/back.png</file>
++        <file alias="back_h">res/back_h.png</file>
++        <file alias="back_d">res/back_disabled.png</file>
++        <file alias="next">res/next.png</file>
++        <file alias="next_h">res/next_h.png</file>
++        <file alias="next_d">res/next_disabled.png</file>
++        <file alias="close">res/close.png</file>
++        <file alias="close_h">res/close_h.png</file>
+     </qresource>
+     <qresource prefix="/prefsmenu">
+         <file alias="cone_audio_64">pixmaps/prefs/spref_cone_Audio_64.png</file>

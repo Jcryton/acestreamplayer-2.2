@@ -1,0 +1,42 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/menus.cpp	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/menus.cpp	2014-01-17 14:53:13.510986384 +0200
+@@ -354,6 +354,9 @@
+         ":/type/file-asym", SLOT( simpleOpenDialog() ), "Ctrl+O" );
+     addDPStaticEntry( menu, qtr( "&Open Multiple Files..." ),
+         ":/type/file-asym", SLOT( openFileDialog() ), "Ctrl+Shift+O" );
++    QString menu_line = qtr( "Open %1 Content ID..." ).arg(P2P_PRODUCT_NAME);
++    addDPStaticEntry( menu, qtr( qtu(menu_line) ),
++	    ":/type/acestream", SLOT( openCidDialog() ), "Ctrl+T" );
+     addDPStaticEntry( menu, qtr( I_OP_OPDIR ),
+         ":/type/folder-grey", SLOT( PLOpenDir() ), "Ctrl+F" );
+     addDPStaticEntry( menu, qtr( "Open &Disc..." ),
+@@ -417,6 +420,10 @@
+     addDPStaticEntry( menu, qtr( I_MENU_CODECINFO ) ,
+         ":/menu/info", SLOT( mediaCodecDialog() ), "Ctrl+J" );
+ 
++    QString menu_line = qtr( "%1 Information" ).arg(P2P_PRODUCT_NAME);
++    addDPStaticEntry( menu, qtr( qtu( menu_line ) ) ,
++        ":/menu/info", SLOT( mediaP2PInfoDialog() ), "Ctrl+K" );
++
+ #ifdef ENABLE_VLM
+     addDPStaticEntry( menu, qtr( I_MENU_VLM ), "", SLOT( vlmDialog() ),
+         "Ctrl+Shift+W" );
+@@ -904,7 +911,7 @@
+ #endif
+     action->setData( ACTION_STATIC );
+ 
+-    action = menu->addAction( qtr( I_MENU_GOTOTIME ), THEDP, SLOT( gotoTimeDialog() ), qtr( "Ctrl+T" ) );
++    action = menu->addAction( qtr( I_MENU_GOTOTIME ), THEDP, SLOT( gotoTimeDialog() ), qtr( "Ctrl+G" ) );
+     action->setData( ACTION_ALWAYS_ENABLED );
+ 
+     menu->addSeparator();
+@@ -915,6 +922,9 @@
+     QMenu *openmenu = new QMenu( qtr( "Open Media" ), menu );
+     addDPStaticEntry( openmenu, qtr( I_OP_OPF ),
+         ":/type/file-asym", SLOT( openFileDialog() ) );
++    QString menu_line = qtr("Open %1 Content ID...").arg(P2P_PRODUCT_NAME);
++    addDPStaticEntry( openmenu, qtr( qtu(menu_line) ),
++	    ":/type/acestream", SLOT( openCidDialog() ) );
+     addDPStaticEntry( openmenu, qtr( I_OP_OPDIR ),
+         ":/type/folder-grey", SLOT( PLOpenDir() ) );
+     addDPStaticEntry( openmenu, qtr( "Open &Disc..." ),

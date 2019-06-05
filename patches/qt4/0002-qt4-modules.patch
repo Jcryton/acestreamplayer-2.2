@@ -1,0 +1,23 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/actions_manager.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/actions_manager.hpp	2014-01-21 15:44:09.332755797 +0200
+@@ -56,6 +56,9 @@
+     LOOP_ACTION,
+     INFO_ACTION,
+     OPEN_SUB_ACTION,
++    SAVE_P2P_ACTION,
++    VISIT_AD_ACTION,
++    DISABLE_AD_ACTION,
+ } actionType_e;
+ 
+ class ActionsManager : public QObject
+@@ -90,8 +93,9 @@
+    void skipBackward();
+    void PPaction( QAction * );
+
+-protected slots:
+     void fullscreen();
++
++protected slots:
+     void snapshot();
+     void playlist();
+     void frame();

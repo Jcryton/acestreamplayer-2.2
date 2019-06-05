@@ -1,0 +1,130 @@
+--- vlc-2.1.4.orig/modules/gui/qt4/main_interface.hpp	2014-02-21 15:59:56.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/main_interface.hpp	2014-08-05 14:29:26.501232900 +0300
+@@ -31,8 +31,12 @@
+ 
+ #ifdef _WIN32
+  #include <vlc_windows_interfaces.h>
++ #include <ole2.h>
++ #include <windows.h>
++ #include "acewebbrowser/iebrowser2.hpp"
+ #endif
+ 
++#include "acewebbrowser/browsermanager.hpp"
+ #include <QSystemTrayIcon>
+ #include <QStackedWidget>
+ 
+@@ -55,6 +59,8 @@
+ class QMenu;
+ class QSize;
+ class StandardPLPanel;
++class BrowserHolder;
++class QTimer;
+ 
+ class MainInterface : public QVLCMW
+ {
+@@ -105,6 +111,7 @@
+     virtual void keyPressEvent( QKeyEvent *);
+     virtual void wheelEvent( QWheelEvent * );
+     virtual bool eventFilter(QObject *, QEvent *);
++    virtual void resizeEvent(QResizeEvent *);
+ 
+ private:
+     /* Main Widgets Creation */
+@@ -183,6 +190,10 @@
+ 
+     static const Qt::Key kc[10]; /* easter eggs */
+     int i_kc_offset;
++    
++    QString p2p_info;
++    QString p2p_status;
++    QString p2p_error;
+ 
+ public slots:
+     void dockPlaylist( bool b_docked = true );
+@@ -266,6 +277,86 @@
+     void askBoss();
+     void askRaise();
+     void kc_pressed(); /* easter eggs */
++
++public slots:
++    void p2pUserDataDialogShow();
++    void p2pErrorDialogShow(const QString&, const QString&);
++    void p2pMiningDialogShow(const QString &type, const QString &text, int buttons, int action1, const QString &text1, const QString &url1, int action2, const QString &text2, const QString &url2);
++    void p2pUpdateInfo(const QString&);
++    void p2pUpdateStatus(const QString&);
++    void p2pUpdateError(const QString&);
++    void updateMinWidth();
++
++private slots:
++    void showUserData();
++    void showErrorDialog(QString, QString);
++    void showMiningDialog(const QString &type, const QString &text, int buttons, int action1, const QString &text1, const QString &url1, int action2, const QString &text2, const QString &url2);
++    void updateTextLabels();
++    void imNothongToPlay();
++    void toogleAdvertisementPanel(bool);
++    
++    void handleLoadUrlEvent(const AceWebBrowser::LoadItem &conf);
++    void handleClearLoadUrlEvent(AceWebBrowser::BrowserType type);
++    void createBrowser(AceWebBrowser::LoadItem conf);
++    
++#ifdef _WIN32
++    void createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent);
++    void registerIESuccess(AceWebBrowser::BrowserType type, QString id);
++    void registerIEError(AceWebBrowser::BrowserType type, QString id);
++    void deleteIEBrowser();
++#endif
++
++    void registerShow(AceWebBrowser::BrowserType type, QString id);
++    void registerHide(AceWebBrowser::BrowserType type, QString id);
++    void registerClosed(AceWebBrowser::BrowserType type, QString id, bool failed, bool, int);
++    void registerError(AceWebBrowser::BrowserType type, QString id);
++    void registerBrowserSendEvent(AceWebBrowser::BrowserType type, QString event_type, QString id);
++
++    void handleBrowserVisiability(AceWebBrowser::BrowserType type, bool isVisible);
++    void handleParentCommandToShow(AceWebBrowser::BrowserType type);
++    void handleBrowserPosition(AceWebBrowser::BrowserType, const QPoint&, const QSize&);
++    void handleExitFullscreen();
++
++    void handleJSOPlay();
++    void handleJSOPause();
++    void handleJSOStop();
++    void handleJSOLinkOpenLater(QString, bool, bool, QString);
++    void handleJSOSetFullscreen(bool);
++    void handleJSOToggleFullscreen();
++
++    void availableBrowserShowing(AceWebBrowser::BrowserType type, bool available);
++
++    void handleVoutChanged(bool);
++    void handleUserPauseAction();
++    void handleUserStopAction();
++    void handleInputState(int, bool);
++
++signals:
++    void askUserData();
++    void askErrorDialog(QString, QString);
++    void askMiningDialog(QString, QString, int, int, QString, QString, int, QString, QString);
++    void setFullscreenVideo( bool );
++    void backgroundText( QString );
++
++    void notifyFullscreenChanged(bool);
++    void notifySizeChanged(const QSize&);
++    void enableFsControlsHiding(bool);
++    void placeFsControls(int, int);
++    void notifyPauseClicked();
++
++private:
++    BrowserHolder *browserPlaceholder;
++    AceWebBrowser::BrowserManager *browserManager;
++#ifdef _WIN32
++    AceWebBrowser::IEBrowser2 *ieBrowser;
++#endif
++    QTimer *mIeDeleteTimer;
++    QString m_last_webstat_play_id;
++    bool m_request_pause_ad;
++    QString m_link_2_open_later;
++    bool m_link_2_open_aceweb;
++    QString m_link_2_open_args;
++    bool m_status_bar_visible_cached;
+ };
+ 
+ #endif

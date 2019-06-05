@@ -1,0 +1,37 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/playlist/playlist_model.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/playlist/playlist_model.hpp	2014-01-20 11:22:43.741058644 +0200
+@@ -75,6 +75,7 @@
+ 
+     /* Data structure */
+     virtual QVariant data( const QModelIndex &index, const int role ) const;
++    bool setData( const QModelIndex &index, const QVariant &value, int role = Qt::EditRole );
+     virtual QVariant headerData( int section, Qt::Orientation orientation,
+                          int role = Qt::DisplayRole ) const;
+     virtual int rowCount( const QModelIndex &parent = QModelIndex() ) const;
+@@ -113,6 +114,8 @@
+     virtual void doDelete( QModelIndexList selected );
+     virtual void createNode( QModelIndex index, QString name );
+ 
++    bool isSelectAllActive() const { return b_select_all; }
++    
+ signals:
+     void currentIndexChanged( const QModelIndex& );
+     void rootIndexChanged();
+@@ -153,6 +156,8 @@
+     bool isCurrent( const QModelIndex &index ) const;
+     bool isParent( const QModelIndex &index, const QModelIndex &current) const;
+ 
++    bool isPlaylistStatusItem( const QModelIndex &index ) const;
++
+     /* Shallow actions (do not affect core playlist) */
+     void updateTreeItem( PLItem * );
+     void removeItem ( PLItem * );
+@@ -184,6 +189,8 @@
+     /* */
+     QString latestSearch;
+ 
++    bool b_select_all;
++
+ private slots:
+     void processInputItemUpdate( input_item_t *);
+     void processInputItemUpdate( input_thread_t* p_input );

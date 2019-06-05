@@ -1,0 +1,29 @@
+diff -ru vlc-2.1.2.orig/include/vlc_interface.h vlc-2.1.2/include/vlc_interface.h
+--- vlc-2.1.2.orig/include/vlc_interface.h	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/include/vlc_interface.h	2014-01-16 16:14:24.191271388 +0200
+@@ -85,6 +85,7 @@
+     char *psz_extensions;
+     bool b_save;
+     bool b_multiple;
++    char *psz_default_path;
+ 
+     /* Specific to INTF_DIALOG_INTERACTION */
+     struct interaction_dialog_t *p_dialog;
+@@ -158,6 +159,7 @@
+     INTF_DIALOG_PREFS,
+     INTF_DIALOG_BOOKMARKS,
+     INTF_DIALOG_EXTENDED,
++    INTF_DIALOG_USERDATA,
+ 
+     INTF_DIALOG_POPUPMENU = 20,
+     INTF_DIALOG_AUDIOPOPUPMENU,
+@@ -263,6 +265,9 @@
+                             "*.smil;*.stl;*.usf;" \
+                             "*.dks;*.pjs;*.mpl2;*.mks"
+ 
++#define EXTENSIONS_P2P "*.acelive;*.acestream;*.acemedia;*.torrent;*.tslive"
++#define EXTENSIONS_P2P_AND_MEDIA EXTENSIONS_P2P ";" EXTENSIONS_MEDIA
++
+ /** \defgroup vlc_interaction Interaction
+  * \ingroup vlc_interface
+  * Interaction between user and modules

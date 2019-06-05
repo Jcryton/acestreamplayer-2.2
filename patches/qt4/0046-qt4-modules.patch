@@ -1,0 +1,11 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/util/timetooltip.hpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/util/timetooltip.hpp	2014-01-17 16:41:32.570992049 +0200
+@@ -36,6 +36,8 @@
+     Q_OBJECT
+ public:
+     explicit TimeTooltip( QWidget *parent = 0 );
++    void setText( const QString& time, const QString& text );
++    void setPos( const QPoint& pos );
+     void setTip( const QPoint& pos, const QString& time, const QString& text );
+     virtual void show();
+ 

@@ -1,0 +1,18 @@
+--- a/modules/gui/qt4/util/input_slider.hpp	2019-06-05 03:40:58.090208000 +0300
++++ b/modules/gui/qt4/util/input_slider.hpp.hew	2019-06-05 02:39:01.481150000 +0300
+@@ -68,13 +68,14 @@
+     virtual void hideEvent( QHideEvent * );
+     virtual void paintEvent(QPaintEvent *ev);
+ 
+-    virtual void paintEvent( QPaintEvent* event );
++    //virtual void paintEvent( QPaintEvent* event );
+     virtual bool eventFilter( QObject *obj, QEvent *event );
+ 
+     QSize handleSize() const;
+     virtual QSize sizeHint() const;
+ 
+     void processReleasedButton();
++    bool isAnimationRunning() const;
+     qreal handleOpacity() const;
+     void setHandleOpacity( qreal opacity );
+     int handleLength();

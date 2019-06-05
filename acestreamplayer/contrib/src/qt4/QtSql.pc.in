@@ -1,0 +1,10 @@
+prefix=@@PREFIX@@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include/qt4/QtSql
+
+Name: Qtsql
+Description: Qtsql Library
+Version: @@VERSION@@
+Libs: -Wl,--subsystem,windows -mwindows -L${libdir} -lQtSql -lQtCore -lole32 -luuid -lws2_32 -ladvapi32 -lshell32 -luser32 -lkernel32
+Cflags:  -I${prefix}/include/qt4 -I${includedir} -DQT_NODLL

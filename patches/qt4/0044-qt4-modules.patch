@@ -1,0 +1,63 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/util/input_slider.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/util/input_slider.hpp	2014-01-17 16:45:15.870992269 +0200
+@@ -67,8 +67,10 @@
+     virtual void leaveEvent( QEvent * );
+     virtual void hideEvent( QHideEvent * );
+ 
++    virtual void paintEvent( QPaintEvent* event );
+     virtual bool eventFilter( QObject *obj, QEvent *event );
+ 
++    QSize handleSize() const;
+     virtual QSize sizeHint() const;
+ 
+     void processReleasedButton();
+@@ -90,15 +92,26 @@
+     bool b_seekable;
+     int mHandleLength;
+ 
++    bool b_disableDragSeek;
++    bool b_isLive;
++    int live_first; 
++    int live_last;
++    int pos;
++    int first_ts;
++    int last_ts;
++    int last;
++    float f_buffer_pos;
++    bool b_ignore_next_is_live_changing;
++
+     /* Colors & gradients */
+-    QSize gradientsTargetSize;
++    /*QSize gradientsTargetSize;
+     QLinearGradient backgroundGradient;
+     QLinearGradient foregroundGradient;
+     QLinearGradient handleGradient;
+     QColor tickpointForeground;
+     QColor shadowDark;
+     QColor shadowLight;
+-    QCommonStyle *alternativeStyle;
++    QCommonStyle *alternativeStyle;*/
+ 
+     /* Handle's animation */
+     qreal mHandleOpacity;
+@@ -110,6 +123,11 @@
+     void setSeekable( bool b ) { b_seekable = b ; }
+     void updateBuffering( float );
+     void hideHandle();
++    
++    void setLivePosition( int, int, int, int, int, int, int );
++    void disableDragSeek( bool val ) { b_disableDragSeek = val; }
++    void isLiveStreamMode( bool is_live );
++    void setIgnoreLiveStreamChanging() { b_ignore_next_is_live_changing = true; }
+ 
+ private slots:
+     void startSeekTimer();
+@@ -117,7 +135,8 @@
+ 
+ signals:
+     void sliderDragged( float );
++    void liveSeek( int );
+ 
+ };
+ 
+ /* Sound Slider inherited directly from QAbstractSlider */

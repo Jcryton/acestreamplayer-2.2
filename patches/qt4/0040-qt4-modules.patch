@@ -1,0 +1,87 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/qt4.cpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/qt4.cpp	2014-03-04 17:32:04.605898355 +0200
+@@ -462,7 +462,7 @@
+ #else
+             QSettings::NativeFormat,
+ #endif
+-            QSettings::UserScope, "vlc", "vlc-qt-interface" );
++            QSettings::UserScope, P2P_CONFIG_DIR, "vlc-21x-qt-interface" );
+ 
+     /* Icon setting, Mac uses icon from .icns */
+ #ifndef Q_WS_MAC
+@@ -472,6 +472,14 @@
+         app.setWindowIcon( QIcon::fromTheme( "vlc", QIcon( ":/logo/vlc256.png" ) ) );
+ #endif
+ 
++    /* setup debug log */
++    QSettings tmp(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
++    QString dir = QFileInfo(tmp.fileName()).absolutePath();
++    Log::SetupLogFile(QDir::toNativeSeparators(dir + "\\" + P2P_CONFIG_DIR + "\\qt4.log"));
++    QString addsetfile = QDir::toNativeSeparators(dir + "\\" + P2P_CONFIG_DIR + "\\qtconf");
++    QSettings addsettings(addsetfile, QSettings::IniFormat);
++    Log::SetupLogLevel(addsettings.value("loglevel", 0).toInt());
++
+     /* Initialize the Dialog Provider and the Main Input Manager */
+     DialogsProvider::getInstance( p_intf );
+ 
+@@ -704,3 +712,60 @@
+     msg_Dbg (p_wnd, "releasing video...");
+     p_mi->releaseVideo();
+ }
++
++QString Log::logfile = "";
++Log::LogLevel Log::loglevel = Log::LL_CRITICAL;
++
++void Log::SetupLogFile(const QString &path)
++{
++    logfile = path;
++
++    if(QFile(logfile).exists() && QFile(logfile).size() > 10*1024*1024)
++        QFile(logfile).remove();
++
++    qInstallMsgHandler(LogHandler);
++}
++
++void Log::SetupLogLevel(int level)
++{
++    if(level < LL_CRITICAL)
++        loglevel = LL_CRITICAL;
++    else if(level > LL_MAX)
++        loglevel = LL_MAX;
++    else
++        loglevel = static_cast<LogLevel>(level);
++}
++
++int Log::GetLogLevel()
++{
++    return static_cast<int>(loglevel);
++}
++
++#define LOG_TIME QTime::currentTime().toString("hh:mm:ss.zzz")
++void Log::LogHandler(QtMsgType type, const char *msg)
++{
++    if( logfile.isEmpty() )
++        return;
++    if((type == QtWarningMsg && loglevel < Log::LL_WARNING)
++            || (type == QtDebugMsg && loglevel < Log::LL_DEBUG))
++        return;
++
++    QFile file(logfile);
++    file.open(QIODevice::Append | QIODevice::Text);
++    QTextStream stream(&file);
++    switch(type) {
++    case QtDebugMsg:
++        stream << LOG_TIME << " Debug: " << msg << "\n";
++        break;
++    case QtCriticalMsg:
++        stream << LOG_TIME << " Critical: " << msg << "\n";
++        break;
++    case QtWarningMsg:
++        stream << LOG_TIME << " Warning: " << msg << "\n";
++        break;
++    case QtFatalMsg:
++        stream << LOG_TIME <<  " Fatal: " << msg << "\n";
++        abort();
++    }
++    file.close();
++}

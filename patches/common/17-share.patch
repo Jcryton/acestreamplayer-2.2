@@ -1,0 +1,161 @@
+diff -ru vlc-2.1.2.orig/share/acestreamplayer.desktop.in vlc-2.1.2/share/acestreamplayer.desktop.in
+--- vlc-2.1.2.orig/share/acestreamplayer.desktop.in	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/acestreamplayer.desktop.in	2014-01-13 15:21:43.000000000 +0200
+@@ -1,6 +1,6 @@
+ [Desktop Entry]
+ Version=1.0
+-Name=VLC media player
++Name=ACE Player HD
+ GenericName=Media player
+ Comment=Read, capture, broadcast your multimedia streams
+ Name[bn]=VLC মিডিয়া প্লেয়ার
+@@ -82,12 +82,12 @@
+ Name[zh_CN]=VLC media player
+ GenericName[zh_CN]=媒体播放器
+ Comment[zh_CN]=为您读取、捕获或发送多媒体流
+-Exec=@bindir@/vlc --started-from-file %U
+-TryExec=@bindir@/vlc
+-Icon=vlc
++Exec=@bindir@/acestreamplayer --started-from-file %U
++TryExec=@bindir@/acestreamplayer
++Icon=acestreamplayer
+ Terminal=false
+ Type=Application
+ Categories=AudioVideo;Player;Recorder;
+-MimeType=video/dv;video/mpeg;video/x-mpeg;video/msvideo;video/quicktime;video/x-anim;video/x-avi;video/x-ms-asf;video/x-ms-wmv;video/x-msvideo;video/x-nsv;video/x-flc;video/x-fli;video/x-flv;video/vnd.rn-realvideo;video/mp4;video/mp4v-es;video/mp2t;application/ogg;application/x-ogg;video/x-ogm+ogg;audio/x-vorbis+ogg;audio/ogg;video/ogg;application/x-matroska;audio/x-matroska;video/x-matroska;video/webm;audio/webm;audio/x-mp3;audio/x-mpeg;audio/mpeg;audio/x-wav;audio/x-mpegurl;audio/x-scpls;audio/x-m4a;audio/x-ms-asf;audio/x-ms-asx;audio/x-ms-wax;application/vnd.rn-realmedia;audio/x-real-audio;audio/x-pn-realaudio;application/x-flac;audio/x-flac;application/x-shockwave-flash;misc/ultravox;audio/vnd.rn-realaudio;audio/x-pn-aiff;audio/x-pn-au;audio/x-pn-wav;audio/x-pn-windows-acm;image/vnd.rn-realpix;audio/x-pn-realaudio-plugin;application/x-extension-mp4;audio/mp4;audio/amr;audio/amr-wb;x-content/video-vcd;x-content/video-svcd;x-content/video-dvd;x-content/audio-cdda;x-content/audio-player;application/xspf+xml;x-scheme-handler/mms;x-scheme-handler/rtmp;x-scheme-handler/rtsp;video/vnd.mpegurl;
+-X-KDE-Protocols=ftp,http,https,mms,rtmp,rtsp,sftp,smb
++MimeType=video/dv;video/mpeg;video/x-mpeg;video/msvideo;video/quicktime;video/x-anim;video/x-avi;video/x-ms-asf;video/x-ms-wmv;video/x-msvideo;video/x-nsv;video/x-flc;video/x-fli;video/x-flv;video/vnd.rn-realvideo;video/mp4;video/mp4v-es;video/mp2t;application/ogg;application/x-ogg;video/x-ogm+ogg;audio/x-vorbis+ogg;application/x-matroska;audio/x-matroska;video/x-matroska;video/webm;audio/webm;audio/x-mp3;audio/x-mpeg;audio/mpeg;audio/x-wav;audio/x-mpegurl;audio/x-scpls;audio/x-m4a;audio/x-ms-asf;audio/x-ms-asx;audio/x-ms-wax;application/vnd.rn-realmedia;audio/x-real-audio;audio/x-pn-realaudio;application/x-flac;audio/x-flac;application/x-shockwave-flash;misc/ultravox;audio/vnd.rn-realaudio;audio/x-pn-aiff;audio/x-pn-au;audio/x-pn-wav;audio/x-pn-windows-acm;image/vnd.rn-realpix;audio/x-pn-realaudio-plugin;application/x-extension-mp4;audio/mp4;audio/amr;audio/amr-wb;x-content/video-vcd;x-content/video-svcd;x-content/video-dvd;x-content/audio-cdda;x-content/audio-player;application/xspf+xml;x-scheme-handler/mms;x-scheme-handler/rtmp;x-scheme-handler/rtsp;application/x-bittorrent;x-scheme-handler/acestream;
++X-KDE-Protocols=ftp,http,https,mms,rtmp,rtsp,sftp,smb,acestream
+ Keywords=Player;Capture;DVD;Audio;Video;Server;Broadcast;
+diff -ru vlc-2.1.2.orig/share/lua/http/js/common.js vlc-2.1.2/share/lua/http/js/common.js
+--- vlc-2.1.2.orig/share/lua/http/js/common.js	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/lua/http/js/common.js	2014-01-17 11:59:49.000000000 +0200
+@@ -17,6 +17,9 @@
+         "asx", "b4s", "cue", "ifo", "m3u", "m3u8", "pls", "ram", "rar",
+         "sdp", "vlc", "xspf", "zip", "conf"
+ ];
++var p2p_types = [
++        "torrent", "acelive", "acemedia", "tslive", "acestream"
++];
+ 
+ var stream_server = window.location.hostname;
+ 
+@@ -80,6 +83,8 @@
+         icon = "Back-48.png";
+     else if( type == 'dir' )
+         icon = "Folder-48.png";
++    else if( $.inArray(ext, p2p_types) != -1 )
++        icon = "Other-48.png";
+     else if( $.inArray(ext, video_types) != -1 )
+         icon = "Video-48.png";
+     else if( $.inArray(ext, audio_types) != -1 )
+diff -ru vlc-2.1.2.orig/share/lua/http/js/controllers.js vlc-2.1.2/share/lua/http/js/controllers.js
+--- vlc-2.1.2.orig/share/lua/http/js/controllers.js	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/lua/http/js/controllers.js	2014-01-17 12:01:11.000000000 +0200
+@@ -203,7 +203,11 @@
+             $('#browse_elements').empty();
+             $('element', data).each(function () {
+                 var ext = $(this).attr('name').substr($(this).attr('name').lastIndexOf('.') + 1).toLowerCase();
+-                if ($(this).attr('type') == 'dir' || $.inArray(ext, video_types) != -1 || $.inArray(ext, audio_types) != -1 || $.inArray(ext, playlist_types) != -1) {
++                if ($(this).attr('type') == 'dir' 
++                    || $.inArray(ext, video_types) != -1 
++                    || $.inArray(ext, audio_types) != -1 
++                    || $.inArray(ext, playlist_types) != -1
++                    || $.inArray(ext, p2p_types) != -1) {
+                     $('#browse_elements').append(createElementLi($(this).attr('name'), $(this).attr('type'), $(this).attr('uri'), ext));
+                 }
+             });
+diff -ru vlc-2.1.2.orig/share/solid/acestreamplayer-openbd.desktop vlc-2.1.2/share/solid/acestreamplayer-openbd.desktop
+--- vlc-2.1.2.orig/share/solid/acestreamplayer-openbd.desktop	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/solid/acestreamplayer-openbd.desktop	2014-01-13 15:18:23.000000000 +0200
+@@ -4,6 +4,6 @@
+ Actions=open;
+ 
+ [Desktop Action open]
+-Name=Open with VLC media player
+-Exec=vlc bluray://%d
+-Icon=vlc
++Name=Open with ACE Player HD
++Exec=acestreamplayer bluray://%d
++Icon=acestreamplayer
+diff -ru vlc-2.1.2.orig/share/solid/acestreamplayer-opencda.desktop vlc-2.1.2/share/solid/acestreamplayer-opencda.desktop
+--- vlc-2.1.2.orig/share/solid/acestreamplayer-opencda.desktop	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/solid/acestreamplayer-opencda.desktop	2014-01-13 15:18:47.000000000 +0200
+@@ -4,7 +4,7 @@
+ Actions=open;
+ 
+ [Desktop Action open]
+-Name=Open with VLC media player
+-Exec=vlc cdda://%d
+-Icon=vlc
++Name=Open with ACE Player HD
++Exec=acestreamplayer cdda://%d
++Icon=acestreamplayer
+ 
+diff -ru vlc-2.1.2.orig/share/solid/acestreamplayer-opendvd.desktop vlc-2.1.2/share/solid/acestreamplayer-opendvd.desktop
+--- vlc-2.1.2.orig/share/solid/acestreamplayer-opendvd.desktop	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/solid/acestreamplayer-opendvd.desktop	2014-01-13 15:18:59.000000000 +0200
+@@ -4,7 +4,7 @@
+ Actions=open;
+ 
+ [Desktop Action open]
+-Name=Open with VLC media player
+-Exec=vlc dvd://%d
+-Icon=vlc
++Name=Open with ACE Player HD
++Exec=acestreamplayer dvd://%d
++Icon=acestreamplayer
+ 
+diff -ru vlc-2.1.2.orig/share/solid/acestreamplayer-openvcd.desktop vlc-2.1.2/share/solid/acestreamplayer-openvcd.desktop
+--- vlc-2.1.2.orig/share/solid/acestreamplayer-openvcd.desktop	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/solid/acestreamplayer-openvcd.desktop	2014-01-13 15:19:36.000000000 +0200
+@@ -4,7 +4,7 @@
+ Actions=open;
+ 
+ [Desktop Action open]
+-Name=Open with VLC media player
+-Exec=vlc vcd://%d
+-Icon=vlc
++Name=Open with ACE Player HD
++Exec=acestreamplayer vcd://%d
++Icon=acestreamplayer
+ 
+diff -ru vlc-2.1.2.orig/share/utils/audio-acestreamplayer-default.sh vlc-2.1.2/share/utils/audio-acestreamplayer-default.sh
+--- vlc-2.1.2.orig/share/utils/audio-acestreamplayer-default.sh	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/utils/audio-acestreamplayer-default.sh	2014-01-13 15:15:56.000000000 +0200
+@@ -18,4 +18,4 @@
+     mv /tmp/vlc.defaults.list.tmp $MIME_FILE
+ fi
+ 
+-ls /usr/share/mime/audio/* | sed -e 's@/usr/share/mime/@@' -e 's/\.xml/=vlc.desktop/' >> $MIME_FILE
++ls /usr/share/mime/audio/* | sed -e 's@/usr/share/mime/@@' -e 's/\.xml/=acestreamplayer.desktop/' >> $MIME_FILE
+diff -ru vlc-2.1.2.orig/share/utils/gnome-acestreamplayer-default.sh vlc-2.1.2/share/utils/gnome-acestreamplayer-default.sh
+--- vlc-2.1.2.orig/share/utils/gnome-acestreamplayer-default.sh	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/utils/gnome-acestreamplayer-default.sh	2014-01-13 15:15:35.000000000 +0200
+@@ -18,11 +18,11 @@
+ 	GCONFTOOL=/usr/bin/gconftool-2
+ 	OPTS="--type string --set"
+ fi
+-$GCONFTOOL $OPTS /desktop/gnome/volume_manager/autoplay_vcd_command "vlc %m"
+-$GCONFTOOL $OPTS /desktop/gnome/volume_manager/autoplay_dvd_command "vlc %m"
+-$GCONFTOOL $OPTS /desktop/gnome/url-handlers/mms "vlc %s"
+-$GCONFTOOL $OPTS /desktop/gnome/url-handlers/mmsh "vlc %s"
+-$GCONFTOOL $OPTS /desktop/gnome/url-handlers/rtsp "vlc %s"
+-$GCONFTOOL $OPTS /desktop/gnome/url-handlers/rtp "vlc %s"
++$GCONFTOOL $OPTS /desktop/gnome/volume_manager/autoplay_vcd_command "acestreamplayer %m"
++$GCONFTOOL $OPTS /desktop/gnome/volume_manager/autoplay_dvd_command "acestreamplayer %m"
++$GCONFTOOL $OPTS /desktop/gnome/url-handlers/mms "acestreamplayer %s"
++$GCONFTOOL $OPTS /desktop/gnome/url-handlers/mmsh "acestreamplayer %s"
++$GCONFTOOL $OPTS /desktop/gnome/url-handlers/rtsp "acestreamplayer %s"
++$GCONFTOOL $OPTS /desktop/gnome/url-handlers/rtp "acestreamplayer %s"
+ 
+ exit 0
+diff -ru vlc-2.1.2.orig/share/utils/video-acestreamplayer-default.sh vlc-2.1.2/share/utils/video-acestreamplayer-default.sh
+--- vlc-2.1.2.orig/share/utils/video-acestreamplayer-default.sh	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/share/utils/video-acestreamplayer-default.sh	2014-01-13 15:14:16.000000000 +0200
+@@ -18,4 +18,4 @@
+     mv /tmp/vlc.defaults.list.tmp $MIME_FILE
+ fi
+ 
+-ls /usr/share/mime/video/* | sed -e 's@/usr/share/mime/@@' -e 's/\.xml/=vlc.desktop/' >> $MIME_FILE
++ls /usr/share/mime/video/* | sed -e 's@/usr/share/mime/@@' -e 's/\.xml/=acestreamplayer.desktop/' >> $MIME_FILE

@@ -1,0 +1,17 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs/firstrun.cpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs/firstrun.cpp	2014-01-17 14:35:37.914985765 +0200
+@@ -56,6 +56,14 @@
+     close();
+ }
+ 
++void FirstRun::dummySave(intf_thread_t *p_intf)
++{
++    config_PutInt( p_intf,  "album-art", ALBUM_ART_ALL );
++    config_PutInt( p_intf,  "qt-updates-notif", 0 );
++    config_PutInt( p_intf,  "qt-privacy-ask", 0 );
++    config_SaveConfigFile( p_intf );
++}
++
+ void FirstRun::buildPrivDialog()
+ {
+     setWindowTitle( qtr( "Privacy and Network Access Policy" ) );

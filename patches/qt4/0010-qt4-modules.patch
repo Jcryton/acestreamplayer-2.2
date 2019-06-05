@@ -1,0 +1,121 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/interface_widgets.cpp	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/components/interface_widgets.cpp	2014-03-04 17:59:15.781933855 +0200
+@@ -51,6 +51,7 @@
+ #include <QSlider>
+ #include <QBitmap>
+ #include <QUrl>
++#include <QStackedLayout>
+ 
+ #ifdef Q_WS_X11
+ #   include <X11/Xlib.h>
+@@ -71,10 +72,31 @@
+     /* Set the policy to expand in both directions */
+     // setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+ 
+-    layout = new QHBoxLayout( this );
++    setWindowTitle( qtr( P2P_APP_NAME ) + " (VLC)" );
++
++    layout = new QStackedLayout(this);QHBoxLayout( this );
+     layout->setContentsMargins( 0, 0, 0, 0 );
+     stable = NULL;
+-    show();
++
++    background = new QWidget();
++    QPalette plt = palette();
++    plt.setColor( QPalette::Window, Qt::black );
++    background->setPalette( plt );
++    background->setAutoFillBackground(true);
++
++    backgroundLabel = new QLabel( "", background );
++    backgroundLabel->setAlignment(Qt::AlignHCenter);
++    QFont f = backgroundLabel->font();
++    f.setPixelSize(32);
++    backgroundLabel->setFont(f);
++    QLayout *backgroundLayout = new QVBoxLayout(this);
++    backgroundLayout->addWidget(backgroundLabel);
++    backgroundLayout->setContentsMargins(0, 10, 0, 0);
++    background->setLayout(backgroundLayout);
++
++    layout->addWidget( background );
++
++    //show();
+ }
+ 
+ VideoWidget::~VideoWidget()
+@@ -83,6 +105,48 @@
+     assert( !stable );
+ }
+ 
++void VideoWidget::closeEvent(QCloseEvent *event)
++{
++    THEMIM->stop();
++    event->accept();
++}
++
++void VideoWidget::keyPressEvent( QKeyEvent *event )
++{
++    if( p_intf->p_sys->p_mi ) {
++        QApplication::sendEvent( p_intf->p_sys->p_mi, event );
++        event->accept();
++    }
++    else
++        event->ignore();
++}
++
++void VideoWidget::wheelEvent(QWheelEvent *event)
++{
++    if( p_intf->p_sys->p_mi ) {
++        QApplication::sendEvent( p_intf->p_sys->p_mi, event );
++        event->accept();
++    }
++    else
++        event->ignore();
++}
++
++void VideoWidget::resizeEvent(QResizeEvent * event)
++{
++    emit notifySizeChanged(event->size());
++    event->accept();
++}
++
++void VideoWidget::mouseDoubleClickEvent(QMouseEvent *event)
++{
++    if( layout->currentWidget() == background ) {
++        emit closeBackgroundScreen();
++        event->accept();
++    }
++    else
++        event->ignore();
++}
++
+ void VideoWidget::sync( void )
+ {
+ #ifdef Q_WS_X11
+@@ -133,6 +197,7 @@
+ #endif
+ 
+     layout->addWidget( stable );
++    layout->setCurrentWidget( stable );
+ 
+ #ifdef Q_WS_X11
+     /* HACK: Only one X11 client can subscribe to mouse button press events.
+@@ -173,6 +238,7 @@
+ 
+     if( stable )
+     {
++        layout->setCurrentWidget( background );
+         layout->removeWidget( stable );
+         stable->deleteLater();
+         stable = NULL;
+@@ -181,6 +247,11 @@
+     updateGeometry();
+ }
+ 
++void VideoWidget::backgroundPrintMessage( QString txt )
++{
++    backgroundLabel->setText( "<font color='white'>" + txt + "</font>" );
++}
++
+ /**********************************************************************
+  * Background Widget. Show a simple image background. Currently,
+  * it's album art if present or cone.

@@ -1,0 +1,10 @@
+--- a/modules/gui/qt4/util/timetooltip.hpp	2019-06-05 03:40:58.100208000 +0300
++++ b/modules/gui/qt4/util/timetooltip.hpp.new	2019-06-05 02:46:27.414775000 +0300
+@@ -58,6 +58,7 @@
+     QPainterPath mPainterPath;
+     QBitmap mMask;
+     int mTipX;
++    bool mInitialized;
+ };
+ 
+ #endif // TIMETOOLTIP_H

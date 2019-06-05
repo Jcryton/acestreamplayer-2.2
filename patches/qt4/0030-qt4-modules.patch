@@ -1,0 +1,18 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs/open.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs/open.hpp	2014-01-17 14:18:23.858984697 +0200
+@@ -40,6 +40,7 @@
+     OPEN_DISC_TAB,
+     OPEN_NETWORK_TAB,
+     OPEN_CAPTURE_TAB,
++    OPEN_CONTENT_ID_TAB,
+     OPEN_TAB_MAX
+ };
+ 
+@@ -97,6 +98,7 @@
+     NetOpenPanel *netOpenPanel;
+     DiscOpenPanel *discOpenPanel;
+     CaptureOpenPanel *captureOpenPanel;
++    ContentIdOpenPanel *cidOpenPanel;
+ 
+     int i_action_flag;
+     bool b_pl;

@@ -1,0 +1,31 @@
+diff -ru vlc-2.1.2.orig/extras/package/win32/configure.sh vlc-2.1.2/extras/package/win32/configure.sh
+--- vlc-2.1.2.orig/extras/package/win32/configure.sh	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/extras/package/win32/configure.sh	2014-01-13 14:54:54.000000000 +0200
+@@ -1,7 +1,6 @@
+ #!/bin/sh
+ 
+ OPTIONS="
+-      --enable-update-check
+       --enable-lua
+       --enable-faad
+       --enable-flac
+@@ -22,7 +21,6 @@
+       --enable-caca
+       --disable-sdl
+       --enable-qt
+-      --enable-skins2
+       --enable-sse --enable-mmx
+       --enable-libcddb
+       --enable-zvbi --disable-telx
+diff -ru vlc-2.1.2.orig/extras/package/win32/libvlc.dll.manifest vlc-2.1.2/extras/package/win32/libvlc.dll.manifest
+--- vlc-2.1.2.orig/extras/package/win32/libvlc.dll.manifest	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/extras/package/win32/libvlc.dll.manifest	2014-01-17 12:41:47.000000000 +0200
+@@ -3,7 +3,7 @@
+ 	<assemblyIdentity
+ 		version="1.0.0.0"
+ 		processorArchitecture="*"
+-		name="libvlc.dll"
++		name="libtsplayer.dll"
+ 		type="win32"
+ 	/>
+ 	<description>LibVLC</description>

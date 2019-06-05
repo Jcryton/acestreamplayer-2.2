@@ -1,0 +1,1 @@
+SOURCES_sqlite = sqlite.c

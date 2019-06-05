@@ -1,0 +1,26 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/info_panels.hpp	2013-08-08 20:16:57.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/info_panels.hpp	2014-01-17 15:05:13.946987153 +0200
+@@ -170,4 +170,23 @@
+     void clear();
+ };
+ 
++class P2PPanel: public QWidget
++{
++    Q_OBJECT
++public:
++    P2PPanel( QWidget *, struct intf_thread_t * );
++private:
++    struct intf_thread_t *p_intf;
++    input_item_t *p_input;
++    
++    QLineEdit *cidInput;
++    QPushButton *cidUpdate;
++    
++    void updateCid();
++
++public slots:
++    void update( input_item_t * );
++    void clear();
++};
++
+ #endif

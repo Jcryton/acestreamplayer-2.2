@@ -1,0 +1,53 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/qt4.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/qt4.hpp	2014-03-04 17:29:56.717895517 +0200
+@@ -32,6 +32,7 @@
+ #include <vlc_common.h>    /* VLC_COMMON_MEMBERS for vlc_interface.h */
+ #include <vlc_interface.h> /* intf_thread_t */
+ #include <vlc_playlist.h>  /* playlist_t */
++#include <p2p_object.h>
+ 
+ #define QT_NO_CAST_TO_ASCII
+ #include <QString>
+@@ -47,6 +48,7 @@
+     IMEventTypeOffset     = 100,
+     PLEventTypeOffset     = 200,
+     MsgEventTypeOffset    = 300,
++    OtherEventTypeOffset = 400,
+ };
+ 
+ enum{
+@@ -84,6 +86,7 @@
+ };
+ 
+ #define THEPL p_intf->p_sys->p_playlist
++#define THEP2P p2p_Get(p_intf)
+ #define QPL_LOCK playlist_Lock( THEPL );
+ #define QPL_UNLOCK playlist_Unlock( THEPL );
+ 
+@@ -138,6 +141,26 @@
+     return res;
+ }
+ 
++class Log {
++public:
++    enum LogLevel {
++        LL_CRITICAL = 0,
++        LL_WARNING,
++        LL_DEBUG,
++        LL_MAX
++    };
++
++public:
++    static void SetupLogFile(const QString &path);
++    static void SetupLogLevel(int level);
++    static int GetLogLevel();
++    static void LogHandler(QtMsgType type, const char *msg);
++
++private:
++    static QString logfile;
++    static LogLevel loglevel;
++};
++
+ /* After this day of the year, the usual VLC cone is replaced by another cone
+  * wearing a Father Xmas hat.
+  * Note this icon doesn't represent an endorsment of Coca-Cola company.

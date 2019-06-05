@@ -1,0 +1,43 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/util/timetooltip.cpp	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/util/timetooltip.cpp	2014-01-17 16:42:50.414992203 +0200
+@@ -130,6 +130,21 @@
+     painter.end();
+ }
+ 
++void TimeTooltip::setText( const QString& time, const QString& text )
++{
++    mInitialized = true;
++    mDisplayedText = time;
++    if ( !text.isEmpty() )
++        mDisplayedText.append( " - " ).append( text );
++
++    if ( time.length() != mTime.length() || mText != text )
++        buildPath();
++
++    mTime = time;
++    mText = text;
++    update();
++}
++
+ void TimeTooltip::setTip( const QPoint& target, const QString& time, const QString& text )
+ {
+     mInitialized = true;
+@@ -145,6 +160,18 @@
+         adjustPosition();
+     }
+ 
++    update();
++}
++
++void TimeTooltip::setPos( const QPoint& pos )
++{
++    mInitialized = true;
++    if( mTarget != pos )
++    {
++        mTarget = pos;
++        adjustPosition();
++    }
++
+     update();
+ }
+ 

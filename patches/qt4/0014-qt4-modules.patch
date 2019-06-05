@@ -1,0 +1,121 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/playlist/playlist_model.cpp	2013-09-08 19:54:16.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/playlist/playlist_model.cpp	2014-01-20 11:51:37.068148872 +0200
+@@ -29,6 +29,7 @@
+ 
+ #include "qt4.hpp"
+ #include "components/playlist/playlist_model.hpp"
++#include "dialogs_provider.hpp"                         /* THEDP */
+ #include "input_manager.hpp"                            /* THEMIM */
+ 
+ #include <vlc_intf_strings.h>                           /* I_DIR */
+@@ -62,6 +63,8 @@
+     rootItem          = NULL; /* PLItem rootItem, will be set in rebuild( ) */
+     latestSearch      = QString();
+ 
++    b_select_all = false;
++
+     /* Icons initialization */
+ #define ADD_ICON(type, x) icons[ITEM_TYPE_##type] = QIcon( x )
+     ADD_ICON( UNKNOWN , QPixmap( type_unknown_xpm ) );
+@@ -334,6 +337,10 @@
+         QString returninfo;
+         if( metadata == COLUMN_NUMBER )
+             returninfo = QString::number( index.row() + 1 );
++        else if( metadata == COLUMN_ACTIVE )
++        	returninfo = input_item_IsP2P( item->p_input ) ? input_item_GetP2PActiveFlag( item->p_input ) ? "1" : "0" : "";
++        else if( metadata == COLUMN_SAVE)
++			returninfo = input_item_IsP2P( item->p_input ) ? ( input_item_GetP2PActiveFlag( item->p_input ) && input_item_GetP2PSaveFormat( item->p_input ) != P2P_SAVE_UNSAVEABLE ) ? "1" : "" : "";
+         else if( metadata == COLUMN_COVER )
+         {
+             QString artUrl;
+@@ -430,6 +437,33 @@
+     return QVariant();
+ }
+ 
++bool PLModel::setData( const QModelIndex &index, const QVariant &value, int role )
++{
++	if( !index.isValid() ) 
++        return false;
++	PLItem *item = getItem( index );
++
++	if( role == Qt::EditRole ) {
++		int metadata = columnToMeta( index.column() );
++		QString newvalue = value.toString();
++		if( newvalue == "toggleactive" || metadata == COLUMN_ACTIVE ) {
++			if( isCurrent( index ) || isPlaylistStatusItem( index ) )
++				return false;
++            
++            input_item_ToggleP2PActiveFlag( item->p_input );
++			updateTreeItem( item );
++			return true;
++		}
++		else if(metadata == COLUMN_SAVE) {
++			int type = newvalue.toInt();
++			if( type == 1 || type == 2 )
++				THEDP->p2p_SaveDialog( item->p_input );
++			return true;
++		}
++	}
++	return false;
++}
++
+ /* Seek from current index toward the top and see if index is one of parent nodes */
+ bool PLModel::isParent( const QModelIndex &index, const QModelIndex &current ) const
+ {
+@@ -450,6 +484,15 @@
+     return getItem( index )->inputItem() == THEMIM->currentInputItem();
+ }
+ 
++bool PLModel::isPlaylistStatusItem( const QModelIndex &index ) const
++{
++    playlist_item_t *p_playlist_item = playlist_CurrentPlayingItem( THEPL );
++    bool ret = false;
++    if( p_playlist_item )
++        ret = p_playlist_item->i_id == getItem( index )->i_id;
++	return ret;
++}
++
+ int PLModel::itemId( const QModelIndex &index ) const
+ {
+     return getItem( index )->id();
+@@ -508,8 +551,12 @@
+ 
+     int meta_col = columnToMeta( section );
+ 
+-    if( meta_col == COLUMN_END ) return QVariant();
++    if( meta_col == COLUMN_END || meta_col == COLUMN_SAVE ) 
++        return QVariant();
+ 
++    if( meta_col == COLUMN_ACTIVE )
++        return isSelectAllActive() ? QVariant( qfu( _("Select all") ) ) : QVariant( qfu( _("Select none") ) );
++        
+     return QVariant( qfu( psz_column_title( meta_col ) ) );
+ }
+ 
+@@ -944,7 +991,25 @@
+     msg_Dbg( p_intf, "Sorting by column %i, order %i", column, order );
+ 
+     int meta = columnToMeta( column );
+-    if( meta == COLUMN_END ) return;
++    if( meta == COLUMN_END || meta == COLUMN_SAVE ) return;
++    if( meta == COLUMN_ACTIVE ) {
++        if( rowCount() < 1 ) return;
++        int affected = 0;
++        for( int i = 0; i < rowCount(); i++) {
++            QModelIndex indexrecord = index( i, 0, QModelIndex() );
++            if( isCurrent( indexrecord ) || isPlaylistStatusItem( indexrecord ) )
++				continue;
++            PLItem *item = getItem( indexrecord );
++            if( item ) {
++                input_item_SetP2PActiveFlag( item->p_input, isSelectAllActive() );
++                updateTreeItem( item );
++                affected++;
++            }
++        }
++        if(affected > 0)
++            b_select_all = !b_select_all;
++        return;
++    }
+ 
+     PLItem *item = ( rootIndex.isValid() ) ? getItem( rootIndex )
+                                            : rootItem;

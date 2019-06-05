@@ -1,0 +1,23 @@
+--- a/modules/gui/qt4/recents.cpp	2015-02-02 22:42:29.000000000 +0300
++++ b/modules/gui/qt4/recents.cpp.new	2019-06-03 03:50:43.381827983 +0300
+@@ -174,7 +174,19 @@
+ 
+ void RecentsMRL::playMRL( const QString &mrl )
+ {
+-    Open::openMRL( p_intf, mrl );
++    p2p_uri_id_type_t p2p_uri_type;
++    p2p_uri_type = p2p_GetIdTypeWithOptString( qtu(mrl), NULL );
++    if( p2p_uri_type != P2P_TYPE_UNSUPPORT ) {
++        p2p_LoadWithOptString( THEP2P, qtu(mrl), NULL, p2p_uri_type, p2p_LoadAsync, NULL, 
++                    PLAYLIST_APPEND, p2p_LoadAddInput, NULL, 
++                    true, true, P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++        QString recent_url = ( p2p_uri_type == P2P_TYPE_PLAYER && mrl.indexOf("acestream://") ==-1 ) ? "acestream://" + mrl : mrl;
++        RecentsMRL::getInstance( p_intf )->addRecent( recent_url );
++    }
++    else 
++    {    
++        Open::openMRL( p_intf, mrl );
++    }
+ }
+ 
+ int RecentsMRL::time( const QString &mrl )

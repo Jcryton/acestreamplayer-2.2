@@ -1,0 +1,22 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/playlist/views.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/playlist/views.hpp	2014-01-20 11:17:48.804312356 +0200
+@@ -77,6 +77,10 @@
+     PlTreeViewItemDelegate(QWidget *parent = 0) : AbstractPlViewItemDelegate(parent) {}
+ 
+     virtual void paint ( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const;
++    void paintBackground( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index ) const;
++
++protected:
++	bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index);
+ };
+ 
+ class PlIconView : public QListView
+@@ -113,7 +117,7 @@
+ protected:
+     virtual void startDrag ( Qt::DropActions supportedActions );
+     virtual void dragMoveEvent ( QDragMoveEvent * event );
+-    virtual void keyPressEvent( QKeyEvent *event );
++    // virtual void keyPressEvent( QKeyEvent *event );
+     virtual void setModel( QAbstractItemModel * );
+ };
+ 

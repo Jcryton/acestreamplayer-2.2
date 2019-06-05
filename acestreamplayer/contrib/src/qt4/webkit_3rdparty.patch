@@ -1,0 +1,139 @@
+diff -ru qt4/src/3rdparty/webkit.orig/Source/WebCore/loader/icon/IconRecord.h qt4/src/3rdparty/webkit/Source/WebCore/loader/icon/IconRecord.h
+--- qt4/src/3rdparty/webkit.orig/Source/WebCore/loader/icon/IconRecord.h	2013-06-07 08:16:57.000000000 +0300
++++ qt4/src/3rdparty/webkit/Source/WebCore/loader/icon/IconRecord.h	2014-01-10 10:59:43.977651264 +0200
+@@ -38,9 +38,9 @@
+ #include <wtf/OwnPtr.h>
+ #include <wtf/text/StringHash.h>
+ 
+-#if OS(SOLARIS)
++// #if OS(SOLARIS)
+ #include <sys/types.h> // For time_t structure.
+-#endif
++// #endif
+ 
+ namespace WebCore { 
+ 
+diff -ru qt4/src/3rdparty/webkit.orig/Source/WebCore/page/Page.h qt4/src/3rdparty/webkit/Source/WebCore/page/Page.h
+--- qt4/src/3rdparty/webkit.orig/Source/WebCore/page/Page.h	2013-06-07 08:16:55.000000000 +0300
++++ qt4/src/3rdparty/webkit/Source/WebCore/page/Page.h	2014-01-10 11:00:48.337651578 +0200
+@@ -31,6 +31,8 @@
+ 
+ #if OS(SOLARIS)
+ #include <sys/time.h> // For time_t structure.
++#else
++#include <time.h>
+ #endif
+ 
+ #if PLATFORM(MAC)
+diff -ru qt4/src/3rdparty/webkit.orig/Source/WebCore/platform/network/ResourceResponseBase.h qt4/src/3rdparty/webkit/Source/WebCore/platform/network/ResourceResponseBase.h
+--- qt4/src/3rdparty/webkit.orig/Source/WebCore/platform/network/ResourceResponseBase.h	2013-06-07 08:16:56.000000000 +0300
++++ qt4/src/3rdparty/webkit/Source/WebCore/platform/network/ResourceResponseBase.h	2014-01-10 11:00:36.537651514 +0200
+@@ -37,6 +37,8 @@
+ 
+ #if OS(SOLARIS)
+ #include <sys/time.h> // For time_t structure.
++#else
++#include <time.h>
+ #endif
+ 
+ namespace WebCore {
+diff -ru qt4/src/3rdparty/webkit.orig/Source/WebCore/WebCore.pro qt4/src/3rdparty/webkit/Source/WebCore/WebCore.pro
+--- qt4/src/3rdparty/webkit.orig/Source/WebCore/WebCore.pro	2013-06-07 08:16:55.000000000 +0300
++++ qt4/src/3rdparty/webkit/Source/WebCore/WebCore.pro	2014-01-10 10:59:23.889651117 +0200
+@@ -16,7 +16,7 @@
+ DESTDIR = $$WEBCORE_DESTDIR
+ 
+ DEFINES += BUILDING_WEBKIT
+-DEFINES += QT_MAKEDLL
++# DEFINES += QT_MAKEDLL
+ 
+ contains(DEFINES, WTF_USE_QT_MOBILE_THEME=1) {
+     DEFINES += ENABLE_NO_LISTBOX_RENDERING=1
+diff -ru qt4/src/3rdparty/webkit.orig/Source/WebKit/qt/QtWebKit.pro qt4/src/3rdparty/webkit/Source/WebKit/qt/QtWebKit.pro
+--- qt4/src/3rdparty/webkit.orig/Source/WebKit/qt/QtWebKit.pro	2013-06-07 08:16:58.000000000 +0300
++++ qt4/src/3rdparty/webkit/Source/WebKit/qt/QtWebKit.pro	2014-01-10 11:04:13.425652699 +0200
+@@ -2,7 +2,6 @@
+ CONFIG += building-libs
+ CONFIG += depend_includepath
+ 
+-TARGET = QtWebKit
+ TEMPLATE = lib
+ 
+ DEFINES += BUILDING_WEBKIT
+@@ -14,24 +13,41 @@
+ else: CONFIG_DIR = release
+ 
+ SOURCE_DIR = $$replace(PWD, /WebKit/qt, "")
++include($$SOURCE_DIR/WebKit.pri)
++include($$SOURCE_DIR/JavaScriptCore/JavaScriptCore.pro)
++
++for(item, SOURCES):JAVASCRIPT_CORE_SOURCES += ../../JavaScriptCore/$$item
++
++unset(SOURCES)
++
++include($$SOURCE_DIR/WebCore/WebCore.pro)
++
++for(item, SOURCES): {
++    path = $$split(item, '/')
+ 
++    contains(path, sqlite3.c) {
++        WEB_CORE_SOURCES += $$item
++    }
++
++    !contains(path, sqlite3.c) {
++        WEB_CORE_SOURCES += ../../WebCore/$$item
++    }
++}
++for(item, HEADERS):WEB_CORE_HEADERS += ../../WebCore/$$item
++
++SOURCES = $$JAVASCRIPT_CORE_SOURCES $$WEB_CORE_SOURCES
++HEADERS = $$WEB_CORE_HEADERS
+ include($$PWD/Api/headers.pri)
+-include($$SOURCE_DIR/WebKit.pri)
+-include($$SOURCE_DIR/JavaScriptCore/JavaScriptCore.pri)
+ webkit2 {
+     include($$SOURCE_DIR/WebKit2/WebKit2.pri)
+     include($$SOURCE_DIR/WebKit2/WebKit2API.pri)
+ }
+-include($$SOURCE_DIR/WebCore/WebCore.pri)
+-
+-!v8:prependJavaScriptCoreLib(../../JavaScriptCore)
+-prependWebCoreLib(../../WebCore)
+-webkit2:prependWebKit2Lib(../../WebKit2)
+ 
++TARGET = QtWebKit
+ # This is needed for syncqt when it parses the dependencies on module's main pro file so
+ # the generated includes are containing the dependencies.
+ # It used to be in WebCore.pro but now that this is the main pro file it has to be here.
+-QT += network
++QT += network gui
+ 
+ isEmpty(OUTPUT_DIR): OUTPUT_DIR = ../..
+ 
+diff -ru qt4/src/3rdparty/webkit.orig/Source/WebKit.pro qt4/src/3rdparty/webkit/Source/WebKit.pro
+--- qt4/src/3rdparty/webkit.orig/Source/WebKit.pro	2013-06-07 08:16:54.000000000 +0300
++++ qt4/src/3rdparty/webkit/Source/WebKit.pro	2014-01-10 10:58:33.965650845 +0200
+@@ -1,16 +1,11 @@
+ TEMPLATE = subdirs
+ CONFIG += ordered
++DEFINES += Q_NODLL Q_DECL_IMPORT QT_STATIC_BUILD STATIC
+ 
+ include(WebKit.pri)
+ 
+-!v8 {
+-    exists($$PWD/JavaScriptCore/JavaScriptCore.pro): SUBDIRS += JavaScriptCore/JavaScriptCore.pro
+-    exists($$PWD/JavaScriptCore/jsc.pro): SUBDIRS += JavaScriptCore/jsc.pro
+-}
+-
+ webkit2:exists($$PWD/WebKit2/WebKit2.pro): SUBDIRS += WebKit2/WebKit2.pro
+ 
+-SUBDIRS += WebCore
+ SUBDIRS += WebKit/qt/QtWebKit.pro
+ 
+ webkit2 {
+@@ -38,5 +33,3 @@
+     install.commands = $(MAKE) -C WebCore install
+     QMAKE_EXTRA_TARGETS += install
+ }
+-
+-include(WebKit/qt/docs/docs.pri)

@@ -1,0 +1,67 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/playlist/sorting.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/playlist/sorting.h	2014-01-20 10:55:53.187006180 +0200
+@@ -29,22 +29,24 @@
+ {
+     COLUMN_TITLE          = 0x0001,
+     COLUMN_DURATION       = 0x0002,
+-    COLUMN_ARTIST         = 0x0004,
+-    COLUMN_GENRE          = 0x0008,
+-    COLUMN_ALBUM          = 0x0010,
+-    COLUMN_TRACK_NUMBER   = 0x0020,
+-    COLUMN_DESCRIPTION    = 0x0040,
+-    COLUMN_URI            = 0x0080,
+-    COLUMN_NUMBER         = 0x0100,
+-    COLUMN_RATING         = 0x0200,
+-    COLUMN_COVER          = 0x0400,
++    COLUMN_ACTIVE         = 0x0004,
++	 COLUMN_SAVE           = 0x0008,
++    COLUMN_ARTIST         = 0x0010,
++    COLUMN_GENRE          = 0x0020,
++    COLUMN_ALBUM          = 0x0040,
++    COLUMN_TRACK_NUMBER   = 0x0080,
++    COLUMN_DESCRIPTION    = 0x0100,
++    COLUMN_URI            = 0x0200,
++    COLUMN_NUMBER         = 0x0400,
++    COLUMN_RATING         = 0x0800,
++    COLUMN_COVER          = 0x1000,
+ 
+     /* Add new entries here and update the COLUMN_END value*/
+ 
+-    COLUMN_END          = 0x0800
++    COLUMN_END          = 0x2000
+ };
+ 
+-#define COLUMN_DEFAULT (COLUMN_TITLE|COLUMN_DURATION|COLUMN_ALBUM)
++#define COLUMN_DEFAULT (COLUMN_TITLE|COLUMN_DURATION|COLUMN_ACTIVE|COLUMN_ALBUM)
+ 
+ /* Return the title of a column */
+ static inline const char * psz_column_title( uint32_t i_column )
+@@ -62,6 +64,8 @@
+     case COLUMN_URI:             return _("URI");
+     case COLUMN_RATING:          return VLC_META_RATING;
+     case COLUMN_COVER:           return VLC_META_ART_URL;
++    case COLUMN_ACTIVE:          return _("Selection");
++    case COLUMN_SAVE:            return _("Actions");
+     default: abort();
+     }
+ }
+@@ -99,6 +103,10 @@
+         return input_item_GetRating( p_item );
+     case COLUMN_COVER:
+         return input_item_GetArtworkURL( p_item );
++    case COLUMN_ACTIVE:
++    	return NULL;
++    case COLUMN_SAVE:
++    	return NULL;
+     default:
+         abort();
+     }
+@@ -138,6 +146,8 @@
+     case COLUMN_URI:            return ML_URI;
+     case COLUMN_RATING:         return ML_VOTE;
+     case COLUMN_COVER:          return ML_COVER;
++    case COLUMN_SAVE: return ML_END;
++    case COLUMN_ACTIVE: return ML_END;
+     default: abort();
+     }
+ }

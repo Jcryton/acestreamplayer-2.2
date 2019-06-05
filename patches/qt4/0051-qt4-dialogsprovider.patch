@@ -1,0 +1,191 @@
+--- a/modules/gui/qt4/dialogs_provider.cpp	2019-06-03 03:56:11.074162000 +0300
++++ b/modules/gui/qt4/dialogs_provider.cpp.new	2019-06-03 22:46:53.284296132 +0300
+@@ -475,9 +475,23 @@
+     foreach( const QString &file, files )
+     {
+         QString url = toURI( toNativeSeparators( file ) );
+-        Open::openMRL( p_intf, url, first, pl);
+-        first = false;
+-    }
++        
++        p2p_uri_id_type_t p2p_uri_type;
++        p2p_uri_type = p2p_GetIdTypeWithOptString( qtu(url), NULL );
++        
++        if(p2p_uri_type == P2P_TYPE_UNSUPPORT ) {
++            playlist_Add( THEPL, qtu(url), NULL, PLAYLIST_APPEND | mode,
++                        PLAYLIST_END, pl, pl_Unlocked );
++        }
++        else {
++            p2p_LoadWithOptString( THEP2P, qtu(url), NULL, p2p_uri_type, p2p_LoadAsync, NULL, 
++                        (mode == PLAYLIST_GO) ? 0 : mode, p2p_LoadAddInput, NULL, 
++                        pl, (mode == PLAYLIST_GO), P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++        }
++
++        RecentsMRL::getInstance( p_intf )->addRecent( url );
++        mode = PLAYLIST_PREPARSE;
++     }
+ }
+ 
+ void DialogsProvider::simpleOpenDialog()
+@@ -500,16 +514,41 @@
+     if( url.isEmpty() )
+         return;
+ 
+-    if( !url.contains( qfu( "://" ) ) )
+-    {
+-        char *uri = vlc_path2uri( qtu( url ), NULL );
+-        if( uri == NULL )
+-            return;
+-        url = qfu(uri);
+-        free( uri );
++    p2p_uri_id_type_t p2p_uri_type;
++    p2p_uri_type = p2p_GetIdTypeWithOptString( qtu(url), NULL );
++    if( p2p_uri_type != P2P_TYPE_UNSUPPORT ) {
++        char *p2p_url = NULL;
++        if(p2p_uri_type != P2P_TYPE_PLAYER && p2p_uri_type != P2P_TYPE_RAW) {
++            p2p_url = !url.contains(qfu( "://" )) ? vlc_path2uri(qtu( url ), NULL) : strdup(qtu(url));
++        }
++        else
++            p2p_url = strdup(qtu(url));
++
++        p2p_LoadWithOptString( THEP2P, p2p_url, NULL, p2p_uri_type, p2p_LoadAsync, NULL, 
++                    PLAYLIST_APPEND, p2p_LoadAddInput, NULL, 
++                    true, !oud.shouldEnqueue(), P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++        
++        free( p2p_url );
++        if( p2p_uri_type == P2P_TYPE_PLAYER && url.indexOf("acestream://") == -1 )
++            url = "acestream://" + url;
++    }
++    else {
++        if( !url.contains( qfu( "://" ) ) )
++        {
++            char *uri = vlc_path2uri( qtu( url ), NULL );
++            if( uri == NULL )
++                return;
++            url = qfu(uri);
++            free( uri );
++        }
++
++        playlist_Add( THEPL, qtu(url), NULL,
++                  !oud.shouldEnqueue() ? ( PLAYLIST_APPEND | PLAYLIST_GO )
++                                     : ( PLAYLIST_APPEND | PLAYLIST_PREPARSE ),
++                  PLAYLIST_END, true, false );
+     }
+ 
+-    Open::openMRL( p_intf, qtu(url), !oud.shouldEnqueue() );
++    RecentsMRL::getInstance( p_intf )->addRecent( url );
+ }
+ 
+ /* Directory */
+@@ -714,7 +753,45 @@
+     {
+         options += soutoption.split( " :");
+ 
+-        Open::openMRLwithOptions( p_intf, mrl, &options, true, true, _("Streaming") );
++        //Open::openMRLwithOptions( p_intf, mrl, &options, true, true, _("Streaming") );
++    
++        QString optstr = options.join(" ");
++        p2p_uri_id_type_t p2p_uri_type;
++        p2p_uri_type = p2p_GetIdTypeWithOptString(qtu(mrl), qtu(optstr));
++        if( p2p_uri_type != P2P_TYPE_UNSUPPORT ) {
++            p2p_LoadWithOptString( THEP2P, qtu(mrl), _("Streaming"), p2p_uri_type, p2p_LoadSync, qtu(optstr), 
++                        PLAYLIST_APPEND, p2p_LoadAddInput, NULL, 
++                        true, true, P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++            QString recent_url = ( p2p_uri_type == P2P_TYPE_PLAYER && mrl.indexOf("acestream://") ==-1 ) ? "acestream://" + mrl : mrl;
++            RecentsMRL::getInstance( p_intf )->addRecent( recent_url );
++        }
++        else {
++            /* Create Input */
++            input_item_t *p_input;
++            p_input = input_item_New( qtu( mrl ), _("Streaming") );
++ 
++            /* Add normal Options */
++            for( int j = 0; j < options.count(); j++ )
++            {
++
++                QString qs = colon_unescape( options[j] );
++                if( !qs.isEmpty() )
++                {
++                    input_item_AddOption( p_input, qtu( qs ),
++                            VLC_INPUT_OPTION_TRUSTED );
++                    msg_Dbg( p_intf, "Adding option: %s", qtu( qs ) );
++                }
++            }
++
++            /* Switch between enqueuing and starting the item */
++            /* FIXME: playlist_AddInput() can fail */
++            playlist_AddInput( THEPL, p_input,
++                    PLAYLIST_APPEND | PLAYLIST_GO, PLAYLIST_END, true, pl_Unlocked );
++            vlc_gc_decref( p_input );
++
++            RecentsMRL::getInstance( p_intf )->addRecent( mrl );
++        }
++
+     }
+ }
+ 
+@@ -789,3 +866,64 @@
+         playlist_ServicesDiscoveryRemove( THEPL, qtu( data ) );
+ }
+ 
++
++void DialogsProvider::p2p_SaveDialog( input_item_t *p_item )
++{
++    if( !p_item )
++        return;
++    if( !input_item_IsP2P(p_item) )
++        return;
++    p2p_save_format_t save_format = input_item_GetP2PSaveFormat( p_item );
++    if( save_format == P2P_SAVE_UNSAVEABLE )
++        return;
++
++    char *_name = input_item_GetP2PFileName( p_item );
++    QString default_name = _name ? QString( _name ) : "";
++    free( _name );
++    QString default_dir = p_intf->p_sys->filepath;
++    QString filter = "";
++    if( save_format == P2P_SAVE_PLAIN )
++		filter = "All files|*.*";
++	else if( save_format == P2P_SAVE_ENCRYPTED )
++		filter = "ACEMedia files|*.acemedia";
++
++    if( default_name != "" ) {
++		QFileInfo fi( default_name );
++		QString extension = fi.suffix();
++		if( extension != "" ) {
++			if( save_format == P2P_SAVE_PLAIN )
++				filter = extension.toUpper()+" files|*."+extension+"|All files|*.*";
++			else if( save_format == P2P_SAVE_ENCRYPTED ) {
++				filter = "ACEMedia files|*.acemedia|All files|*.*";
++				default_name.replace(default_name.lastIndexOf(extension), extension.size(), "acemedia");
++			}
++		}
++		default_dir += "/" + default_name;
++	}
++    
++    intf_dialog_args_t *p_arg = (intf_dialog_args_t*)calloc( 1, sizeof( intf_dialog_args_t ) );
++    p_arg->psz_title = NULL;
++    p_arg->psz_extensions = strdup( qtu( filter ) );
++    p_arg->psz_default_path = strdup( qtu( default_dir ) );
++    p_arg->b_save = true;
++    p_arg->p_arg = p_item;
++    p_arg->pf_callback = p2p_Save_DialogCallback;
++    emit saveP2P( p_arg );
++}
++
++void DialogsProvider::p2p_Save_DialogCallback( intf_dialog_args_t *p_arg )
++{
++    input_item_t *p_item = (input_item_t *)p_arg->p_arg;
++
++    if( p_item ) {
++        if( p_arg->i_results && p_arg->psz_results[0] ) {
++        
++            char *psz_infohash = input_item_GetP2PInfohash( p_item );
++            if( psz_infohash ) {
++                int index = input_item_GetP2PIndex( p_item );
++                p2p_Save( p2p_Get( DialogsProvider::getInstance()->p_intf ), psz_infohash, index, p_arg->psz_results[0] );
++                free( psz_infohash );
++            }
++        }
++    }
++}

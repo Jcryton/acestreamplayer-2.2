@@ -1,0 +1,40 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs/errors.cpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs/errors.cpp	2014-01-17 14:38:42.790985824 +0200
+@@ -33,6 +33,7 @@
+ #include <QGridLayout>
+ #include <QDialogButtonBox>
+ #include <QPushButton>
++#include <QTextBrowser>
+ 
+ ErrorsDialog::ErrorsDialog( intf_thread_t *_p_intf )
+              : QVLCDialog( (QWidget*)_p_intf->p_sys->p_mi, _p_intf )
+@@ -48,8 +49,10 @@
+     buttonBox->addButton( clearButton, QDialogButtonBox::ActionRole );
+     buttonBox->addButton( new QPushButton( qtr("&Close"), this ), QDialogButtonBox::RejectRole );
+ 
+-    messages = new QTextEdit();
++    messages = new QTextBrowser();
+     messages->setReadOnly( true );
++    messages->setOpenLinks ( true );
++    messages->setOpenExternalLinks ( true );
+     messages->setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
+     stopShowing = new QCheckBox( qtr( "Hide future errors" ) );
+ 
+@@ -78,8 +81,16 @@
+     messages->textCursor().movePosition( QTextCursor::End );
+     messages->setTextColor( error ? "red" : "yellow" );
+     messages->insertPlainText( title + QString( ":\n" ) );
++
++    QString dspText = text;
++    if(dspText.indexOf("color: #ffffff;") != -1)
++        dspText.replace("color: #ffffff;", "");
+     messages->setTextColor( "black" );
+-    messages->insertPlainText( text + QString( "\n" ) );
++    if(dspText.indexOf("</a>") == -1)
++        messages->insertPlainText( dspText + QString( "\n" ) );
++    else
++        messages->insertHtml( dspText + QString( "\n" ) );
++
+     messages->ensureCursorVisible();
+     show();
+ }

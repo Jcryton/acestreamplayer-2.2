@@ -1,0 +1,72 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs_provider.hpp	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs_provider.hpp	2014-01-17 15:48:24.774989363 +0200
+@@ -42,6 +42,8 @@
+ #define TITLE_EXTENSIONS_AUDIO qtr( "Audio Files" )
+ #define TITLE_EXTENSIONS_PLAYLIST qtr( "Playlist Files" )
+ #define TITLE_EXTENSIONS_SUBTITLE qtr( "Subtitle Files" )
++#define TITLE_EXTENSIONS_P2P qtr( "P2P files" )
++#define TITLE_EXTENSIONS_P2P_AND_MEDIA qtr( "P2P and Media files" )
+ #define TITLE_EXTENSIONS_ALL qtr( "All Files" )
+ #define EXTENSIONS_ALL "*"
+ #define ADD_EXT_FILTER( string, type ) \
+@@ -55,6 +57,8 @@
+     EXT_FILTER_AUDIO     =  0x04,
+     EXT_FILTER_PLAYLIST  =  0x08,
+     EXT_FILTER_SUBTITLE  =  0x10,
++    EXT_FILTER_P2P = 0x20,
++    EXT_FILTER_P2P_AND_MEDIA = 0x40,
+ };
+ 
+ class QEvent;
+@@ -89,11 +93,14 @@
+     }
+ 
+     QStringList showSimpleOpen( const QString& help = QString(),
+-                                int filters = EXT_FILTER_MEDIA |
++                                int filters = EXT_FILTER_P2P_AND_MEDIA | EXT_FILTER_P2P | EXT_FILTER_MEDIA |
+                                 EXT_FILTER_VIDEO | EXT_FILTER_AUDIO |
+                                 EXT_FILTER_PLAYLIST,
+                                 const QString& path = QString() );
+     bool isDying() { return b_isDying; }
++    
++    void p2p_SaveDialog( input_item_t* );
++
+     static QString getDirectoryDialog( intf_thread_t *p_intf);
+ 
+ protected:
+@@ -112,6 +119,8 @@
+     void openDialog( int );
+     void addFromSimple( bool, bool );
+ 
++    static void p2p_Save_DialogCallback( intf_dialog_args_t * );
++
+ public slots:
+     void playMRL( const QString & );
+ 
+@@ -119,8 +128,10 @@
+     void bookmarksDialog();
+     void mediaInfoDialog();
+     void mediaCodecDialog();
++    void mediaP2PInfoDialog();
+     void prefsDialog();
+     void extendedDialog();
++    void userDataDialog();
+     void synchroDialog();
+     void messagesDialog();
+ #ifdef ENABLE_VLM
+@@ -149,6 +160,7 @@
+     void openUrlDialog();
+     void openNetDialog();
+     void openCaptureDialog();
++    void openCidDialog();
+ 
+     void PLAppendDialog( int tab = OPEN_FILE_TAB );
+     void MLAppendDialog( int tab = OPEN_FILE_TAB );
+@@ -174,6 +186,7 @@
+     void SDMenuAction( const QString& );
+ signals:
+     void  toolBarConfUpdated();
++    void saveP2P( intf_dialog_args_t* );
+ };
+ 
+ class DialogEvent : public QEvent

@@ -1,0 +1,31 @@
+diff -ru vlc-2.1.2.orig/modules/common.am vlc-2.1.2/modules/common.am
+--- vlc-2.1.2.orig/modules/common.am	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/modules/common.am	2014-01-17 12:42:06.000000000 +0200
+@@ -11,7 +11,7 @@
+ BUILT_SOURCES =
+ CLEANFILES = $(BUILT_SOURCES)
+ 
+-LTLIBVLCCORE = $(top_builddir)/src/libvlccore.la
++LTLIBVLCCORE = $(top_builddir)/src/libtsplayercore.la
+ 
+ # Module name from object or executable file name.
+ MODULE_NAME = $$(p="$@"; p="$${p\#\#*/}"; p="$${p\#lib}"; echo "$${p%_plugin*}")
+diff -ru vlc-2.1.2.orig/modules/MODULES_LIST vlc-2.1.2/modules/MODULES_LIST
+--- vlc-2.1.2.orig/modules/MODULES_LIST	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.2/modules/MODULES_LIST	2014-01-16 13:01:04.000000000 +0200
+@@ -239,6 +239,7 @@
+  * opus: a opus audio decoder/packetizer using the libopus library
+  * os2drive: service discovery for OS/2 drives
+  * oss: audio output module using the OSS /dev/dsp interface
++ * p2p_access: ACEStream p2pclient module
+  * packetizer_avparser: libavcodec packetizer
+  * packetizer_copy: Simple copy packetizer
+  * packetizer_dirac: Dirac video packetizer
+@@ -308,6 +309,7 @@
+  * speex: a speex audio decoder/packetizer using the libspeex library
+  * speex_resampler: audio resampler using the libspeexdsp library
+  * spudec: RLE DVD subtitles decoder
++ * sqlite: manage an SQLite database
+  * stats: Stats encoder function
+  * stereo_widen: Enhances stereo effect
+  * stl: EBU STL decoder

@@ -1,0 +1,10 @@
+prefix=@@PREFIX@@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include/qt4/QtWebKit
+
+Name: Qtwebkit
+Description: Qtwebkit Library
+Version: @@VERSION@@
+Libs: -Wl,--subsystem,windows -mwindows -L${libdir} -lQtWebKit -lshlwapi -lversion -lQtGui -lQtNetwork -lgdi32 -lcomdlg32 -loleaut32 -limm32 -lwinmm -lwinspool -lmsimg32 -lQtCore -lole32 -luuid -lws2_32 -ladvapi32 -lshell32 -luser32 -lkernel32
+Cflags:  -I${prefix}/include/qt4 -I${includedir} -DQT_NODLL

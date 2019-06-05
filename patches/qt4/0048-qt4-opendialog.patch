@@ -1,0 +1,29 @@
+--- a/modules/gui/qt4/dialogs/open.cpp	2019-06-02 04:37:26.961156354 +0300
++++ b/modules/gui/qt4/dialogs/open.cpp.new	2019-06-02 04:36:48.090855133 +0300
+@@ -384,11 +384,22 @@
+     {
+         bool b_start = !i && !b_enqueue;
+ 
+-        /* Take options from the UI, not from what we stored */
+-        QStringList optionsList = getOptions().split( " :" );
++        QString optstr = ui.advancedLineInput->text();
++        p2p_uri_id_type_t p2p_uri_type = p2p_GetIdTypeWithOptString(qtu(itemsMRL[i]), qtu(optstr));
++        if( p2p_uri_type != P2P_TYPE_UNSUPPORT ) {
++            p2p_LoadWithOptString( THEP2P, qtu(itemsMRL[i]), NULL, p2p_uri_type, p2p_LoadAsync, qtu(optstr), 
++                        PLAYLIST_APPEND, p2p_LoadAddInput, NULL, 
++                        b_pl ? true : false, b_start, P2P_DEV, P2P_AFF, P2P_ZONE, pl_Unlocked );
++            QString recent_url = ( p2p_uri_type == P2P_TYPE_PLAYER && itemsMRL[i].indexOf("acestream://") ==-1 ) ? "acestream://" + itemsMRL[i] : itemsMRL[i];
++            RecentsMRL::getInstance( p_intf )->addRecent( recent_url );
++        }
++        else {
++            /* Take options from the UI, not from what we stored */
++            QStringList optionsList = getOptions().split( " :" );
+ 
+-        /* Switch between enqueuing and starting the item */
+-        Open::openMRLwithOptions( p_intf, itemsMRL[i], &optionsList, b_start, b_pl );
++            /* Switch between enqueuing and starting the item */
++            Open::openMRLwithOptions( p_intf, itemsMRL[i], &optionsList, b_start, b_pl );
++        }
+     }
+ }
+ 

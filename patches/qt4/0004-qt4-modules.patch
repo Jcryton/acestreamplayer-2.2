@@ -1,0 +1,483 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/controller.cpp	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/components/controller.cpp	2014-03-04 18:15:23.453954948 +0200
+@@ -66,6 +66,7 @@
+ {
+     p_intf = _p_i;
+     advControls = NULL;
++    advertControls = NULL;
+     buttonGroupLayout = NULL;
+ 
+     /* Main action provider */
+@@ -81,6 +82,7 @@
+ void AbstractController::setStatus( int status )
+ {
+     bool b_hasInput = THEMIM->getIM()->hasInput();
++    emit inputStopped( status != PLAYING_S && status != PAUSE_S );
+     /* Activate the interface buttons according to the presence of the input */
+     emit inputExists( b_hasInput );
+ 
+@@ -188,6 +190,12 @@
+ 
+             }
+             buttonGroupLayout->addWidget( widg );
++            if(i_type == SKIP_AD_BUTTON)
++                buttonGroupLayout->setAlignment(widg, Qt::AlignLeft);
++            else if(i_type == DISABLE_AD_BUTTON)
++                buttonGroupLayout->setAlignment(widg, Qt::AlignRight);
++            else if(i_type == VISIT_AD_SITE_BUTTON)
++                buttonGroupLayout->setAlignment(widg, Qt::AlignHCenter);
+         }
+         else /* Special widgets */
+         {
+@@ -224,6 +232,19 @@
+     BUTTON_SET_BAR( name ## Button );                   \
+     widget = name ## Button;
+ 
++#define NORMAL_BUTTON_WITH_TEXT( name )                 \
++    QToolButton * name ## Button = new QToolButton;     \
++    name ## Button->setFixedHeight(26); \
++    static QSizePolicy sizePolicy( QSizePolicy::Fixed, QSizePolicy::Fixed ); \
++    sizePolicy.setHorizontalStretch( 0 ); \
++    sizePolicy.setVerticalStretch( 0 ); \
++    name ## Button->setSizePolicy( sizePolicy ); \
++    name ## Button->setFocusPolicy( Qt::NoFocus ); \
++    CONNECT_MAP_SET( name ## Button, name ## _ACTION ); \
++    name ## Button->setToolTip( qtr( tooltipL[button] ) );    \
++    name ## Button->setText( qtr( nameL[button] ) );    \
++    widget = name ## Button;
++
+ QWidget *AbstractController::createWidget( buttonType_e button, int options )
+ {
+     bool b_flat  = options & WIDGET_FLAT;
+@@ -354,6 +375,14 @@
+         /* Update the position when the IM has changed */
+         CONNECT( THEMIM->getIM(), positionUpdated( float, int64_t, int ),
+                 slider, setPosition( float, int64_t, int ) );
++
++        CONNECT( THEMIM->getIM(), updateSliderLiveStreamPos( int, int, int, int, int, int, int ), 
++                slider, setLivePosition( int, int, int, int, int, int, int ) );
++        CONNECT( THEMIM->getIM(), disableSeekOnSliderDrag( bool ), slider, disableDragSeek( bool ) );
++        CONNECT( THEMIM->getIM(), enableSliderLiveStreamMode( bool ), slider, isLiveStreamMode( bool ) );
++        CONNECT( THEMIM->getIM(), liveSeekOccured(), slider, setIgnoreLiveStreamChanging() );
++        CONNECT( slider, liveSeek( int ), THEMIM->getIM(), liveSeekEvent( int ) );
++
+         /* And update the IM, when the position has changed */
+         CONNECT( slider, sliderDragged( float ),
+                  THEMIM->getIM(), sliderUpdate( float ) );
+@@ -403,6 +432,25 @@
+             widget = advControls;
+         }
+         break;
++    case ADVERT_CONTROLLER:
++        {
++            advertControls = new AdvertisementControllerWidget( p_intf, this );
++            widget = advertControls;
++        }
++        break;
++    case MAIN_PANEL_CONTROLLER:
++        {
++            mainControls = new MainControllerWidget( p_intf, this );
++            widget = mainControls;
++        }
++        break;
++    
++    case FS_PANEL_CONTROLLER:
++        {
++            mainFSControls = new MainFSControllerWidget( p_intf, this );
++            widget = mainFSControls;
++        }
++        break;
+     case REVERSE_BUTTON:{
+         QToolButton *reverseButton = new QToolButton;
+         setupButton( reverseButton );
+@@ -481,6 +529,105 @@
+     case TIME_LABEL_REMAINING:
+         widget = new TimeLabel( p_intf, TimeLabel::Remaining );
+         break;
++    case SAVE_P2P_BUTTON : {
++        SaveButton *saveButton = new SaveButton;
++		setupButton( saveButton );
++		BUTTON_SET_BAR(  saveButton );
++		CONNECT_MAP_SET( saveButton, SAVE_P2P_ACTION );
++		CONNECT( THEMIM->getIM(), enableSaveButton( bool ), saveButton, updateButton( bool ) );
++		widget = saveButton;
++        }
++        break;
++    case LIVE_P2P_BUTTON: {
++        LiveButton *liveButton = new LiveButton;
++        static QSizePolicy sizePolicy( QSizePolicy::Fixed, QSizePolicy::Fixed );
++        sizePolicy.setHorizontalStretch( 0 );
++        sizePolicy.setVerticalStretch( 0 );
++        liveButton->setSizePolicy( sizePolicy );
++        liveButton->setFocusPolicy( Qt::NoFocus );
++        liveButton->setToolTip( qtr( tooltipL[button] ) );
++        liveButton->setIcon( QIcon( iconL[button] ) );
++        liveButton->setText( qtr("Live") );
++        CONNECT( THEMIM->getIM(), enableLiveStreamButton( bool ), liveButton, updateButton( bool ) );
++        CONNECT( THEMIM->getIM(), updateLiveStreamButton( bool ), liveButton, updateState( bool ) );
++        CONNECT( this, inputStopped( bool ), liveButton, updateStopped( bool ) );
++        CONNECT( liveButton, clickSignal( int ),  THEMIM->getIM(), liveSeekEvent( int ) );
++        widget = liveButton;
++		}
++		break;
++    case QUALITY_P2P_BUTTON: {
++        QualityButton *qualityButton = new QualityButton;
++        qualityButton->setFixedHeight(26);
++        static QSizePolicy sizePolicy( QSizePolicy::Fixed, QSizePolicy::Fixed );
++        sizePolicy.setHorizontalStretch( 0 );
++        sizePolicy.setVerticalStretch( 0 );
++        qualityButton->setSizePolicy( sizePolicy );
++        qualityButton->setFocusPolicy( Qt::NoFocus );
++        qualityButton->setToolTip( qtr( tooltipL[button] ) );
++        qualityButton->setText("");
++        CONNECT( THEMIM->getIM(), enableQualitiesButton(QStringList, int), qualityButton, updateButton(QStringList, int) );
++        CONNECT( qualityButton, clickSignal( int ),  THEMIM->getIM(), changeQuality( int ) );
++        widget = qualityButton;
++		}
++		break;
++
++    case SKIP_AD_BUTTON: {
++        SkipAdButton *skipButton = new SkipAdButton;
++        skipButton->setFixedHeight(26);
++        static QSizePolicy sizePolicy( QSizePolicy::Fixed, QSizePolicy::Fixed );
++        sizePolicy.setHorizontalStretch( 0 );
++        sizePolicy.setVerticalStretch( 0 );
++        skipButton->setSizePolicy( sizePolicy );
++        skipButton->setFocusPolicy( Qt::NoFocus );
++        
++        CONNECT( THEMIM->getIM(), setWaitForAd(int),  skipButton, waitLabelValue(int) );
++        CONNECT( skipButton, clickSignal(), THEMIM->getIM(), skipAd() );
++        
++        skipButton->setToolTip( qtr( tooltipL[button] ) );
++        skipButton->setText( qtr( nameL[button] ) );
++        
++        widget = skipButton;
++        }
++        break;
++
++    case VISIT_AD_SITE_BUTTON: {
++        VisitAdButton *visitButton = new VisitAdButton;
++        visitButton->setFixedHeight(26);
++        static QSizePolicy sizePolicy( QSizePolicy::Fixed, QSizePolicy::Fixed );
++        sizePolicy.setHorizontalStretch( 0 );
++        sizePolicy.setVerticalStretch( 0 );
++        visitButton->setSizePolicy( sizePolicy );
++        visitButton->setFocusPolicy( Qt::NoFocus );
++        
++        CONNECT( THEMIM->getIM(), setVisitAdButtonText(QString), visitButton, updateText(QString) );
++        CONNECT( THEMIM->getIM(), setVisitAdButtonEnable(bool),  visitButton, enableChanged(bool) );
++        CONNECT_MAP_SET( visitButton, VISIT_AD_ACTION );
++        
++        visitButton->setToolTip( qtr( tooltipL[button] ) );
++        visitButton->setText( qtr( nameL[button] ) );
++        
++        widget = visitButton;
++        }
++        break;
++
++    case DISABLE_AD_BUTTON: {
++        DisableAdButton *disButton = new DisableAdButton;
++        disButton->setFixedHeight(26);
++        static QSizePolicy sizePolicy( QSizePolicy::Fixed, QSizePolicy::Fixed );
++        sizePolicy.setHorizontalStretch( 0 );
++        sizePolicy.setVerticalStretch( 0 );
++        disButton->setSizePolicy( sizePolicy );
++        disButton->setFocusPolicy( Qt::NoFocus );
++        
++        CONNECT( THEMIM->getIM(), setDisableAdButtonEnable(bool),  disButton, enableChanged(bool) );
++        CONNECT_MAP_SET( disButton, DISABLE_AD_ACTION );
++        
++        disButton->setToolTip( qtr( tooltipL[button] ) );
++        disButton->setText( qtr( nameL[button] ) );
++        
++        widget = disButton;
++        }
++        break;
+     default:
+         msg_Warn( p_intf, "This should not happen %i", button );
+         break;
+@@ -647,31 +794,38 @@
+     RTL_UNAFFECTED_WIDGET
+     /* advanced Controls handling */
+     b_advancedVisible = b_advControls;
++    b_advertisementVisible = false;
+ #ifdef DEBUG_LAYOUT
+     setStyleSheet( "background: red ");
+ #endif
+     setAttribute( Qt::WA_MacBrushedMetal);
+-    controlLayout = new QVBoxLayout( this );
++    QVBoxLayout *controlLayout = new QVBoxLayout( this );
+     controlLayout->setContentsMargins( 3, 1, 0, 1 );
+     controlLayout->setSpacing( 0 );
++
++    QHBoxLayout *controlLayout0 = new QHBoxLayout;
++    controlLayout0->setSpacing( 0 ); controlLayout0->setMargin( 0 );
++    QString line0 = getSettings()->value( "MainWindow/MainToolbar0", ADVERT_PANEL_DEFAULT )
++                                        .toString();
++    parseAndCreate( line0, controlLayout0 );
++
+     QHBoxLayout *controlLayout1 = new QHBoxLayout;
+     controlLayout1->setSpacing( 0 ); controlLayout1->setMargin( 0 );
+ 
+     QString line1 = getSettings()->value( "MainWindow/MainToolbar1", MAIN_TB1_DEFAULT )
+                                         .toString();
+     parseAndCreate( line1, controlLayout1 );
+-
+     QHBoxLayout *controlLayout2 = new QHBoxLayout;
+     controlLayout2->setSpacing( 0 ); controlLayout2->setMargin( 0 );
+-    QString line2 = getSettings()->value( "MainWindow/MainToolbar2", MAIN_TB2_DEFAULT )
+-                                        .toString();
++    QString line2 = getSettings()->value( "MainWindow/MainToolbar3", MAIN_PANEL_DEFAULT ).toString();
+     parseAndCreate( line2, controlLayout2 );
+-
+-    grip = new QSizeGrip( this );
+-    controlLayout2->addWidget( grip, 0, Qt::AlignBottom|Qt::AlignRight );
+-
++    
+     if( !b_advancedVisible && advControls ) advControls->hide();
+ 
++    if( !b_advertisementVisible && advertControls ) advertControls->hide();
++    
++    controlLayout->addLayout( controlLayout0 );
++    controlLayout->setAlignment( controlLayout1, Qt::AlignHCenter );
+     controlLayout->addLayout( controlLayout1 );
+     controlLayout->addLayout( controlLayout2 );
+ }
+@@ -685,6 +839,30 @@
+     emit advancedControlsToggled( b_advancedVisible );
+ }
+ 
++void ControlsWidget::toogleAdvertisementPanel(bool isAd)
++{
++    if( !advertControls ) return;
++    if(b_advertisementVisible != isAd) {
++        advertControls->setVisible( isAd );
++        mainControls->setVisible( !isAd );
++        
++        if( b_advancedVisible )
++            advControls->setVisible( !isAd );
++        
++        b_advertisementVisible = isAd;
++    }
++}
++
++void ControlsWidget::hideMainControls()
++{
++    mainControls->setVisible(false);
++}
++
++void ControlsWidget::showMainControls()
++{
++    mainControls->setVisible(true);
++}
++
+ AdvControlsWidget::AdvControlsWidget( intf_thread_t *_p_i, QWidget *_parent ) :
+                                      AbstractController( _p_i, _parent )
+ {
+@@ -702,6 +880,45 @@
+     parseAndCreate( line, controlLayout );
+ }
+ 
++AdvertisementControllerWidget::AdvertisementControllerWidget( intf_thread_t *_p_i, QWidget *_parent ) :
++                                     AbstractController( _p_i, _parent )
++{
++    RTL_UNAFFECTED_WIDGET
++    controlLayout = new QHBoxLayout( this );
++    controlLayout->setMargin( 0 );
++    controlLayout->setSpacing( 0 );
++    
++    QString line = getSettings()->value( "MainWindow/AdvertToolbar", ADVERT_TB_DEFAULT ).toString();
++    parseAndCreate( line, controlLayout );
++}
++
++MainControllerWidget::MainControllerWidget( intf_thread_t *_p_i, QWidget *_parent ) :
++                                     AbstractController( _p_i, _parent )
++{
++    RTL_UNAFFECTED_WIDGET
++    controlLayout = new QHBoxLayout( this );
++    controlLayout->setMargin( 0 );
++    controlLayout->setSpacing( 0 );
++    
++    QString line = getSettings()->value( "MainWindow/MainToolbar2", MAIN_TB2_DEFAULT ).toString();
++    parseAndCreate( line, controlLayout );
++
++    grip = new QSizeGrip( this );
++    controlLayout->addWidget( grip, 0, Qt::AlignBottom|Qt::AlignRight );
++}
++
++MainFSControllerWidget::MainFSControllerWidget( intf_thread_t *_p_i, QWidget *_parent ) :
++                                     AbstractController( _p_i, _parent )
++{
++    RTL_UNAFFECTED_WIDGET
++    controlLayout = new QHBoxLayout( this );
++    controlLayout->setMargin( 0 );
++    controlLayout->setSpacing( 0 );
++    
++    QString line = getSettings()->value( "MainWindow/FSCtoolbar", FSC_TB_DEFAULT ).toString();
++    parseAndCreate( line, controlLayout );
++}
++
+ InputControlsWidget::InputControlsWidget( intf_thread_t *_p_i, QWidget *_parent ) :
+                                      AbstractController( _p_i, _parent )
+ {
+@@ -735,6 +952,11 @@
+     b_fullscreen        = false;
+     i_hide_timeout      = 1;
+     i_screennumber      = -1;
++    b_advertisementVisible = false;
++    
++    b_can_hide = true;
++    cachedPos = QPoint(-1,-1);
++    i_context_y = -1;
+ 
+     vout.clear();
+ 
+@@ -753,11 +975,25 @@
+     InputControlsWidget *inputC = new InputControlsWidget( p_intf, this );
+     controlLayout2->addWidget( inputC );
+ 
++    QHBoxLayout *controlLayout0 = new QHBoxLayout;
++    controlLayout0->setSpacing( 0 ); controlLayout0->setMargin( 0 );
++
++    QString line0 = getSettings()->value( "MainWindow/FSCAdvertToolbar", ADVERT_PANEL_DEFAULT )
++                                        .toString();
++    parseAndCreate( line0, controlLayout0 );
++
++    //controlLayout = new QHBoxLayout;
++    //QString line = getSettings()->value( "MainWindow/FSCtoolbar", FSC_TB_DEFAULT ).toString();
++    //parseAndCreate( line, controlLayout );
++    
+     controlLayout = new QHBoxLayout;
+-    QString line = getSettings()->value( "MainWindow/FSCtoolbar", FSC_TB_DEFAULT ).toString();
++    QString line = getSettings()->value( "MainWindow/FSCtoolbar2", FSC_PANEL_DEFAULT ).toString();
+     parseAndCreate( line, controlLayout );
++    
++    controlLayout2->addLayout( controlLayout0 );
++    controlLayout2->setAlignment( controlLayout0, Qt::AlignHCenter );
+     controlLayout2->addLayout( controlLayout );
+-
++    
+     /* hiding timer */
+     p_hideTimer = new QTimer( this );
+     p_hideTimer->setSingleShot( true );
+@@ -775,6 +1011,8 @@
+     DCONNECT( THEMIM->getIM(), voutListChanged( vout_thread_t **, int ),
+               this, setVoutList( vout_thread_t **, int ) );
+ 
++    if( !b_advertisementVisible && advertControls ) advertControls->hide();
++
+     /* First Move */
+     previousPosition = getSettings()->value( "FullScreen/pos" ).toPoint();
+     screenRes = getSettings()->value( "FullScreen/screen" ).toRect();
+@@ -792,6 +1030,16 @@
+     vlc_mutex_destroy( &lock );
+ }
+ 
++void FullscreenControllerWidget::toogleAdvertisementPanel(bool isAd)
++{
++    if( !advertControls ) return;
++    if(b_advertisementVisible != isAd) {
++        advertControls->setVisible( isAd );
++        mainFSControls->setVisible( !isAd );
++        b_advertisementVisible = isAd;
++    }
++}
++
+ void FullscreenControllerWidget::restoreFSC()
+ {
+     if( !isWideFSC )
+@@ -835,10 +1083,38 @@
+ 
+     /* screen has changed, calculate new position */
+     QPoint pos = QPoint( currentRes.x() + (currentRes.width() / 2) - (width() / 2),
+-            currentRes.y() + currentRes.height() - height());
++            i_context_y != -1 ? i_context_y - height() : currentRes.y() + currentRes.height() - height());
+     move( pos );
+ }
+ 
++void FullscreenControllerWidget::placeFsControls(int y, int height)
++{
++    if(y == -1 && height == -1) {
++        if(cachedPos.x() != -1 && cachedPos.y() != -1) {
++            move(cachedPos);
++            previousPosition = cachedPos;
++            cachedPos = QPoint(-1,-1);
++            i_context_y = -1;
++        }
++    }
++    else if(((this->y() > y && this->y() < y + height) 
++            || (this->y() + this->height() > y && this->y()+ this->height() < y + height)) && b_can_hide) {
++        cachedPos = pos();
++        int y_pos = y - this->height() < 0 ? 0 : y - this->height();
++        move(this->x(), y_pos);
++        previousPosition = QPoint(this->x(), y_pos);
++    }
++    /*if (this->y() + this->height() > y && b_can_hide) {
++        cachedPos = pos();
++        int y_pos = y - this->height() < 0 ? 0 : y - this->height();
++        move(this->x(), y_pos);
++        previousPosition = QPoint(this->x(), y_pos);
++    }*/
++    else {
++        i_context_y = y;
++    }
++}
++
+ /**
+  * Show fullscreen controller
+  */
+@@ -879,26 +1155,28 @@
+ void FullscreenControllerWidget::slowHideFSC()
+ {
+ #if HAVE_TRANSPARENCY
+-    if( b_slow_hide_begin )
+-    {
+-        b_slow_hide_begin = false;
++    if(b_can_hide) {
++        if( b_slow_hide_begin )
++        {
++            b_slow_hide_begin = false;
+ 
+-        p_slowHideTimer->stop();
+-        /* the last part of time divided to 100 pieces */
+-        p_slowHideTimer->start( (int)( i_slow_hide_timeout / 2 / ( windowOpacity() * 100 ) ) );
++            p_slowHideTimer->stop();
++            /* the last part of time divided to 100 pieces */
++            p_slowHideTimer->start( (int)( i_slow_hide_timeout / 2 / ( windowOpacity() * 100 ) ) );
+ 
+-    }
+-    else
+-    {
+-         if ( windowOpacity() > 0.0 )
+-         {
+-             /* we should use 0.01 because of 100 pieces ^^^
+-                but than it cannt be done in time */
+-             setWindowOpacity( windowOpacity() - 0.02 );
+-         }
++        }
++        else
++        {
++             if ( windowOpacity() > 0.0 )
++             {
++                 /* we should use 0.01 because of 100 pieces ^^^
++                    but than it cannt be done in time */
++                 setWindowOpacity( windowOpacity() - 0.02 );
++             }
+ 
+-         if ( windowOpacity() <= 0.0 )
+-             p_slowHideTimer->stop();
++             if ( windowOpacity() <= 0.0 )
++                 p_slowHideTimer->stop();
++        }
+     }
+ #endif
+ }
+@@ -970,7 +1248,7 @@
+             break;
+         /* Hide */
+         case IMEvent::FullscreenControlHide:
+-            hideFSC();
++            hideFSC(true);
+             break;
+         default:
+             break;

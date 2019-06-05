@@ -1,0 +1,174 @@
+--- vlc-2.1.4.orig/modules/gui/qt4/Modules.am	2014-02-21 15:59:56.000000000 +0200
++++ vlc-2.1.4/modules/gui/qt4/Modules.am	2014-08-05 14:31:38.013235138 +0300
+@@ -25,6 +25,19 @@
+ 		adapters/seekpoints.moc.cpp \
+ 		adapters/chromaprint.moc.cpp \
+ 		adapters/variables.moc.cpp \
++		acewebbrowser/browser.moc.cpp \
++		acewebbrowser/browsermanager.moc.cpp \
++		acewebbrowser/cookiejar.moc.cpp \
++		acewebbrowser/cookiemanager.moc.cpp \
++		acewebbrowser/dummy.moc.cpp \
++		acewebbrowser/fake.moc.cpp \
++		acewebbrowser/javascriptobject.moc.cpp \
++		acewebbrowser/loaditem.moc.cpp \
++		acewebbrowser/networkmanager.moc.cpp \
++		acewebbrowser/proxyreply.moc.cpp \
++		acewebbrowser/proxyreply2.moc.cpp \
++		acewebbrowser/webpage.moc.cpp \
++		acewebbrowser/webview.moc.cpp \
+ 		dialogs/playlist.moc.cpp \
+ 		dialogs/bookmarks.moc.cpp \
+ 		dialogs/mediainfo.moc.cpp \
+@@ -47,6 +60,8 @@
+ 		dialogs/firstrun.moc.cpp \
+ 		dialogs/extensions.moc.cpp \
+ 		dialogs/fingerprintdialog.moc.cpp \
++		dialogs/userinfo.moc.cpp \
++		dialogs/mininginfo.moc.cpp \
+ 		components/extended_panels.moc.cpp \
+ 		components/info_panels.moc.cpp \
+ 		components/info_widgets.moc.cpp \
+@@ -86,6 +101,7 @@
+ 		ui/open_disk.h \
+ 		ui/open_net.h \
+ 		ui/open_capture.h \
++		ui/open_content_id.h \
+ 		ui/open.h \
+ 		ui/vlm.h \
+ 		ui/podcast_configuration.h \
+@@ -104,6 +120,12 @@
+ 		dialogs/ml_configuration.moc.cpp \
+ 		components/playlist/ml_model.moc.cpp \
+ 		ui/sout.h
++        
++if HAVE_WIN32
++nodist_SOURCES_qt4 += acewebbrowser/iebrowser2.moc.cpp \
++		acewebbrowser/iejsobject.moc.cpp \
++		acewebbrowser/iewebview.moc.cpp
++endif
+ 
+ DEPS_res = \
+ 	pixmaps/arrow_down_dark.png \
+@@ -209,6 +231,7 @@
+ 	pixmaps/toolbar/volume-muted.png \
+ 	pixmaps/toolbar/volume-slider-inside.png \
+ 	pixmaps/toolbar/volume-slider-outside.png \
++	pixmaps/types/acestream.png \
+ 	pixmaps/types/capture-card_16px.png \
+ 	pixmaps/types/cdda_16px.png \
+ 	pixmaps/types/disc_16px.png \
+@@ -237,7 +260,20 @@
+ 	pixmaps/update.png \
+ 	pixmaps/valid.png \
+ 	pixmaps/search_clear.png \
+-	pixmaps/lock.png
++	pixmaps/lock.png \
++	pixmaps/save.png \
++	pixmaps/toolbar/live.png \
++	pixmaps/toolbar/live_live.png \
++	pixmaps/toolbar/live_nolive.png \
++	res/loader.html \
++	res/back.png \
++	res/back_h.png \
++	res/back_disabled.png \
++	res/next.png \
++	res/next_h.png \
++	res/next_disabled.png \
++	res/close.png \
++	res/close_h.png
+ 
+ BUILT_SOURCES += $(nodist_SOURCES_qt4)
+ 
+@@ -287,6 +323,19 @@
+ 		adapters/seekpoints.cpp \
+ 		adapters/chromaprint.cpp \
+ 		adapters/variables.cpp \
++		acewebbrowser/browser.cpp \
++		acewebbrowser/browsermanager.cpp \
++		acewebbrowser/cookiejar.cpp \
++		acewebbrowser/cookiemanager.cpp \
++		acewebbrowser/dummy.cpp \
++		acewebbrowser/fake.cpp \
++		acewebbrowser/javascriptobject.cpp \
++		acewebbrowser/loaditem.cpp \
++		acewebbrowser/networkmanager.cpp \
++		acewebbrowser/proxyreply.cpp \
++		acewebbrowser/proxyreply2.cpp \
++		acewebbrowser/webpage.cpp \
++		acewebbrowser/webview.cpp \
+ 		dialogs/playlist.cpp \
+ 		dialogs/bookmarks.cpp \
+ 		dialogs/preferences.cpp \
+@@ -310,6 +359,8 @@
+ 		dialogs/podcast_configuration.cpp \
+ 		dialogs/extensions.cpp \
+ 		dialogs/fingerprintdialog.cpp \
++		dialogs/userinfo.cpp \
++		dialogs/mininginfo.cpp \
+ 		components/extended_panels.cpp \
+ 		components/info_panels.cpp \
+ 		components/info_widgets.cpp \
+@@ -350,7 +401,10 @@
+ 		styles/seekstyle.cpp
+ 
+ if HAVE_WIN32
+-SOURCES_qt4 += main_interface_win32.cpp
++SOURCES_qt4 += main_interface_win32.cpp \
++		acewebbrowser/iebrowser2.cpp \
++		acewebbrowser/iejsobject.cpp \
++		acewebbrowser/iewebview.cpp
+ endif
+ 
+ noinst_HEADERS = \
+@@ -365,6 +419,21 @@
+ 	adapters/seekpoints.hpp \
+ 	adapters/chromaprint.hpp \
+ 	adapters/variables.hpp \
++	acewebbrowser/defines.hpp \
++	acewebbrowser/browser.hpp \
++	acewebbrowser/browsermanager.hpp \
++	acewebbrowser/cookiejar.hpp \
++	acewebbrowser/cookiemanager.hpp \
++	acewebbrowser/dummy.hpp \
++	acewebbrowser/fake.hpp \
++	acewebbrowser/javascriptobject.hpp \
++	acewebbrowser/loaditem.hpp \
++	acewebbrowser/networkmanager.hpp \
++	acewebbrowser/proxyreply.hpp \
++	acewebbrowser/proxyreply2.hpp \
++	acewebbrowser/webpage.hpp \
++	acewebbrowser/webview.hpp \
++	acewebbrowser/exceptions.hpp \
+ 	dialogs/playlist.hpp \
+ 	dialogs/bookmarks.hpp \
+ 	dialogs/mediainfo.hpp \
+@@ -388,6 +457,8 @@
+ 	dialogs/podcast_configuration.hpp \
+ 	dialogs/extensions.hpp \
+ 	dialogs/fingerprintdialog.hpp \
++	dialogs/userinfo.hpp \
++	dialogs/mininginfo.hpp \
+ 	components/extended_panels.hpp \
+ 	components/info_panels.hpp \
+ 	components/info_widgets.hpp \
+@@ -432,6 +503,11 @@
+ 	util/buttons/BrowseButton.hpp \
+ 	styles/seekstyle.hpp
+ 
++if HAVE_WIN32
++noinst_HEADERS += acewebbrowser/iebrowser2.hpp \
++	acewebbrowser/iewebview.hpp \
++	acewebbrowser/iejsobject.hpp
++endif
+ 
+ EXTRA_DIST += \
+ 	vlc.qrc \
+@@ -441,6 +517,7 @@
+ 	ui/open_disk.ui \
+ 	ui/open_net.ui \
+ 	ui/open_capture.ui \
++	ui/open_content_id.ui \
+ 	ui/open.ui \
+ 	ui/podcast_configuration.ui \
+ 	ui/profiles.ui \

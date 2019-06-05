@@ -1,0 +1,10 @@
+--- a/modules/gui/qt4/dialogs_provider.cpp	2019-06-05 03:56:56.328668117 +0300
++++ b/modules/gui/qt4/dialogs_provider.cpp.new	2019-06-05 03:54:16.237248779 +0300
+@@ -469,6 +469,7 @@
+ void DialogsProvider::addFromSimple( bool pl, bool go)
+ {
+     QStringList files = DialogsProvider::showSimpleOpen();
++    int mode = go ? PLAYLIST_GO : PLAYLIST_PREPARSE;
+ 
+     bool first = go;
+     files.sort();

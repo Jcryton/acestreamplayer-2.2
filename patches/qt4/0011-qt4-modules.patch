@@ -1,0 +1,55 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/interface_widgets.hpp	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/components/interface_widgets.hpp	2014-03-04 17:57:27.769931531 +0200
+@@ -50,6 +50,22 @@
+ class QHBoxLayout;
+ class QMenu;
+ class QSlider;
++class QStackedLayout;
++
++/******************** Browser holder ****************/
++class BrowserHolder : public QWidget
++{
++    Q_OBJECT
++public:
++    BrowserHolder(QWidget *parent) : QWidget(parent) {}
++protected:
++    void resizeEvent(QResizeEvent * event) {
++        emit notifySizeChanged(event->size());
++        event->accept();
++    }
++signals:
++    void notifySizeChanged(QSize);
++};
+ 
+ /******************** Video Widget ****************/
+ class VideoWidget : public QFrame
+@@ -69,16 +85,28 @@
+         return NULL;
+     }
+ 
++    void closeEvent(QCloseEvent *event);
++    void keyPressEvent(QKeyEvent *event);
++    void wheelEvent(QWheelEvent *event);
++    void mouseDoubleClickEvent(QMouseEvent *event);
++    void resizeEvent(QResizeEvent * event);
++
+ private:
+     intf_thread_t *p_intf;
+ 
+     QWidget *stable;
+-    QLayout *layout;
++    QWidget *background;
++    QStackedLayout *layout;
++    QLabel *backgroundLabel;
++
+ signals:
+     void sizeChanged( int, int );
++    void closeBackgroundScreen();
++    void notifySizeChanged(QSize);
+ 
+ public slots:
+     void SetSizing( unsigned int, unsigned int );
++    void backgroundPrintMessage( QString );
+ };
+ 
+ /******************** Background Widget ****************/

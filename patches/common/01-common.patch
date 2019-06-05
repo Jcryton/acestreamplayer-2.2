@@ -1,0 +1,168 @@
+diff -ru vlc-2.1.5.orig/include/vlc_common.h vlc-2.1.5/include/vlc_common.h
+--- vlc-2.1.5.orig/include/vlc_common.h	2014-02-27 17:17:45.000000000 +0200
++++ vlc-2.1.5/include/vlc_common.h	2014-10-28 13:05:39.504140703 +0200
+@@ -213,6 +213,7 @@
+     PLAYLIST_PAUSE,     /**< No arg                             res=can fail*/
+     PLAYLIST_STOP,      /**< No arg                             res=can fail*/
+     PLAYLIST_SKIP,      /**< arg1=int,                          res=can fail*/
++    PLAYLIST_STOP_FROM_ENGINE,
+ } playlist_command_t;
+ 
+ 
+@@ -245,6 +246,7 @@
+ typedef struct info_t info_t;
+ typedef struct info_category_t info_category_t;
+ typedef struct input_attachment_t input_attachment_t;
++typedef struct p2p_data_t p2p_data_t;
+ 
+ /* Format */
+ typedef struct audio_format_t audio_format_t;
+@@ -339,6 +341,17 @@
+ /* Update */
+ typedef struct update_t update_t;
+ 
++/* AceStream API client */
++typedef struct p2p_object_t p2p_object_t;
++typedef struct p2p_object_sys_t p2p_object_sys_t;
++typedef struct p2p_load_item_t p2p_load_item_t;
++typedef struct p2p_play_item_t p2p_play_item_t;
++typedef struct p2p_cansave_item_t p2p_cansave_item_t;
++typedef struct p2p_showdialog_item_t p2p_showdialog_item_t;
++typedef struct p2p_ad_params_t p2p_ad_params_t;
++typedef struct p2p_load_url_item_t p2p_load_url_item_t;
++typedef struct p2p_showinfowindow_item_t p2p_showinfowindow_item_t;
++
+ /**
+  * VLC value structure
+  */
+@@ -353,7 +366,16 @@
+     vlc_list_t *    p_list;
+     mtime_t         i_time;
+     struct { int32_t x; int32_t y; } coords;
+-
++    struct { 
++        bool is_live;
++        int32_t live_first;
++        int32_t live_last;
++        int32_t pos;
++        int32_t first_ts;
++        int32_t last_ts;
++        int32_t last;
++        int32_t buffer_pieces;
++    } p2p_livepos;
+ } vlc_value_t;
+ 
+ /**
+diff -ru vlc-2.1.2.orig/src/android/dirs.c vlc-2.1.2/src/android/dirs.c
+--- vlc-2.1.2.orig/src/android/dirs.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/android/dirs.c	2014-01-16 16:54:46.803340346 +0200
+@@ -35,9 +35,9 @@
+     switch (type)
+     {
+         case VLC_DATA_DIR:
+-            return strdup("/sdcard/Android/data/org.videolan.vlc");
++            return strdup("/sdcard/Android/data/org.acestream.player");
+         case VLC_CACHE_DIR:
+-            return strdup("/sdcard/Android/data/org.videolan.vlc/cache");
++            return strdup("/sdcard/Android/data/org.acestream.player/cache");
+ 
+         case VLC_HOME_DIR:
+         case VLC_CONFIG_DIR:
+diff -ru vlc-2.1.2.orig/src/posix/dirs.c vlc-2.1.2/src/posix/dirs.c
+--- vlc-2.1.2.orig/src/posix/dirs.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/posix/dirs.c	2014-01-16 16:59:08.220564272 +0200
+@@ -27,6 +27,8 @@
+ 
+ #include <vlc_common.h>
+ 
++#include <p2p_object.h>
++
+ #include "../libvlc.h"
+ #include "config/configuration.h"
+ 
+@@ -91,14 +93,14 @@
+     const char *home = getenv (var);
+     if (home != NULL)
+     {
+-        if (asprintf (&psz_dir, "%s/vlc", home) == -1)
++        if (asprintf (&psz_dir, "%s/%s", home, P2P_CONFIG_DIR) == -1)
+             psz_dir = NULL;
+         return psz_dir;
+     }
+ 
+     char *psz_home = config_GetHomeDir ();
+     if( psz_home == NULL
+-     || asprintf( &psz_dir, "%s/%s/vlc", psz_home, xdg_default ) == -1 )
++     || asprintf( &psz_dir, "%s/%s/%s", psz_home, xdg_default, P2P_CONFIG_DIR ) == -1 )
+         psz_dir = NULL;
+     free (psz_home);
+     return psz_dir;
+diff -ru vlc-2.1.2.orig/src/win32/dirs.c vlc-2.1.2/src/win32/dirs.c
+--- vlc-2.1.2.orig/src/win32/dirs.c	2013-09-12 18:18:34.000000000 +0300
++++ vlc-2.1.2/src/win32/dirs.c	2014-01-16 16:57:28.734333147 +0200
+@@ -27,6 +27,7 @@
+ 
+ #define UNICODE
+ #include <vlc_common.h>
++#include <p2p_object.h>
+ 
+ #include <w32api.h>
+ #include <direct.h>
+@@ -87,7 +88,7 @@
+     char *psz_parent = config_GetShellDir (CSIDL_APPDATA);
+ 
+     if (psz_parent == NULL
+-     ||  asprintf (&psz_dir, "%s\\vlc", psz_parent) == -1)
++     ||  asprintf (&psz_dir, "%s\\%s", psz_parent, P2P_CONFIG_DIR) == -1)
+         psz_dir = NULL;
+     free (psz_parent);
+     return psz_dir;
+diff -ru vlc-2.1.2.orig/src/config/configuration.h vlc-2.1.2/src/config/configuration.h
+--- vlc-2.1.2.orig/src/config/configuration.h	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/config/configuration.h	2014-01-16 16:54:16.186656636 +0200
+@@ -56,7 +56,7 @@
+ bool config_IsSafe (const char *);
+ 
+ /* The configuration file */
+-#define CONFIG_FILE                     "vlcrc"
++#define CONFIG_FILE                     "conf.2.1.x"
+ 
+ # ifdef __cplusplus
+ }
+diff -ru vlc-2.1.2.orig/include/vlc_keys.h vlc-2.1.2/include/vlc_keys.h
+--- vlc-2.1.2.orig/include/vlc_keys.h	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/include/vlc_keys.h	2014-03-04 16:40:18.533830546 +0200
+@@ -225,6 +225,8 @@
+ } vlc_action_t;
+ 
+ VLC_API vlc_action_t vlc_GetActionId(const char *psz_key) VLC_USED;
++VLC_API vlc_action_t vlc_GetActionByKey(vlc_object_t *obj, uint32_t i_key);
++#define vlc_GetActionByKey(a,b) vlc_GetActionByKey(VLC_OBJECT(a),b)
+ 
+ struct hotkey
+ {
+diff -ru vlc-2.1.2.orig/src/config/keys.c vlc-2.1.2/src/config/keys.c
+--- vlc-2.1.2.orig/src/config/keys.c	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/src/config/keys.c	2014-03-04 16:41:27.229832148 +0200
+@@ -573,3 +573,21 @@
+     act = bsearch(name, actions, ACTIONS_COUNT, sizeof(*act), actcmp);
+     return (act != NULL) ? act->value : ACTIONID_NONE;
+ }
++
++#undef vlc_GetActionByKey
++vlc_action_t vlc_GetActionByKey(vlc_object_t *obj, uint32_t i_key)
++{
++    libvlc_priv_t *priv = libvlc_priv(obj->p_libvlc);
++    
++    if (unlikely(priv == NULL) || unlikely(priv->actions == NULL))
++        return ACTIONID_NONE;
++
++    void *const *map = priv->actions;
++    const struct mapping **pent;
++    pent = tfind (&i_key, map, keycmp);
++    if (pent == NULL) {
++        return ACTIONID_NONE;
++    }
++
++    return (*pent)->action;
++}

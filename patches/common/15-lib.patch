@@ -1,0 +1,86 @@
+diff -ru vlc-2.1.4.orig/lib/libvlc.sym vlc-2.1.4/lib/libvlc.sym
+--- vlc-2.1.4.orig/lib/libvlc.sym	2013-09-12 18:18:33.000000000 +0300
++++ vlc-2.1.4/lib/libvlc.sym	2014-04-11 13:48:57.423602881 +0300
+@@ -255,3 +255,82 @@
+ libvlc_audio_filter_list_get
+ libvlc_video_filter_list_get
+ libvlc_module_description_list_release
++libvlc_acestream_object_new
++libvlc_acestream_object_release
++libvlc_acestream_object_retain
++libvlc_acestream_object_event_manager
++libvlc_acestream_object_set_media_list_player
++libvlc_acestream_object_load
++libvlc_media_is_acestream_media
++libvlc_media_get_acestream_url
++libvlc_media_get_acestream_infohash
++libvlc_media_get_acestream_checksum
++libvlc_media_get_acestream_quality_value_by_index
++libvlc_media_get_acestream_current_quality
++libvlc_media_set_acestream_current_quality
++libvlc_media_get_acestream_qualities_size
++libvlc_media_get_acestream_group_id
++libvlc_media_get_acestream_group_size
++libvlc_media_get_acestream_index
++libvlc_media_get_acestream_developer
++libvlc_media_get_acestream_affiliate
++libvlc_media_get_acestream_zone
++libvlc_media_get_acestream_is_active
++libvlc_media_get_acestream_is_ad
++libvlc_media_get_acestream_is_interruptable_ad
++libvlc_media_get_acestream_is_live
++libvlc_media_get_acestream_save_type
++libvlc_media_set_acestream_active
++libvlc_media_get_acestream_url_type
++libvlc_acestream_object_start
++libvlc_acestream_object_stop
++libvlc_acestream_object_get_content_id
++libvlc_acestream_object_get_content_id_by_index
++libvlc_acestream_object_save
++libvlc_acestream_object_live_seek
++libvlc_acestream_object_user_data
++libvlc_acestream_object_get_engine_version
++libvlc_acestream_object_skip
++libvlc_tr
++libvlc_audio_set_visualization
++libvlc_audio_get_visualization
++libvlc_video_set_deinterlace_mode
++libvlc_video_set_deinterlace_status
++libvlc_video_get_deinterlace_mode
++libvlc_video_get_deinterlace_status
++libvlc_media_list_item_move
++libvlc_media_get_acestream_title
++libvlc_media_get_acestream_filename
++libvlc_set_video_bgcolor
++libvlc_set_video_fullscreen
++libvlc_acestream_object_activate_video_click
++libvlc_emit_hotkey
++libvlc_media_player_time_jump
++libvlc_set_next_rate
++libvlc_set_next_fine_rate
++libvlc_show_osd_position
++libvlc_video_take_simple_snapshot
++libvlc_media_player_record
++libvlc_video_set_next_crop
++libvlc_video_set_next_aspect_ratio
++libvlc_video_change_crop
++libvlc_change_audio_delay
++libvlc_change_spu_delay
++libvlc_fs_controls_min_view
++libvlc_set_fs_controls_min_view
++libvlc_media_list_player_item_move
++libvlc_fscontrols_enabled
++libvlc_play_on_click_enabled
++libvlc_media_list_player_set_position_shift
++libvlc_media_list_player_get_position_shift
++libvlc_set_flash_enable
++libvlc_acestream_object_register_loadurl_statistics
++libvlc_acestream_object_request_loadurl
++libvlc_acestream_object_ready
++libvlc_acestream_object_register_loadurl_event
++libvlc_acestream_object_get_engine_http_host
++libvlc_acestream_object_get_engine_http_port
++libvlc_acestream_object_request_loadurl_from_group
++libvlc_acestream_object_user_data_mining
++libvlc_acestream_object_restart_last
++libvlc_acestream_object_infowindow_response

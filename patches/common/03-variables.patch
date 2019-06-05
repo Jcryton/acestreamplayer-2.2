@@ -1,0 +1,36 @@
+diff -ru vlc-2.1.2.orig/include/vlc_variables.h vlc-2.1.2/include/vlc_variables.h
+--- vlc-2.1.2.orig/include/vlc_variables.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_variables.h	2014-01-16 13:04:04.036513051 +0200
+@@ -60,6 +60,7 @@
+ #define VLC_VAR_TIME      0x0060
+ #define VLC_VAR_ADDRESS   0x0070
+ #define VLC_VAR_COORDS    0x00A0
++#define VLC_VAR_P2P_LIVEPOS 0x00B0
+ /**@}*/
+ 
+ /** \defgroup var_flags Additive flags
+diff -ru vlc-2.1.2.orig/src/misc/variables.c vlc-2.1.2/src/misc/variables.c
+--- vlc-2.1.2.orig/src/misc/variables.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/misc/variables.c	2014-01-16 13:04:48.678179985 +0200
+@@ -124,7 +124,8 @@
+ int_ops    = { CmpInt,     DupDummy,  FreeDummy,  },
+ string_ops = { CmpString,  DupString, FreeString, },
+ time_ops   = { CmpTime,    DupDummy,  FreeDummy,  },
+-coords_ops = { NULL,       DupDummy,  FreeDummy,  };
++coords_ops = { NULL,       DupDummy,  FreeDummy,  },
++livepos_ops = { NULL,      DupDummy,  FreeDummy,  };
+ 
+ /*****************************************************************************
+  * Local prototypes
+@@ -264,6 +265,11 @@
+             p_var->ops = &addr_ops;
+             p_var->val.p_address = NULL;
+             break;
++        case VLC_VAR_P2P_LIVEPOS:
++            p_var->ops = &livepos_ops;
++            p_var->val.p2p_livepos.is_live = false;
++            p_var->val.p2p_livepos.live_first = p_var->val.p2p_livepos.live_last = p_var->val.p2p_livepos.pos = p_var->val.p2p_livepos.first_ts = p_var->val.p2p_livepos.last_ts = p_var->val.p2p_livepos.last = p_var->val.p2p_livepos.buffer_pieces = 0;
++            break;
+         case VLC_VAR_VOID:
+             p_var->ops = &void_ops;
+             break;

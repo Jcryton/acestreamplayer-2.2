@@ -1,0 +1,87 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/simple_preferences.cpp	2013-12-03 11:12:34.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/components/simple_preferences.cpp	2014-01-20 10:33:54.717479015 +0200
+@@ -703,8 +703,11 @@
+ 
+             HKEY h_key;
+             char *langReg = NULL;
+-            if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\VideoLAN\\VLC\\"), 0, KEY_READ, &h_key )
+-                    == ERROR_SUCCESS )
++#ifdef TORRENT_STREAM
++            if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\TorrentStream\\"), 0, KEY_READ, &h_key ) == ERROR_SUCCESS )
++#else
++            if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\AceStream\\"), 0, KEY_READ, &h_key ) == ERROR_SUCCESS )
++#endif
+             {
+                 TCHAR szData[256];
+                 DWORD len = 256;
+@@ -724,7 +727,8 @@
+             ui.skinsLabel->setFont( italicFont );
+ 
+ #ifdef _WIN32
+-            BUTTONACT( ui.assoButton, assoDialog() );
++            //BUTTONACT( ui.assoButton, assoDialog() );
++            ui.osGroupBox->hide();
+ #else
+             ui.osGroupBox->hide();
+ #endif
+@@ -733,7 +737,7 @@
+ #else
+             ui.sqlMLbtn->hide();
+ #endif
+-
++#ifdef BUILD_SKINS
+             /* interface */
+             char *psz_intf = config_GetPsz( p_intf, "intf" );
+             if( psz_intf )
+@@ -745,7 +749,11 @@
+                 ui.qt->setChecked( true );
+             }
+             free( psz_intf );
+-
++#else
++            ui.qt->hide();
++            ui.skins->hide();
++            ui.line->hide();
++#endif
+             optionWidgets["skinRB"] = ui.skins;
+             optionWidgets["qtRB"] = ui.qt;
+ #if !defined( _WIN32)
+@@ -810,6 +818,8 @@
+             ui.updatesBox->hide();
+             ui.updatesDays->hide();
+ #endif
++            CONFIG_BOOL( "fs-controller-enable", pluginFSController );
++            CONFIG_BOOL( "play-on-click", playOnClick );
+             /* ONE INSTANCE options */
+ #if !defined( _WIN32 ) && !defined(__APPLE__) && !defined(__OS2__)
+             if( !module_exists( "dbus" ) )
+@@ -1166,9 +1176,13 @@
+ 
+ void SPrefsPanel::cleanLang() {
+     QVLCRegistry *qvReg = new QVLCRegistry( HKEY_CURRENT_USER );
+-    qvReg->DeleteValue( "Software\\VideoLAN\\VLC\\", "Lang" );
+-    qvReg->DeleteKey( "Software\\VideoLAN\\", "VLC" );
+-    qvReg->DeleteKey( "Software\\", "VideoLAN" );
++#ifdef TORRENT_STREAM
++    qvReg->DeleteValue( "Software\\TorrentStream\\", "Lang" );
++    //qvReg->DeleteKey( "Software\\VideoLAN\\", "VLC" );
++    //qvReg->DeleteKey( "Software\\", "VideoLAN" );
++#else
++    qvReg->DeleteValue( "Software\\AceStream\\", "Lang" );
++#endif
+     delete qvReg;
+ }
+ 
+@@ -1181,7 +1195,11 @@
+     else
+     {
+         QVLCRegistry *qvReg = new QVLCRegistry( HKEY_CURRENT_USER );
+-        qvReg->WriteRegistryString( "Software\\VideoLAN\\VLC\\", "Lang", lang );
++#ifdef TORRENT_STREAM
++        qvReg->WriteRegistryString( "Software\\TorrentStream\\", "Lang", lang );
++#else
++        qvReg->WriteRegistryString( "Software\\AceStream\\", "Lang", lang );
++#endif
+     }
+ }
+ 

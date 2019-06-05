@@ -1,0 +1,100 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/dialogs_provider.cpp	2013-07-19 13:47:45.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/dialogs_provider.cpp	2014-01-17 16:15:42.358990720 +0200
+@@ -56,6 +56,7 @@
+ #include "dialogs/external.hpp"
+ #include "dialogs/epg.hpp"
+ #include "dialogs/errors.hpp"
++#include "dialogs/userinfo.hpp"
+ 
+ #include <QEvent>
+ #include <QApplication>
+@@ -83,6 +84,8 @@
+     SDMapper = new QSignalMapper();
+     CONNECT( SDMapper, mapped (QString), this, SDMenuAction( QString ) );
+ 
++    CONNECT( this, saveP2P( intf_dialog_args_t* ), this, openFileGenericDialog( intf_dialog_args_t * ) );
++
+     new DialogHandler (p_intf, this );
+ }
+ 
+@@ -148,6 +151,8 @@
+            bookmarksDialog(); break;
+         case INTF_DIALOG_EXTENDED:
+            extendedDialog(); break;
++        case INTF_DIALOG_USERDATA:
++           userDataDialog(); break;
+ #ifdef ENABLE_VLM
+         case INTF_DIALOG_VLM:
+            vlmDialog(); break;
+@@ -203,6 +208,11 @@
+         extDialog->hide();
+ }
+ 
++void DialogsProvider::userDataDialog()
++{
++    UserInfoWidget::ShowUserInfoDialog( NULL, p_intf );
++}
++
+ void DialogsProvider::synchroDialog()
+ {
+     ExtendedDialog *extDialog = ExtendedDialog::getInstance(p_intf );
+@@ -258,6 +268,11 @@
+     MediaInfoDialog::getInstance( p_intf )->showTab( MediaInfoDialog::INFO_PANEL );
+ }
+ 
++void DialogsProvider::mediaP2PInfoDialog()
++{
++    MediaInfoDialog::getInstance( p_intf )->showTab( MediaInfoDialog::P2P_PANEL );
++}
++
+ void DialogsProvider::bookmarksDialog()
+ {
+     BookmarksDialog::getInstance( p_intf )->toggleVisible();
+@@ -310,8 +325,9 @@
+     /* Save */
+     if( p_arg->b_save )
+     {
++        QString filepath = p_arg->psz_default_path ? QString(p_arg->psz_default_path) : p_intf->p_sys->filepath;
+         QString file = QFileDialog::getSaveFileName( NULL, p_arg->psz_title,
+-                                        p_intf->p_sys->filepath, extensions );
++                                        filepath, extensions );
+         if( !file.isEmpty() )
+         {
+             p_arg->i_results = 1;
+@@ -348,7 +364,10 @@
+             free( p_arg->psz_results[i] );
+         free( p_arg->psz_results );
+     }
+-    free( p_arg->psz_title );
++    if( p_arg->psz_default_path )
++        free( p_arg->psz_default_path );
++    if( p_arg->psz_title )
++        free( p_arg->psz_title );
+     free( p_arg->psz_extensions );
+     free( p_arg );
+ }
+@@ -381,6 +400,10 @@
+ {
+     openDialog( OPEN_CAPTURE_TAB );
+ }
++void DialogsProvider::openCidDialog()
++{
++    openDialog( OPEN_CONTENT_ID_TAB );
++}
+ 
+ /* Same as the open one, but force the enqueue */
+ void DialogsProvider::PLAppendDialog( int tab )
+@@ -404,6 +427,12 @@
+                                              const QString& path )
+ {
+     QString fileTypes = "";
++    if( filters & EXT_FILTER_P2P_AND_MEDIA ) {
++        ADD_EXT_FILTER( fileTypes, EXTENSIONS_P2P_AND_MEDIA );
++    }
++    if( filters & EXT_FILTER_P2P ) {
++        ADD_EXT_FILTER( fileTypes, EXTENSIONS_P2P );
++    }
+     if( filters & EXT_FILTER_MEDIA ) {
+         ADD_EXT_FILTER( fileTypes, EXTENSIONS_MEDIA );
+     }
+

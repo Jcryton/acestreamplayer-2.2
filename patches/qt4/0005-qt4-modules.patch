@@ -1,0 +1,216 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/controller.hpp	2013-12-05 18:39:06.000000000 +0200
++++ vlc-2.1.2/modules/gui/qt4/components/controller.hpp	2014-03-04 18:14:46.193954152 +0200
+@@ -34,11 +34,15 @@
+ #include <QString>
+ #include <QSizeGrip>
+ 
+-#define MAIN_TB1_DEFAULT "64;39;64;38;65"
+-#define MAIN_TB2_DEFAULT "0-2;64;3;1;4;64;7;9;64;10;20;19;64-4;37;65;35-4"
++#define MAIN_TB1_DEFAULT "96;71;96;70;97"
++#define MAIN_TB2_DEFAULT "0-2;96;3;1;4;96;7;9;96;10;20;19;96;26;27;96-4;69;97;28;96;67-4"
++#define MAIN_PANEL_DEFAULT "78"
+ #define ADV_TB_DEFAULT "12;11;13;14"
+-#define INPT_TB_DEFAULT "43;33-4;44"
+-#define FSC_TB_DEFAULT "0-2;64;3;1;4;64;37;64;38;64;8;65;25;35-4;34"
++#define INPT_TB_DEFAULT "75;65-4;76"
++#define FSC_TB_DEFAULT "0-2;96;3;1;4;96;69;96;70;96;8;96;26;27;97;25;96;28;96;67-4;66"
++#define FSC_PANEL_DEFAULT "79"
++#define ADVERT_PANEL_DEFAULT "77"
++#define ADVERT_TB_DEFAULT "64;29;96;30;96;31;64"
+ 
+ #define I_PLAY_TOOLTIP N_("Play\nIf the playlist is empty, open a medium")
+ 
+@@ -89,9 +93,15 @@
+     NEXT_BUTTON,
+     OPEN_SUB_BUTTON,
+     FULLWIDTH_BUTTON,
++    SAVE_P2P_BUTTON,
++    LIVE_P2P_BUTTON,
++    QUALITY_P2P_BUTTON,
++    SKIP_AD_BUTTON,
++    VISIT_AD_SITE_BUTTON,
++    DISABLE_AD_BUTTON, // 31
+     BUTTON_MAX,
+ 
+-    SPLITTER = 0x20,
++    SPLITTER = 0x40,
+     INPUT_SLIDER,
+     TIME_LABEL,
+     VOLUME,
+@@ -104,9 +114,12 @@
+     SPEED_LABEL,
+     TIME_LABEL_ELAPSED,
+     TIME_LABEL_REMAINING,
++    ADVERT_CONTROLLER, 
++    MAIN_PANEL_CONTROLLER,
++    FS_PANEL_CONTROLLER,
+     SPECIAL_MAX,
+ 
+-    WIDGET_SPACER = 0x40,
++    WIDGET_SPACER = 0x60,
+     WIDGET_SPACER_EXTEND,
+     WIDGET_MAX,
+ } buttonType_e;
+@@ -118,7 +131,8 @@
+     N_("Record"), N_("A->B Loop"), N_("Frame By Frame"), N_("Trickplay Reverse"),
+     N_("Step backward" ), N_("Step forward"), N_("Quit"), N_("Random"),
+     N_("Loop / Repeat"), N_("Information"), N_("Previous"), N_("Next"),
+-    N_("Open subtitles"), N_("Dock fullscreen controller")
++    N_("Open subtitles"), N_("Dock fullscreen controller"), N_("Save"), N_("Live"), N_("Quality"), 
++    N_("Skip this ad"), N_("Go to advertiser's site"), N_("Disable ads")
+ };
+ static const char* const tooltipL[BUTTON_MAX] = { I_PLAY_TOOLTIP,
+     N_("Stop playback"), N_("Open a medium"),
+@@ -132,7 +146,9 @@
+     N_("Random"), N_("Change the loop and repeat modes"), N_("Information"),
+     N_("Previous media in the playlist"), N_("Next media in the playlist"),
+     N_("Open subtitle file"),
+-    N_("Dock/undock fullscreen controller to/from bottom of screen")
++    N_("Dock/undock fullscreen controller to/from bottom of screen"),
++    N_("Save File"), N_("Skip ahead to live broadcast"), N_("Change quality"),
++    N_("Skip this ad"), N_("Go to advertiser's site"), N_("Do not display ads anymore")
+ };
+ static const QString iconL[BUTTON_MAX] ={ ":/toolbar/play_b", ":/toolbar/stop_b",
+     ":/toolbar/eject", ":/toolbar/previous_b", ":/toolbar/next_b",
+@@ -142,7 +158,8 @@
+     ":/toolbar/frame", ":/toolbar/reverse", ":/toolbar/skip_back",
+     ":/toolbar/skip_fw", ":/toolbar/clear", ":/buttons/playlist/shuffle_on",
+     ":/buttons/playlist/repeat_all", ":/menu/info",
+-    ":/toolbar/previous_b", ":/toolbar/next_b", ":/toolbar/eject", ":/toolbar/space"
++    ":/toolbar/previous_b", ":/toolbar/next_b", ":/toolbar/eject", ":/toolbar/space", ":/toolbar/save", ":/toolbar/live", "",
++    "", "", ""
+ };
+ 
+ enum
+@@ -154,6 +171,9 @@
+ };
+ 
+ class AdvControlsWidget;
++class AdvertisementControllerWidget;
++class MainControllerWidget;
++class MainFSControllerWidget;
+ class AbstractController : public QFrame
+ {
+     friend class WidgetListing; /* For ToolBar Edition HACKS */
+@@ -166,10 +186,13 @@
+     intf_thread_t       *p_intf;
+ 
+     QSignalMapper       *toolbarActionsMapper;
+-    QBoxLayout          *controlLayout;
++    QHBoxLayout          *controlLayout;
+     /* Change to BoxLayout if both dir are needed */
+ 
+     AdvControlsWidget   *advControls;
++    AdvertisementControllerWidget *advertControls;
++    MainControllerWidget *mainControls;
++    MainFSControllerWidget *mainFSControls;
+ 
+     void parseAndCreate( const QString& config, QBoxLayout *controlLayout );
+ 
+@@ -192,6 +215,8 @@
+     void inputPlaying( bool ); /// This might be useful in the IM ?
+     void inputIsRecordable( bool ); /// same ?
+     void inputIsTrickPlayable( bool ); /// same ?
++    void inputSaveable( bool );
++    void inputStopped( bool );
+ };
+ 
+ /* Advanced Button Bar */
+@@ -202,6 +227,33 @@
+     AdvControlsWidget( intf_thread_t *, QWidget *_parent = 0 );
+ };
+ 
++class AdvertisementControllerWidget : public AbstractController
++{
++    Q_OBJECT
++public:
++    AdvertisementControllerWidget( intf_thread_t *_p_i, QWidget *_parent = 0 );
++};
++
++class MainControllerWidget : public AbstractController
++{
++    Q_OBJECT
++public:
++    MainControllerWidget( intf_thread_t *_p_i, QWidget *_parent = 0 );
++    
++    void setGripVisible( bool b_visible ) { grip->setVisible( b_visible ); }
++    
++private:
++    QSizeGrip *grip;
++    
++};
++
++class MainFSControllerWidget : public AbstractController
++{
++    Q_OBJECT
++public:
++    MainFSControllerWidget( intf_thread_t *_p_i, QWidget *_parent = 0 );
++};
++
+ /* Slider Bar */
+ class InputControlsWidget : public AbstractController
+ {
+@@ -219,19 +271,23 @@
+     ControlsWidget( intf_thread_t *_p_i, bool b_advControls,
+                     QWidget *_parent = 0 );
+ 
+-    void setGripVisible( bool b_visible )
+-    { grip->setVisible( b_visible ); }
++    void setGripVisible( bool b_visible ) { mainControls->setGripVisible(b_visible); }
++    //{ grip->setVisible( b_visible ); }
+ 
+ protected:
+     friend class MainInterface;
+ 
+     bool b_advancedVisible;
++    bool b_advertisementVisible;
+ 
+ private:
+     QSizeGrip *grip;
+ 
+ protected slots:
+     void toggleAdvanced();
++    void toogleAdvertisementPanel(bool);
++    void hideMainControls();
++    void showMainControls();
+ 
+ signals:
+     void advancedControlsToggled( bool );
+@@ -274,6 +330,7 @@
+ 
+ protected:
+     friend class MainInterface;
++    bool b_advertisementVisible;
+ 
+     virtual void mouseMoveEvent( QMouseEvent *event );
+     virtual void mousePressEvent( QMouseEvent *event );
+@@ -284,13 +341,18 @@
+ 
+     virtual void customEvent( QEvent *event );
+ 
++protected slots:
++    void toogleAdvertisementPanel(bool);
+ private slots:
+     void showFSC();
+     void planHideFSC();
+-    void hideFSC() { hide(); }
++    void hideFSC(bool force = false) { if(b_can_hide || force) hide(); }
+     void slowHideFSC();
+     void restoreFSC();
+     void centerFSC( int );
++public slots:
++    void enableHiding(bool val) { b_can_hide = val; if(!val) showFSC(); }
++    void placeFsControls(int y, int height);
+ 
+ private:
+     QTimer *p_hideTimer;
+@@ -319,6 +381,9 @@
+     int i_mouse_last_move_y;
+ 
+     bool isWideFSC;
++    bool b_can_hide;
++    QPoint cachedPos;
++    int i_context_y;
+     int i_sensitivity;
+ };
+ 

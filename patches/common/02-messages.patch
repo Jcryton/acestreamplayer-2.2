@@ -1,0 +1,62 @@
+diff -ru vlc-2.1.2.orig/include/vlc_messages.h vlc-2.1.2/include/vlc_messages.h
+--- vlc-2.1.2.orig/include/vlc_messages.h	2013-06-24 21:00:38.000000000 +0300
++++ vlc-2.1.2/include/vlc_messages.h	2014-01-16 13:33:00.771259366 +0200
+@@ -77,6 +77,10 @@
+ #define msg_Dbg( p_this, ... ) \
+     vlc_Log( VLC_OBJECT(p_this), VLC_MSG_DBG,  MODULE_STRING, __VA_ARGS__ )
+ 
++VLC_API void msg_P2PLog(vlc_object_t *, const char *, const char *, ...) VLC_FORMAT( 3, 4 );
++#define msg_P2PLog( a, ... ) \
++    msg_P2PLog(VLC_OBJECT(a), MODULE_STRING, __VA_ARGS__)
++
+ /**
+  * @}
+  */
+diff -ru vlc-2.1.2.orig/src/misc/messages.c vlc-2.1.2/src/misc/messages.c
+--- vlc-2.1.2.orig/src/misc/messages.c	2013-06-24 21:00:39.000000000 +0300
++++ vlc-2.1.2/src/misc/messages.c	2014-01-16 13:32:34.203259980 +0200
+@@ -49,6 +49,8 @@
+ #   include <vlc_network.h>          /* 'net_strerror' and 'WSAGetLastError' */
+ #endif
+ #include <vlc_charset.h>
++#include <vlc_fs.h>
++#include <p2p_object.h>
+ #include "../libvlc.h"
+ 
+ /**
+@@ -308,7 +310,7 @@
+     vlc_rwlock_unlock (&priv->log.lock);
+ 
+     /* Announce who we are */
+-    msg_Dbg (vlc, "VLC media player - %s", VERSION_MESSAGE);
++    msg_Dbg (vlc, "%s %s (VLC media player - %s)", P2P_APP_NAME, P2P_APP_VERSION, VERSION_MESSAGE);
+     msg_Dbg (vlc, "%s", COPYRIGHT_MESSAGE);
+     msg_Dbg (vlc, "revision %s", psz_vlc_changeset);
+     msg_Dbg (vlc, "configured with %s", CONFIGURE_LINE);
+@@ -337,3 +339,26 @@
+ 
+     vlc_rwlock_destroy (&priv->log.lock);
+ }
++
++#undef msg_P2PLog
++void msg_P2PLog(vlc_object_t *obj, const char *module, const char *msg, ...)
++{
++    va_list args;
++    va_start( args, msg );
++    vlc_vaLog (obj, VLC_MSG_DBG, module, msg, args);
++    
++#ifdef _WIN32
++    bool b_log_enable = var_InheritBool(obj, "p2p-log-enable");
++    char *psz_filepath = var_InheritString(obj, "p2p-logfile");
++    
++    if( b_log_enable && psz_filepath ) {
++        FILE *file = vlc_fopen( psz_filepath, "at" );
++        vfprintf( file, msg, args );
++        fputs( "\n", file );
++        fclose( file );
++        free(psz_filepath);
++    }
++#endif
++    
++    va_end( args );
++};

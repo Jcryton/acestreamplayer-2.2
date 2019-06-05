@@ -1,0 +1,13 @@
+--- vlc-2.1.2.orig/modules/gui/qt4/components/playlist/selector.cpp	2013-07-19 13:48:42.000000000 +0300
++++ vlc-2.1.2/modules/gui/qt4/components/playlist/selector.cpp	2014-01-27 16:27:35.149152848 +0200
+@@ -147,8 +147,8 @@
+     setRootIsDecorated( false );
+     setIndentation( 5 );
+     /* Expand at least to show level 2 */
+-    for ( int i = 0; i < topLevelItemCount(); i++ )
+-        expandItem( topLevelItem( i ) );
++    //for ( int i = 0; i < topLevelItemCount(); i++ )
++    //    expandItem( topLevelItem( i ) );
+ 
+     /***
+      * We need to react to both clicks and activation (enter-key) here.

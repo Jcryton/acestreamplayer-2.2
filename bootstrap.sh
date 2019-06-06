@@ -1,5 +1,22 @@
 #!/bin/sh
 
+qmake -v
+
+TEST_QT4=$(qmake -v | grep " 4.")
+TEST_QT4_LEN=${#TEST_QT4}
+echo $TEST_QT4_LEN
+
+if [ "$TEST_QT4_LEN" -eq "0" ]; then 
+	echo
+	echo Install Qt4 and Qtchooser.
+	echo Select Qt4 in /etc/xdg/qtchooser/default.conf 
+	echo AcestreamPlayer based on VLC with Qt4
+	echo
+	exit 255
+else
+	echo Test Qt4 qmake is OK
+fi
+
 export QT_SELECT=qt4
 
 PWD_DIR=$(readlink -f $(dirname $0))
@@ -101,9 +118,15 @@ for i in `seq 1 29`; do
        if [ "$i" -lt "10" ]; then 
            check_and_patch ${PWD_DIR}/patches/common/0$i-*.patch
        else
-           if [ "$i" -eq "12" ]; then 
+           if [ "$i" -eq "11" ]; then 
+              check_and_patch ${PWD_DIR}/patches/${VLC_VERSION}/11-makefiles.patch
+           elif  [ "$i" -eq "12" ]; then
               check_and_patch ${PWD_DIR}/patches/${VLC_VERSION}/12-root.patch
-           else  
+           elif  [ "$i" -eq "14" ]; then
+              check_and_patch ${PWD_DIR}/patches/${VLC_VERSION}/14-extras.patch
+           elif  [ "$i" -eq "29" ]; then
+              check_and_patch ${PWD_DIR}/patches/${VLC_VERSION}/29-configure-ac.patch
+           else
               check_and_patch ${PWD_DIR}/patches/common/$i-*.patch
            fi
        fi
@@ -123,17 +146,31 @@ apply_patch ${PWD_DIR}/patches/qt4/0055-qt4-inputslider-1.patch
 apply_patch ${PWD_DIR}/patches/qt4/0056-qt4-inputslider-2.patch
 apply_patch ${PWD_DIR}/patches/qt4/0057-qt4-timetooltip.patch
 
-# gentoo patch
+######### gentoo patch ###########
 
-if [ ${VLC_VERSION} == "2.2.4"  ]; then
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.1.0-fix-libtremor-libs.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-9999-libva-1.2.1-compat.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.1.0-TomWij-bisected-PA-broken-underflow.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-relax_ffmpeg.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-ffmpeg3.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-decoder-lock-scope.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-alsa-large-buffers.patch
-apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-libav-11.7.patch
+if [ ${VLC_VERSION} != "2.2.8" ]; then
+   if [ ${VLC_VERSION} != "2.2" ]; then
+
+	# Fix build system mistake.
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.1.0-fix-libtremor-libs.patch
+
+	# Patch up incompatibilities and reconfigure autotools.	
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-9999-libva-1.2.1-compat.patch
+
+	# Fix up broken audio when skipping using a fixed reversed bisected commit.
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.1.0-TomWij-bisected-PA-broken-underflow.patch
+
+	# Bug #575072
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-relax_ffmpeg.patch
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-ffmpeg3.patch
+
+	# Bug #594126
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-decoder-lock-scope.patch	
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-alsa-large-buffers.patch
+
+	# Bug #593460
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-libav-11.7.patch
+   fi
 fi
 
 cd ${PWD_DIR}

@@ -1,0 +1,105 @@
+--- a/configure.ac.orig	2019-06-04 23:46:16.967143000 +0300
++++ b/configure.ac	2019-06-04 16:32:25.321861000 +0300
+@@ -3738,54 +3643,32 @@
+   ])
+ ])
+ AS_IF([test "${enable_qt}" != "no"], [
+-  AS_IF([test "${enable_qt}" != "4"], [
+-    PKG_CHECK_MODULES([QT], [Qt5Core >= 5.1.0 Qt5Widgets Qt5Gui], [
+-      PKG_CHECK_MODULES([QTX11], [Qt5X11Extras], [
+-          VLC_ADD_LIBS([qt4],[${QTX11_LIBS}])
+-          VLC_ADD_CXXFLAGS([qt4],[${QTX11_CFLAGS} -DQT5_HAS_X11])
+-          PKG_CHECK_MODULES([XI], [xi], [
+-            VLC_ADD_LIBS([qt4], [${XI_LIBS}])
+-            VLC_ADD_CXXFLAGS([qt4], [${XI_CFLAGS} -DHAVE_XI])
+-          ], [
+-            PKG_CHECK_EXISTS([Qt5Gui >= 5.5], [
+-              AC_MSG_ERROR([${XI_PKG_ERRORS}.])
+-            ], [
+-              AC_MSG_WARN([${XI_PKG_ERRORS}.])
+-            ])
++  PKG_CHECK_MODULES([QT], [QtCore >= 5 QtWidgets QtGui],, [
++    AS_IF([test "${SYS}" = "mingw32"], [
++        PKG_CHECK_MODULES([QT], [QtCore QtGui QtNetwork QtWebKit QAxContainer >= 4.6.0],, [
++          AS_IF([test -n "${enable_qt}"],[
++            AC_MSG_ERROR([${QT_PKG_ERRORS}.])
++          ],[
++            AC_MSG_WARN([${QT_PKG_ERRORS}.])
+           ])
+-      ],[
+-          AC_MSG_WARN([Not building Qt Interface with X11 helpers.])
+-      ])
+-
+-      PKG_CHECK_EXISTS([Qt5Core >= 5.5.0 Qt5Core < 5.6.0], [
+-        AC_MSG_ERROR(["You cannot build VLC with Qt-5.5.0. You need to backport I78ef29975181ee22429c9bd4b11d96d9e68b7a9c"])
+-      ])
+-
+-      QT_PATH="$(eval $PKG_CONFIG --variable=exec_prefix Qt5Core)"
+-      QT_HOST_PATH="$(eval $PKG_CONFIG --variable=host_bins Qt5Core)"
+-      AC_PATH_PROGS(MOC, [moc-qt5 moc], moc, ["${QT_HOST_PATH}" "${QT_PATH}/bin" "${CONTRIB_DIR}/bin"])
+-      AC_PATH_PROGS(RCC, [rcc-qt5 rcc], rcc, ["${QT_HOST_PATH}" "${QT_PATH}/bin" "${CONTRIB_DIR}/bin"])
+-      AC_PATH_PROGS(UIC, [uic-qt5 uic], uic, ["${QT_HOST_PATH}" "${QT_PATH}/bin" "${CONTRIB_DIR}/bin"])
+-      enable_qt="5"
+-    ])
+-  ])
+-  AS_IF([test "${enable_qt}" != "5"], [
+-    PKG_CHECK_MODULES([QT], [QtCore QtGui >= 4.6.0],, [
+-      AS_IF([test -n "${enable_qt}"],[
+-        AC_MSG_ERROR([${QT_PKG_ERRORS}.])
+-      ],[
+-        AC_MSG_WARN([${QT_PKG_ERRORS}.])
+-      ])
+-      enable_qt="no"
++          enable_qt="no"
++        ])
++    ],[
++        PKG_CHECK_MODULES([QT], [QtCore QtGui QtNetwork QtWebKit >= 4.6.0],, [
++          AS_IF([test -n "${enable_qt}"],[
++            AC_MSG_ERROR([${QT_PKG_ERRORS}.])
++          ],[
++            AC_MSG_WARN([${QT_PKG_ERRORS}.])
++          ])
++          enable_qt="no"
++        ])
+     ])
+-    QT_PATH="$(eval $PKG_CONFIG --variable=exec_prefix QtCore)"
+-    AC_PATH_PROGS(MOC, [moc-qt4 moc], moc, ["${QT_PATH}/bin" "${CONTRIB_DIR}/bin"])
+-    AC_PATH_PROG(RCC, rcc, rcc, [${QT_PATH}/bin ${CONTRIB_DIR}/bin])
+-    AC_PATH_PROGS(UIC, [uic-qt4 uic], uic, ["${QT_PATH}/bin" "${CONTRIB_DIR}/bin"])
+   ])
+ ])
+ AS_IF([test "${enable_qt}" != "no"], [
+   VLC_ADD_PLUGIN([qt4])
++  VLC_ADD_LIBS([qt4],[${QT_LIBS}])
++  VLC_ADD_CXXFLAGS([qt4],[${QT_CFLAGS}])
+   ALIASES="${ALIASES} qacestreamplayer"
+ 
+   AC_LANG_PUSH([C++])
+@@ -3800,6 +3683,8 @@
+ #endif
+   ])], [
+     AC_MSG_RESULT([yes])
++    VLC_ADD_LIBS([qt4],[${X_LIBS} ${X_PRE_LIBS} -lX11])
++    VLC_ADD_CXXFLAGS([qt4],[${X_CFLAGS}])
+   ], [
+     AC_MSG_RESULT([no])
+   ])
+@@ -3807,6 +3692,17 @@
+   VLC_RESTORE_FLAGS
+   AC_LANG_POP([C++])
+ 
++  AS_IF([test "${SYS}" = "mingw32"], [
++      VLC_ADD_LIBS([qt4],[-lole32])
++  ])
++  AS_IF([test "${SYS}" = "darwin" ],[
++       VLC_ADD_LIBS([qt4], [-Wl,-framework,Cocoa])
++  ])
++
++  QT_PATH="$(eval $PKG_CONFIG --variable=exec_prefix QtCore)"
++  AC_PATH_PROGS(MOC, [moc-qt4 moc], moc, [${QT_PATH}/bin ${CONTRIB_DIR}/bin])
++  AC_PATH_PROG(RCC, rcc, rcc, [${QT_PATH}/bin ${CONTRIB_DIR}/bin])
++  AC_PATH_PROGS(UIC, [uic-qt4 uic], uic, [${QT_PATH}/bin ${CONTRIB_DIR}/bin])
+ ])
+ AM_CONDITIONAL(ENABLE_QT4, [test "$enable_qt" != "no"])
+ 
+

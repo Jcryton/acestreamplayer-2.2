@@ -1,7 +1,7 @@
 Ace Stream Player
 -----------------
 
-Tested with VLC *v2.2.4 v2.2.5.1 v2.2.6 v2.2.7*
+Tested with VLC *v2.2.4 v2.2.5.1 v2.2.6 v2.2.7 v2.2.8 v2.2.8-git*
 
 Depends: acestreamengine,
 Optimal: acestreamengine-3.1.35
@@ -14,8 +14,8 @@ Checkout all required [libraries] to build vlc
 
 Also install *libqt4-webkit*, *openssl*, *sqlite3*
 
-Edit config.sh, set VLC_VERSION="2.2.4", "2.2.5.1", "2.2.6", "2.2.7"
-to build this release,
+Edit config.sh, set VLC_VERSION="2.2.4", "2.2.5.1", "2.2.6", "2.2.7", "2.2.8"
+to build this release, or "2.2" to build with last vlc-2.2 git version
 
 `./bootstrap.sh`
 

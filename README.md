@@ -1,6 +1,8 @@
 Ace Stream Player
 -----------------
 
+![](https://o9.icdn.ru/j/jcryton/1/64283811AmG.jpg)
+
 Tested with VLC *v2.2.4 v2.2.5.1 v2.2.6 v2.2.7 v2.2.8 v2.2.8-git*
 
 Depends: acestreamengine,

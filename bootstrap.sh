@@ -46,7 +46,7 @@ if [ ! -d ${PWD_DIR}/vlc-${VLC_VERSION} ]; then
     
     if [ ! -f ${PWD_DIR}/vlc-${VLC_VERSION}.tar.* ]; then
         info "Downloading vlc"       
-        if [ ${VLC_VERSION} != "2.1"  ]; then
+        if [ ${VLC_VERSION} != "2.2"  ]; then
            download ${VLC_URL} || error "Failed to download vlc"
            unpack ${PWD_DIR}/vlc-${VLC_VERSION}.tar.*
         else
@@ -172,6 +172,47 @@ if [ ${VLC_VERSION} != "2.2.8" ]; then
 	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-libav-11.7.patch
    fi
 fi
+
+if [ ${VLC_VERSION} == "2.2.8" ]; then
+
+	# Fix build system mistake.
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.1.0-fix-libtremor-libs.patch
+
+	# Bug #575072
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-relax_ffmpeg.patch
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-ffmpeg3.patch
+
+	#  Bug #594126, #629294
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.6-decoder-lock-scope.patch	
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-alsa-large-buffers.patch
+
+	# Bug #593460
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-libav-11.7.patch
+
+    #
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.8-libupnp-compat.patch
+fi
+
+if [ ${VLC_VERSION} == "2.2" ]; then
+
+	# Fix build system mistake.
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.1.0-fix-libtremor-libs.patch
+
+	# Bug #575072
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-relax_ffmpeg.patch
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-ffmpeg3.patch
+
+	#  Bug #594126, #629294
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.6-decoder-lock-scope.patch	
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-alsa-large-buffers.patch
+
+	# Bug #593460
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.4-libav-11.7.patch
+
+    #
+	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.8-libupnp-compat.patch
+fi
+
 
 cd ${PWD_DIR}
 

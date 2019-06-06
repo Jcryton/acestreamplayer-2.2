@@ -6,7 +6,7 @@ diff -ru vlc-2.1.5.orig/configure.ac vlc-2.1.5/configure.ac
  AC_COPYRIGHT([Copyright 2002-2018 VLC authors and VideoLAN])
  
 -AC_INIT(vlc, 2.2.8)
-+AC_INIT(acestreamplayer, 2.2.8)
++AC_INIT(acestreamplayer, 2.2.8.1)
  VERSION_MAJOR=2
  VERSION_MINOR=2
  VERSION_REVISION=8
@@ -42,9 +42,9 @@ diff -ru vlc-2.1.5.orig/configure.ac vlc-2.1.5/configure.ac
          # DEP, ASLR, NO SEH
          LDFLAGS="${LDFLAGS} -Wl,--nxcompat -Wl,--no-seh -Wl,--dynamicbase"
  
--        VLC_ADD_LIBS([libvlccore],[-lwinmm])
+-        VLC_ADD_LIBS([libvlccore],[])
 -        VLC_ADD_LDFLAGS([vlc],[-mwindows])
-+        VLC_ADD_LIBS([libtsplayercore],[-lwinmm])
++        VLC_ADD_LIBS([libtsplayercore],[])
 +        VLC_ADD_LDFLAGS([acestreamplayer],[-mwindows])
          VLC_ADD_LIBS([win32text],[-lgdi32])
          VLC_ADD_LIBS([vcdx],[-lwinmm])
@@ -100,16 +100,16 @@ diff -ru vlc-2.1.5.orig/configure.ac vlc-2.1.5/configure.ac
      ])
      have_altivec="yes"
    ])
-@@ -1410,7 +1412,7 @@
+@@ -1431,7 +1431,7 @@
    AS_IF([test "${ac_cv_c_altivec}" != "no"], [
      CPPFLAGS="${CPPFLAGS} ${ac_cv_c_altivec}"
      AC_DEFINE(CAN_COMPILE_C_ALTIVEC, 1, [Define to 1 if C AltiVec extensions are available.])
 -    VLC_ADD_CFLAGS([libvlccore],[${ac_cv_c_altivec}])
 +    VLC_ADD_CFLAGS([libtsplayercore],[${ac_cv_c_altivec}])
-     ALTIVEC_CFLAGS="$ALTIVEC_FLAGS ${ac_cv_c_altivec} ${ac_cv_c_altivec_abi}"
+     ALTIVEC_CFLAGS="$ALTIVEC_CFLAGS ${ac_cv_c_altivec} ${ac_cv_c_altivec_abi}"
      VLC_ADD_CFLAGS([deinterlace],[${ac_cv_c_altivec} ${ac_cv_c_altivec_abi}])
      have_altivec="yes"
-@@ -1423,7 +1425,7 @@
+@@ -1435,7 +1435,7 @@
      [AC_TRY_LINK([],,ac_cv_ld_altivec=yes,ac_cv_ld_altivec=no)])
    VLC_RESTORE_FLAGS
    AS_IF([test "${ac_cv_ld_altivec}" != "no"], [

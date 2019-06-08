@@ -74,7 +74,7 @@ diff -ru vlc-2.1.2.orig/lib/Makefile.am vlc-2.1.2/lib/Makefile.am
  	../include/vlc/vlc.h
  
  nodist_pkginclude_HEADERS = ../include/vlc/libvlc_version.h
-@@ -28,14 +29,15 @@
+@@ -28,14 +29,17 @@
  	$(AM_V_GEN)cd "$(top_builddir)" && \
  	$(SHELL) ./config.status --file="src/$@"
  
@@ -83,21 +83,21 @@ diff -ru vlc-2.1.2.orig/lib/Makefile.am vlc-2.1.2/lib/Makefile.am
  
 -libvlc_la_SOURCES = \
 +libtsplayer_la_SOURCES = \
++	acestream_internal.h \
++	acestream.c \
  	libvlc_internal.h \
  	event_internal.h \
  	media_internal.h \
  	media_list_internal.h \
  	media_player_internal.h \
-+    media_list_player_internal.h \
++   media_list_player_internal.h \
  	core.c \
  	error.c \
  	log.c \
-@@ -52,20 +54,22 @@
+@@ -52,20 +54,20 @@
  	media_list_player.c \
  	media_library.c \
  	media_discoverer.c
-+	acestream_internal.h \
-+	acestream.c
  EXTRA_DIST = libvlc.pc.in libvlc.sym ../include/vlc/libvlc_version.h.in
  
 -libvlc_la_LIBADD = \

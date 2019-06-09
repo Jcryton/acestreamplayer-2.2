@@ -14,7 +14,7 @@ Install build tools *libtool*, *build-essential*, *pkg-config*, *autoconf*
 
 Checkout all required [libraries] to build vlc
 
-Also install *libqt4-webkit*, *openssl*, *sqlite3*
+Also install *Qt4Core Qt4Gui Qt4WebKit >= 4.8 (optimal 4.8.6)*, *openssl*, *sqlite3*
 
 Edit config.sh, set VLC_VERSION="2.2.4", "2.2.5.1", "2.2.6", "2.2.7", "2.2.8"
 to build this release, or "2.2" to build with last vlc-2.2 git version

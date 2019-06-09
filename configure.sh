@@ -91,3 +91,8 @@ elif [ ${LINUX} = "1" ]; then
 else
     error "Unknown host arch"
 fi
+
+# fix names... patch
+cd ${PWD_DIR}/build-ace
+	apply_patch ${PWD_DIR}/patches/buildfix/0002-makefile-buildfix.patch
+cd ${PWD_DIR}

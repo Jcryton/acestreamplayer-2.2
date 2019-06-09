@@ -1,0 +1,25 @@
+--- a/Makefile	2019-06-08 23:29:33.508276000 +0300
++++ b/Makefile.new	2019-06-09 01:14:17.677178355 +0300
+@@ -2729,7 +2729,21 @@
+ 	for dir in "$(DESTDIR)$(bindir)"; do \
+ 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+ 	done
+-install: $(BUILT_SOURCES)
++install: 
++	echo "Backup VLC files" && \
++	if [ -f /usr/bin/vlc ]; then \
++		cp -f /usr/bin/vlc /usr/bin/_vlc; \
++	fi && \
++	if [ -f /usr/bin/vlc-wrapper ]; then \
++		cp -f /usr/bin/vlc-wrapper /usr/bin/_vlc-wrapper; \
++	fi && \
++	if [ -f /usr/lib64/pkgconfig/libvlc.pc ]; then \
++		cp -f /usr/lib64/pkgconfig/libvlc.pc /usr/lib64/pkgconfig/_libvlc.pc; \
++	fi && \
++	if [ -f /usr/lib64/pkgconfig/vlc-plugin.pc ]; then \
++		cp -f /usr/lib64/pkgconfig/vlc-plugin.pc /usr/lib64/pkgconfig/_vlc-plugin.pc; \
++	fi
++	$(BUILT_SOURCES)
+ 	$(MAKE) $(AM_MAKEFLAGS) install-recursive
+ install-exec: install-exec-recursive
+ install-data: install-data-recursive

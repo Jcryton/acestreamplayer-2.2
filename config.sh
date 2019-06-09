@@ -1,4 +1,4 @@
-VLC_VERSION="2.2.8"
+VLC_VERSION="2.2"
 VLC_URL="http://download.videolan.org/pub/videolan/vlc/${VLC_VERSION}/vlc-${VLC_VERSION}.tar.xz"
 
 HOST=""

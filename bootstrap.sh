@@ -213,6 +213,8 @@ if [ ${VLC_VERSION} == "2.2" ]; then
 	apply_patch ${PWD_DIR}/patches/gentoo/vlc-2.2.8-libupnp-compat.patch
 fi
 
+# fix names... patch
+apply_patch ${PWD_DIR}/patches/buildfix/0001-makefile-buildfix.patch
 
 cd ${PWD_DIR}
 

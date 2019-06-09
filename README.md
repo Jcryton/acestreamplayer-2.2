@@ -23,18 +23,13 @@ to build this release, or "2.2" to build with last vlc-2.2 git version
 
 `./configure.sh`
 
-`./make.sh`
+`cd build-ace`
+
+`make`
 
 `su`
 
-`./pre-install.sh`
-
-`cd build-ace`
-
 `make install`
 
-`cd ..`
-
-`./post-install.sh`
 
 [libraries]:https://wiki.videolan.org/Contrib_Status/

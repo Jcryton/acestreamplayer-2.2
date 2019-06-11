@@ -145,6 +145,7 @@ apply_patch ${PWD_DIR}/patches/qt4/0054-qt4-dialogsprovider.patch
 apply_patch ${PWD_DIR}/patches/qt4/0055-qt4-inputslider-1.patch
 apply_patch ${PWD_DIR}/patches/qt4/0056-qt4-inputslider-2.patch
 apply_patch ${PWD_DIR}/patches/qt4/0057-qt4-timetooltip.patch
+apply_patch ${PWD_DIR}/patches/qt4/0058-qt4-remove-debug-assert-in-inputmanager.patch
 
 ######### gentoo patch ###########
 

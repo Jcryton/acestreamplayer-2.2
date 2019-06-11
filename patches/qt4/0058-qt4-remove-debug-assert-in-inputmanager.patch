@@ -1,0 +1,11 @@
+--- a/modules/gui/qt4/input_manager.cpp	2019-06-11 02:28:32.920919595 +0300
++++ b/modules/gui/qt4/input_manager.cpp.new	2019-06-11 02:21:11.428145000 +0300
+@@ -371,7 +371,7 @@
+         break;
+     default:
+         msg_Warn( p_intf, "This shouldn't happen: %i", i_type );
+-        assert(0);
++        //assert(0);
+     }
+ }
+ 

@@ -13,11 +13,11 @@
 +	if [ -f /usr/bin/vlc-wrapper ]; then \
 +		cp -f /usr/bin/vlc-wrapper /usr/bin/_vlc-wrapper; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/libvlc.pc ]; then \
-+		cp -f /usr/lib64/pkgconfig/libvlc.pc /usr/lib64/pkgconfig/_libvlc.pc; \
++	if [ -f /usr/lib/pkgconfig/libvlc.pc ]; then \
++		cp -f /usr/lib/pkgconfig/libvlc.pc /usr/lib/pkgconfig/_libvlc.pc; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/vlc-plugin.pc ]; then \
-+		cp -f /usr/lib64/pkgconfig/vlc-plugin.pc /usr/lib64/pkgconfig/_vlc-plugin.pc; \
++	if [ -f /usr/lib/pkgconfig/vlc-plugin.pc ]; then \
++		cp -f /usr/lib/pkgconfig/vlc-plugin.pc /usr/lib/pkgconfig/_vlc-plugin.pc; \
 +	fi
 +	$(BUILT_SOURCES)
  	$(MAKE) $(AM_MAKEFLAGS) install-recursive

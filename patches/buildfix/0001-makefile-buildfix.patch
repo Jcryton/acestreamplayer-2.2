@@ -21,11 +21,11 @@
 +	if [ -f /usr/bin/vlc-wrapper ]; then \
 +		cp -f /usr/bin/vlc-wrapper /usr/bin/acestreamplayer-wrapper; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/libvlc.pc ]; then \
-+		cp -f /usr/lib64/pkgconfig/libvlc.pc /usr/lib64/pkgconfig/libacestreamplayer.pc; \
++	if [ -f /usr/lib/pkgconfig/libvlc.pc ]; then \
++		cp -f /usr/lib/pkgconfig/libvlc.pc /usr/lib/pkgconfig/libacestreamplayer.pc; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/vlc-plugin.pc ]; then \
-+		cp -f /usr/lib64/pkgconfig/vlc-plugin.pc /usr/lib64/pkgconfig/acestreamplayer-plugin.pc; \
++	if [ -f /usr/lib/pkgconfig/vlc-plugin.pc ]; then \
++		cp -f /usr/lib/pkgconfig/vlc-plugin.pc /usr/lib/pkgconfig/acestreamplayer-plugin.pc; \
 +	fi && \
 +	echo "Restore VLC files"  && \
 +	if [ -f /usr/bin/_vlc ]; then \
@@ -34,11 +34,11 @@
 +	if [ -f /usr/bin/_vlc-wrapper ]; then \
 +		cp -f /usr/bin/_vlc-wrapper /usr/bin/vlc-wrapper; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/_libvlc.pc ]; then \
-+		cp -f /usr/lib64/pkgconfig/_libvlc.pc /usr/lib64/pkgconfig/libvlc.pc; \
++	if [ -f /usr/lib/pkgconfig/_libvlc.pc ]; then \
++		cp -f /usr/lib/pkgconfig/_libvlc.pc /usr/lib/pkgconfig/libvlc.pc; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/_vlc-plugin.pc ]; then \
-+		cp -f /usr/lib64/pkgconfig/_vlc-plugin.pc /usr/lib64/pkgconfig/vlc-plugin.pc; \
++	if [ -f /usr/lib/pkgconfig/_vlc-plugin.pc ]; then \
++		cp -f /usr/lib/pkgconfig/_vlc-plugin.pc /usr/lib/pkgconfig/vlc-plugin.pc; \
 +	fi && \
 +	echo "Remove backup VLC files"  && \
 +	if [ -f /usr/bin/_vlc ]; then \
@@ -47,11 +47,11 @@
 +	if [ -f /usr/bin/_vlc-wrapper ]; then \
 +		rm -f /usr/bin/_vlc-wrapper; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/_libvlc.pc ]; then \
-+		rm -f /usr/lib64/pkgconfig/_libvlc.pc; \
++	if [ -f /usr/lib/pkgconfig/_libvlc.pc ]; then \
++		rm -f /usr/lib/pkgconfig/_libvlc.pc; \
 +	fi && \
-+	if [ -f /usr/lib64/pkgconfig/_vlc-plugin.pc ]; then \
-+		rm -f /usr/lib64/pkgconfig/_vlc-plugin.pc; \
++	if [ -f /usr/lib/pkgconfig/_vlc-plugin.pc ]; then \
++		rm -f /usr/lib/pkgconfig/_vlc-plugin.pc; \
  	fi
  
  uninstall-hook:

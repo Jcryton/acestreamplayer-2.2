@@ -1,0 +1,41 @@
+diff -ru vlc-2.1.2.orig/bin/vlc_win32_rc.rc.in vlc-2.1.2/bin/vlc_win32_rc.rc.in
+--- vlc-2.1.2.orig/bin/vlc_win32_rc.rc.in	2013-06-24 21:00:37.000000000 +0300
++++ vlc-2.1.2/bin/vlc_win32_rc.rc.in	2014-01-17 12:34:29.000000000 +0200
+@@ -1,9 +1,9 @@
+ #define VERSION_NUMBER @VERSION_MAJOR@,@VERSION_MINOR@,@VERSION_REVISION@,@VERSION_EXTRA@
+ #define VERSION_NUMBER_STR "@VERSION_MAJOR@,@VERSION_MINOR@,@VERSION_REVISION@,@VERSION_EXTRA@"
+ 
+ #include <winuser.h>
+ 
+-VLC_ICON ICON "vlc.ico"
++VLC_ICON ICON "appicon.ico"
+ 
+ 1 VERSIONINFO
+ FILETYPE 1
+@@ -15,13 +12,13 @@
+   BEGIN
+     BLOCK "040904E4"
+     BEGIN
+-      VALUE "CompanyName", "VideoLAN"
+-      VALUE "ProductName", "VLC media player"
+-      VALUE "ProductVersion", VERSION_NUMBER_STR
+-      VALUE "InternalName", "vlc"
+-      VALUE "OriginalFilename", "vlc.exe"
+-      VALUE "FileVersion", "@VERSION@"
+-      VALUE "FileDescription", "VLC media player"
++      VALUE "CompanyName", "Innovative Digital Technologies"
++      VALUE "ProductName", "Ace Player"
++      VALUE "ProductVersion", "2.2.4.0"
++      VALUE "InternalName", "ace_player"
++      VALUE "OriginalFilename", "ace_player.exe"
++      VALUE "FileVersion", "2.2.4.0"
++      VALUE "FileDescription", "Ace Player HD"
+       VALUE "LegalCopyright", "Copyright \251 @COPYRIGHT_YEARS@ VideoLAN and VLC Authors"
+       VALUE "LegalTrademarks", "VLC media player, VideoLAN and x264 are registered trademarks from VideoLAN"
+     END
+@@ -31,5 +28,3 @@
+     VALUE "Translation", 0x409, 1252
+   END
+ END
+-
+-CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "vlc.exe.manifest"

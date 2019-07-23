@@ -1,0 +1,49 @@
+--- a/extras/package/win32/package.mak	2019-06-19 06:29:58.781417367 +0300
++++ b/extras/package/win32/package2.mak	2019-06-19 06:47:26.861325431 +0300
+@@ -40,34 +40,34 @@
+ 		do cp "$(srcdir)/$$file" "$(win32_destdir)/$${file}.txt"; \
+ 	done
+ 
+-	cp $(srcdir)/share/icons/vlc.ico $(win32_destdir)
+-	cp -r $(prefix)/lib/vlc/plugins $(win32_destdir)
+-	-cp -r $(prefix)/share/locale $(win32_destdir)
++	cp $(srcdir)/share/icons/appicon.ico $(win32_destdir)
++	cp -r $(prefix)/lib/acestreamplayer/plugins $(win32_destdir)
++	cp -r $(prefix)/share/locale $(win32_destdir)
+ 
+ # BD-J JAR
+ 	-cp $(CONTRIB_DIR)/share/java/*.jar $(win32_destdir)/plugins/access/
+ 
+ if BUILD_LUA
+ 	mkdir -p $(win32_destdir)/lua/
+-	cp -r $(prefix)/lib/vlc/lua/* $(prefix)/share/vlc/lua/* $(win32_destdir)/lua/
++	cp -r $(prefix)/lib/acestreamplayer/lua/* $(prefix)/share/acestreamplayer/lua/* $(win32_destdir)/lua/
+ endif
+ 
+ if BUILD_SKINS
+ 	rm -fr $(win32_destdir)/skins
+-	cp -r $(prefix)/share/vlc/skins2 $(win32_destdir)/skins
++	cp -r $(prefix)/share/acestreamplayer/skins2 $(win32_destdir)/skins
+ endif
+ 
+ # SDK
+ 	mkdir -p "$(win32_destdir)/sdk/lib/"
+ 	cp -r $(prefix)/include "$(win32_destdir)/sdk"
+ 	cp -r $(prefix)/lib/pkgconfig "$(win32_destdir)/sdk/lib"
+-	cd $(prefix)/lib && cp -rv libvlc.la libvlccore.la "$(win32_destdir)/sdk/lib/"
+-	cd $(prefix)/lib && cp -rv libvlc.dll.a "$(win32_destdir)/sdk/lib/libvlc.lib"
+-	cd $(prefix)/lib && cp -rv libvlccore.dll.a "$(win32_destdir)/sdk/lib/libvlccore.lib"
+-	$(DLLTOOL) -D libvlc.dll -l "$(win32_destdir)/sdk/lib/libvlc.lib" -d "$(top_builddir)/lib/.libs/libvlc.dll.def" "$(prefix)/bin/libvlc.dll"
+-	echo "INPUT(libvlc.lib)" > "$(win32_destdir)/sdk/lib/vlc.lib"
+-	$(DLLTOOL) -D libvlccore.dll -l "$(win32_destdir)/sdk/lib/libvlccore.lib" -d "$(top_builddir)/src/.libs/libvlccore.dll.def" "$(prefix)/bin/libvlccore.dll"
+-	echo "INPUT(libvlccore.lib)" > "$(win32_destdir)/sdk/lib/vlccore.lib"
++	cd $(prefix)/lib && cp -rv libtsplayer.la libtsplayercore.la "$(win32_destdir)/sdk/lib/"
++	cd $(prefix)/lib && cp -rv libtsplayer.dll.a "$(win32_destdir)/sdk/lib/libtsplayer.lib"
++	cd $(prefix)/lib && cp -rv libtsplayercore.dll.a "$(win32_destdir)/sdk/lib/libtsplayercore.lib"
++	$(DLLTOOL) -D libtsplayer.dll -l "$(win32_destdir)/sdk/lib/libtsplayer.lib" -d "$(top_builddir)/lib/.libs/libtsplayer.dll.def" "$(prefix)/bin/libtsplayer.dll"
++	echo "INPUT(libtsplayer.lib)" > "$(win32_destdir)/sdk/lib/tsplayer.lib"
++	$(DLLTOOL) -D libtsplayercore.dll -l "$(win32_destdir)/sdk/lib/libtsplayercore.lib" -d "$(top_builddir)/src/.libs/libtsplayercore.dll.def" "$(prefix)/bin/libtsplayercore.dll"
++	echo "INPUT(libtsplayercore.lib)" > "$(win32_destdir)/sdk/lib/tsplayercore.lib"
+ 
+ # Convert to DOS line endings
+ 	find $(win32_destdir) -type f \( -name "*xml" -or -name "*html" -or -name '*js' -or -name '*css' -or -name '*hosts' -or -iname '*txt' -or -name '*.cfg' -or -name '*.lua' \) -exec $(U2D) {} \;

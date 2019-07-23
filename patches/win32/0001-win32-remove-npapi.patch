@@ -1,0 +1,10 @@
+--- a/Makefile.am	2019-06-18 19:48:44.763315598 +0300
++++ b/Makefile.am.new	2019-06-19 06:22:24.589372115 +0300
+@@ -19,7 +19,6 @@
+ 	extras/package/win32/change-contribs-directory.sh \
+ 	extras/package/win32/configure.sh \
+ 	extras/package/symbian/configure.sh \
+-	extras/package/npapi.am \
+ 	extras/package/win32/NSIS/vlc.win32.nsi.in \
+ 	extras/package/win32/NSIS/spad.nsi.in \
+ 	extras/package/win32/NSIS/UAC/examples \

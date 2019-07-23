@@ -1,0 +1,114 @@
+diff -aurN a/modules/gui/qt4/main_interface.cpp b/modules/gui/qt4/main_interface.cpp
+--- a/modules/gui/qt4/main_interface.cpp	2019-07-23 17:09:54.862536000 +0300
++++ b/modules/gui/qt4/main_interface.cpp	2019-07-23 12:52:58.346877000 +0300
+@@ -46,9 +46,8 @@
+ 
+ #include "acewebbrowser/browser.hpp"
+ #include "acewebbrowser/javascriptobject.hpp"
+-#ifdef _WIN32
+ #include "acewebbrowser/iejsobject.hpp"
+-#endif
++#include "acewebbrowser/iebrowser2.hpp"
+ #include "acewebbrowser/exceptions.hpp"
+ 
+ #include "menus.hpp"                            // Menu creation
+@@ -1965,12 +1964,6 @@
+     }
+     if(!parent) return;
+     
+-    if(conf.type() == AceWebBrowser::BTYPE_PREROLL && conf.useIE()) {
+-#ifdef _WIN32
+-        createIEBrowser(conf, parent);
+-#endif
+-        return;
+-    }
+     
+     AceWebBrowser::Browser *browser = browserManager->createBrowser(conf, parent);
+     
+@@ -2031,62 +2024,6 @@
+ }
+ 
+ #ifdef _WIN32
+-void MainInterface::createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent)
+-{
+-    qWarning() << "Player::createIEBrowser";
+-    if(mIeDeleteTimer && mIeDeleteTimer->isActive()) {
+-        mIeDeleteTimer->stop();
+-    }
+-    if(!ieBrowser) {
+-        try {
+-            ieBrowser = new AceWebBrowser::IEBrowser2(conf, parent);
+-        }
+-        catch(AceWebBrowser::BrowserException *e) {
+-            qWarning() << "Player::createIEBrowser: Exception:" << e->message();
+-            registerIEError(e->type(), e->id());
+-            ieBrowser = 0;
+-            return;
+-        }
+-        
+-        // player notifications
+-        connect(parent, SIGNAL(notifySizeChanged(QSize)),
+-                ieBrowser, SLOT(handleParentSize(QSize)), Qt::UniqueConnection);
+-        connect(THEMIM->getIM(), SIGNAL(notifyStateChanged(int, bool)),
+-                ieBrowser, SLOT(handleParentState(int, bool)), Qt::UniqueConnection);
+-        connect(this, SIGNAL(notifyFullscreenChanged(bool)),
+-                ieBrowser, SLOT(handleParentFullscreen(bool)), Qt::UniqueConnection);
+-        // browser register events
+-        connect(ieBrowser, SIGNAL(registerBrowserSuccessEvent(AceWebBrowser::BrowserType,QString)),
+-                SLOT(registerIESuccess(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
+-        connect(ieBrowser, SIGNAL(registerBrowserErrorEvent(AceWebBrowser::BrowserType,QString)),
+-                SLOT(registerIEError(AceWebBrowser::BrowserType,QString)), Qt::UniqueConnection);
+-        connect(ieBrowser, SIGNAL(registerBrowserSendEvent(AceWebBrowser::BrowserType,QString,QString)),
+-                SLOT(registerBrowserSendEvent(AceWebBrowser::BrowserType,QString,QString)), Qt::UniqueConnection);
+-        // browser notifications
+-        connect(ieBrowser, SIGNAL(notifyBrowserVisiabilityChanged(AceWebBrowser::BrowserType,bool)),
+-            SLOT(handleBrowserVisiability(AceWebBrowser::BrowserType,bool)), Qt::UniqueConnection);
+-        connect(ieBrowser, SIGNAL(notifyParentCommandToShow(AceWebBrowser::BrowserType)),
+-                SLOT(handleParentCommandToShow(AceWebBrowser::BrowserType)), Qt::UniqueConnection);
+-        connect(ieBrowser, SIGNAL(notifyNeedExitFullscreen()), SLOT(handleExitFullscreen()), Qt::UniqueConnection);
+-        // javascript object
+-        connect(parent, SIGNAL(notifySizeChanged(QSize)),
+-                ieBrowser->javaScriptObject(), SLOT(handlePlayerSizeChanged(QSize)), Qt::UniqueConnection);
+-        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerPlay()),
+-                SLOT(handleJSOPlay()), Qt::UniqueConnection);
+-        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerPause()),
+-                SLOT(handleJSOPause()), Qt::UniqueConnection);
+-        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerStop()),
+-                SLOT(handleJSOStop()), Qt::UniqueConnection);
+-        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoLinkOpenLater(QString, bool, bool, QString)),
+-                SLOT(handleJSOLinkOpenLater(QString, bool, bool, QString)), Qt::UniqueConnection);
+-        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerSetFullscreen(bool)),
+-                SLOT(handleJSOSetFullscreen(bool)), Qt::UniqueConnection);
+-        connect(ieBrowser->javaScriptObject(), SIGNAL(jsoPlayerToggleFullscreen()),
+-            SLOT(handleJSOToggleFullscreen()), Qt::UniqueConnection);
+-    }
+-    ieBrowser->load(conf);
+-}
+-
+ void MainInterface::registerIESuccess(AceWebBrowser::BrowserType type, QString id)
+ {
+     qDebug() << "Player::registerIESuccess: register preroll complete";
+@@ -2259,9 +2196,9 @@
+                 }
+                 inputC->setVisible(false);
+                 
+-                ieBrowser->setVisiabilityProcessingEnable(false);
++                //ieBrowser->setVisiabilityProcessingEnable(false);
+                 showTab(browserPlaceholder);
+-                ieBrowser->setVisiabilityProcessingEnable(true);
++                //ieBrowser->setVisiabilityProcessingEnable(true);
+             }
+         }
+         else {
+diff -aurN a/modules/gui/qt4/main_interface.hpp b/modules/gui/qt4/main_interface.hpp
+--- a/modules/gui/qt4/main_interface.hpp	2019-07-23 17:09:54.598558000 +0300
++++ b/modules/gui/qt4/main_interface.hpp	2019-07-23 17:13:18.837451087 +0300
+@@ -316,7 +316,7 @@
+     void createBrowser(AceWebBrowser::LoadItem conf);
+     
+ #ifdef _WIN32
+-    void createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent);
++    //void createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent);
+     void registerIESuccess(AceWebBrowser::BrowserType type, QString id);
+     void registerIEError(AceWebBrowser::BrowserType type, QString id);
+     void deleteIEBrowser();

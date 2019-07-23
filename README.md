@@ -32,4 +32,48 @@ to build this release, or "2.2" to build with last vlc-2.2 git version
 `make install`
 
 
+**Crosscompile for Windows:**
+
+Download [ubuntu-mate-16.04-desktop-amd64.iso], and instal on VirtualBox
+
+
+***Ubuntu 16.04:***
+
+`apt-get install -y \`
+
+`gcc-mingw-w64-i686 \`
+
+`g++-mingw-w64-i686 \`
+
+`mingw-w64-tools \`
+
+`mingw-w64-i686-dev \`
+
+`mingw-w64-common \`
+
+`build-essential \`
+
+`qt4-dev-tools qt4-default git \`
+
+`subversion cmake cvs \`
+
+`zip p7zip nsis bzip2 \`
+
+`yasm cvs cmake ragel autopoint \`
+
+`ant default-jdk protobuf-compiler \`
+
+`dos2unix`
+
+`git clone https://github.com/Jcryton/acestreamplayer-2.1.git`
+
+`cd acestreamplayer-2.1`
+
+edit config.sh (set ubuntu qt contrib and vlc version)
+
+`./win32prepare.sh`
+
+`./win32build.sh`
+
 [libraries]:https://wiki.videolan.org/Contrib_Status/
+[ubuntu-mate-16.04-desktop-amd64.iso]:https://mirror.yandex.ru/ubuntu-cdimage/ubuntu-mate/releases/16.04/release/ubuntu-mate-16.04-desktop-amd64.iso

@@ -1,6 +1,13 @@
-VLC_VERSION="2.2"
+VLC_VERSION="2.2.6"
 VLC_URL="http://download.videolan.org/pub/videolan/vlc/${VLC_VERSION}/vlc-${VLC_VERSION}.tar.xz"
 
-HOST=""
+HOST="i686-w64-mingw32"
 
-CONTRIBS_URL="https://bitbucket.org/AceStream/acestreamplayer/downloads/i686-w64-mingw32.tar.gz"
+# FOR CROSSCOMPILE: UBUNTU "1604"
+UBUNTU="1604"
+
+# QT VERSION "4.8.5" "4.8.6"
+QT_VERSION="4.8.6"
+
+# CONTRIB VERSION
+CONTRIB_VERSION="0001"

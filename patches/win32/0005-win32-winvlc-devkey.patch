@@ -1,0 +1,11 @@
+--- a/bin/winvlc.c	2019-07-23 19:04:08.286813061 +0300
++++ b/bin/winvlc.c.new	2019-07-23 23:12:53.769550128 +0300
+@@ -53,7 +53,7 @@
+ #ifdef KEY_HEADER
+ #include "key.h"
+ #else
+-static const char dev_key[] = "kjYX790gTytRaXV04IvC-xZH3A18sj5b1Tf3I-J5XVS1xsj-j0797KwxxLpBl26HPvWMm";
++static const char dev_key[] = "1mcXu2Ujtsjy9z7k-elucnH-384lvH4E-munn1LrXVEt2bSnHO7VaEa";
+ #endif
+ 
+ static char *FromWide (const wchar_t *wide)

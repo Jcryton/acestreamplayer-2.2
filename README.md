@@ -65,9 +65,9 @@ Download [ubuntu-mate-16.04-desktop-amd64.iso], and instal on VirtualBox
 
 `dos2unix`
 
-`git clone https://github.com/Jcryton/acestreamplayer-2.1.git`
+`git clone https://github.com/Jcryton/acestreamplayer-2.2.git`
 
-`cd acestreamplayer-2.1`
+`cd acestreamplayer-2.2`
 
 edit config.sh (set ubuntu qt contrib and vlc version)
 

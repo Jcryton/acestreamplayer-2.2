@@ -31,7 +31,11 @@ if [ ! -f ${PWD_DIR}/._prepare ]; then
 fi
 
 # download contrib
-wget https://raw.githubusercontent.com/Jcryton/ace-contrib/master/2.2/${CONTRIB_VERSION}-contrib-i686-w64-mingw32-qt-${QT_VERSION}-ubuntu${UBUNTU}.tar.bz2
+wget https://raw.githubusercontent.com/Jcryton/ace-contrib/master/2.2/${CONTRIB_VERSION}-contrib-i686-w64-mingw32-qt-${QT_VERSION}-ubuntu${UBUNTU}.tar.xz
+tar -xJvpf ${CONTRIB_VERSION}-contrib-i686-w64-mingw32-qt-${QT_VERSION}-ubuntu${UBUNTU}.tar.xz
+tar -cjvpf ${CONTRIB_VERSION}-contrib-i686-w64-mingw32-qt-${QT_VERSION}-ubuntu${UBUNTU}.tar.bz2 i686-w64-mingw32
+rm -f ${CONTRIB_VERSION}-contrib-i686-w64-mingw32-qt-${QT_VERSION}-ubuntu${UBUNTU}.tar.xz
+rm -fR i686-w64-mingw32
 
 # change into vlc dir
 cd ${PWD_DIR}/vlc-${VLC_VERSION}
@@ -78,7 +82,12 @@ make
 ####create the package
 make package-win32-zip
 
-cp ${PWD_DIR}/vlc-${VLC_VERSION}/win32/vlc-${VLC_VERSION}-win32.zip ${PWD_DIR}/acestreamplyaer-${VLC_VERSION}-win32.zip 
+### copy archive to PWD dir
+if [ ${VLC_VERSION} = "2.2"  ]; then
+   cp ${PWD_DIR}/vlc-${VLC_VERSION}/win32/vlc-2.2.8.1-win32.zip ${PWD_DIR}/acestreamplyaer-2.2.8.1-win32.zip 
+else
+   cp ${PWD_DIR}/vlc-${VLC_VERSION}/win32/vlc-${VLC_VERSION}-win32.zip ${PWD_DIR}/acestreamplyaer-${VLC_VERSION}-win32.zip 
+fi
 
 echo "#################################################################"
 echo "### Finally: acestreamplyaer-${VLC_VERSION}-win32.zip is ready###"

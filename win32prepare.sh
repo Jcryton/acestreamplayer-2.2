@@ -136,8 +136,18 @@ if [ ${WINDOWS} = "1" ]; then
     check_and_patch ${PWD_DIR}/patches/win32/0001-win32-remove-npapi.patch
     check_and_patch ${PWD_DIR}/patches/win32/0002-win32-remove-npapi.patch
     check_and_patch ${PWD_DIR}/patches/win32/0003-win32-fix-tsplayer-name.patch
-    check_and_patch ${PWD_DIR}/patches/win32/0004-win32-qt4-main_interface.patch
-    check_and_patch ${PWD_DIR}/patches/win32/0005-win32-winvlc-devkey.patch
+    echo check_and_patch ${PWD_DIR}/patches/win32/0004-win32-qt4-main_interface.patch
+    check_and_patch ${PWD_DIR}/patches/win32/0005-win32-winvlc-devkey.patch 
+    check_and_patch ${PWD_DIR}/patches/win32/0011-win32-qt4-main_interface.patch   
+	check_and_patch ${PWD_DIR}/patches/win32/0012-win32-qt4.patch
+    check_and_patch ${PWD_DIR}/patches/win32/0013-win32-opensll.patch
+    check_and_patch ${PWD_DIR}/patches/win32/0014-win32-sqlite.patch
+    check_and_patch ${PWD_DIR}/patches/win32/0015-win32-qt-4.8.6.patch
+    echo check_and_patch ${PWD_DIR}/patches/win32/0016-win32-qt4-before-phtreads.patch
+    if [ ${QT_VERSION} = "4.8.5" ]; then
+        check_and_patch ${PWD_DIR}/patches/win32/0017-comeback-to-qt-4.8.5.patch
+    fi
+    check_and_patch ${PWD_DIR}/patches/win32/0018-win32-compile-libqjpeg-before-libjpeg.patch
 fi
 
 # private directory

@@ -1,0 +1,15 @@
+diff -aurN a/contrib/src/projectM/rules.mak b/contrib/src/projectM/rules.mak
+--- a/contrib/src/projectM/rules.mak	2019-07-03 05:44:04.000000000 +0300
++++ b/contrib/src/projectM/rules.mak	2019-07-03 05:43:42.000000000 +0300
+@@ -24,9 +24,9 @@
+ endif
+ 	$(MOVE)
+ 
+-DEPS_projectM = glew $(DEPS_glew)
++DEPS_projectM = glew $(DEPS_glew) qt4 $(DEPS_qt4)
+ 
+-.projectM: projectM
++.projectM: projectM .qt4
+ 	-cd $< && rm CMakeCache.txt
+ 	cd $< && $(HOSTVARS) $(CMAKE) \
+ 		-DINCLUDE-PROJECTM-LIBVISUAL:BOOL=OFF \

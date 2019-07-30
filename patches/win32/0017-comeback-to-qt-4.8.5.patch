@@ -1,0 +1,47 @@
+diff -aurN a1/contrib/src/qt4/rules.mak a2/contrib/src/qt4/rules.mak
+--- a1/contrib/src/qt4/rules.mak	2019-07-16 13:28:45.174823000 +0400
++++ a2/contrib/src/qt4/rules.mak	2019-07-16 13:43:10.853768005 +0400
+@@ -1,6 +1,6 @@
+ # qt4
+ 
+-QT4_VERSION = 4.8.6
++QT4_VERSION = 4.8.5
+ QT4_URL := http://download.qt-project.org/official_releases/qt/4.8/$(QT4_VERSION)/qt-everywhere-opensource-src-$(QT4_VERSION).tar.gz
+ 
+ ifdef HAVE_MACOSX
+@@ -28,16 +28,16 @@
+ 	$(APPLY) $(SRC)/qt4/chroot.patch
+ 	$(APPLY) $(SRC)/qt4/imageformats.patch
+ 	# only fo 4.8.5
+-	#$(APPLY) $(SRC)/qt4/win64.patch
++	$(APPLY) $(SRC)/qt4/win64.patch
+ 	$(APPLY) $(SRC)/qt4/webkit_3rdparty.patch
+ 	$(APPLY) $(SRC)/qt4/4.8.2-javascriptcore-x32.patch
+ 	# only fo 4.8.5
+-	#$(APPLY) $(SRC)/qt4/qtwebkit-4.8.1-no-use-ld-gold.patch
++	$(APPLY) $(SRC)/qt4/qtwebkit-4.8.1-no-use-ld-gold.patch
+ 	### gcc 5 patches
+ 	$(APPLY) $(SRC)/qt4/qt-fix_detection_of_gcc5.patch
+ 	$(APPLY) $(SRC)/qt4/qt-gcc5_compat_qt_build_key.patch
+ 	# only fo 4.8.6
+-	$(APPLY) $(SRC)/qt4/qt-4.8.6-qfiledialog.patch
++	#$(APPLY) $(SRC)/qt4/qt-4.8.6-qfiledialog.patch
+ 	rm -r qt-$(QT4_VERSION)/src/3rdparty/webkit/Examples
+ 	rm -r qt-$(QT4_VERSION)/src/3rdparty/webkit/Source/WebKit/qt/docs
+ 	rm -r qt-$(QT4_VERSION)/src/3rdparty/webkit/Source/WebKit/qt/examples
+diff -aurN a1/contrib/src/qt4/SHA512SUMS a2/contrib/src/qt4/SHA512SUMS
+--- a1/contrib/src/qt4/SHA512SUMS	2019-07-16 13:28:45.174823000 +0400
++++ a2/contrib/src/qt4/SHA512SUMS	2019-07-16 13:28:45.174823000 +0400
+@@ -1 +1 @@
+-c2d07c3cf9d687cb9b93e337c89df3f0055bd02bc8aa5ecd55d3ffb238b31a4308aeabc3c51a4f94ac76a1b00796f047513d02e427ed93ae8dd99f836fff7692  qt-4.8.6.tar.gz
++47118d1aa30c59a1eb74e805023cd060edcb35bb0944fe6651889254b75acbd4b83700ba92a9bc215663474d26330cb44f084098c380fac9270742659e5864eb  qt-4.8.5.tar.gz
+diff -aurN a1/contrib/src/qt4/_SHA512SUMS a2/contrib/src/qt4/_SHA512SUMS
+--- a1/contrib/src/qt4/_SHA512SUMS	2019-07-16 13:28:45.174823000 +0400
++++ a2/contrib/src/qt4/_SHA512SUMS	1970-01-01 03:00:00.000000000 +0300
+@@ -1 +0,0 @@
+-47118d1aa30c59a1eb74e805023cd060edcb35bb0944fe6651889254b75acbd4b83700ba92a9bc215663474d26330cb44f084098c380fac9270742659e5864eb  qt-4.8.5.tar.gz
+diff -aurN a1/contrib/src/qt4/__SHA512SUMS a2/contrib/src/qt4/__SHA512SUMS
+--- a1/contrib/src/qt4/__SHA512SUMS	1970-01-01 03:00:00.000000000 +0300
++++ a2/contrib/src/qt4/__SHA512SUMS	2019-07-16 13:28:45.174823000 +0400
+@@ -0,0 +1 @@
++c2d07c3cf9d687cb9b93e337c89df3f0055bd02bc8aa5ecd55d3ffb238b31a4308aeabc3c51a4f94ac76a1b00796f047513d02e427ed93ae8dd99f836fff7692  qt-4.8.6.tar.gz

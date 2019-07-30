@@ -1,0 +1,69 @@
+diff -aurN a/modules/gui/qt4/main_interface.cpp b/modules/gui/qt4/main_interface.cpp
+--- a/modules/gui/qt4/main_interface.cpp	2019-07-23 17:09:54.862536000 +0300
++++ b/modules/gui/qt4/main_interface.cpp	2019-07-30 12:26:16.102015332 +0300
+@@ -48,6 +48,7 @@
+ #include "acewebbrowser/javascriptobject.hpp"
+ #ifdef _WIN32
+ #include "acewebbrowser/iejsobject.hpp"
++#include "acewebbrowser/iebrowser2.hpp"
+ #endif
+ #include "acewebbrowser/exceptions.hpp"
+ 
+@@ -1964,14 +1965,14 @@
+         parent = browserPlaceholder;
+     }
+     if(!parent) return;
+-    
++/*    
+     if(conf.type() == AceWebBrowser::BTYPE_PREROLL && conf.useIE()) {
+ #ifdef _WIN32
+         createIEBrowser(conf, parent);
+ #endif
+         return;
+     }
+-    
++*/    
+     AceWebBrowser::Browser *browser = browserManager->createBrowser(conf, parent);
+     
+     if(conf.type() == AceWebBrowser::BTYPE_PAUSE) {
+@@ -2031,6 +2032,7 @@
+ }
+ 
+ #ifdef _WIN32
++/*
+ void MainInterface::createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent)
+ {
+     qWarning() << "Player::createIEBrowser";
+@@ -2086,7 +2088,7 @@
+     }
+     ieBrowser->load(conf);
+ }
+-
++*/
+ void MainInterface::registerIESuccess(AceWebBrowser::BrowserType type, QString id)
+ {
+     qDebug() << "Player::registerIESuccess: register preroll complete";
+@@ -2259,9 +2261,9 @@
+                 }
+                 inputC->setVisible(false);
+                 
+-                ieBrowser->setVisiabilityProcessingEnable(false);
++                //ieBrowser->setVisiabilityProcessingEnable(false);
+                 showTab(browserPlaceholder);
+-                ieBrowser->setVisiabilityProcessingEnable(true);
++                //ieBrowser->setVisiabilityProcessingEnable(true);
+             }
+         }
+         else {
+diff -aurN a/modules/gui/qt4/main_interface.hpp b/modules/gui/qt4/main_interface.hpp
+--- a/modules/gui/qt4/main_interface.hpp	2019-07-23 17:09:54.598558000 +0300
++++ b/modules/gui/qt4/main_interface.hpp	2019-07-23 17:13:18.837451087 +0300
+@@ -316,7 +316,7 @@
+     void createBrowser(AceWebBrowser::LoadItem conf);
+     
+ #ifdef _WIN32
+-    void createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent);
++    //void createIEBrowser(AceWebBrowser::LoadItem conf, QWidget *parent);
+     void registerIESuccess(AceWebBrowser::BrowserType type, QString id);
+     void registerIEError(AceWebBrowser::BrowserType type, QString id);
+     void deleteIEBrowser();

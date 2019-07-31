@@ -6,15 +6,16 @@ diff -aurN a1/contrib/src/qt4/rules.mak a2/contrib/src/qt4/rules.mak
  
 -QT4_VERSION = 4.8.6
 +QT4_VERSION = 4.8.5
- QT4_URL := http://download.qt-project.org/official_releases/qt/4.8/$(QT4_VERSION)/qt-everywhere-opensource-src-$(QT4_VERSION).tar.gz
+ QT4_URL := http://download.qt-project.org/archive/qt/4.8/$(QT4_VERSION)/qt-everywhere-opensource-src-$(QT4_VERSION).tar.gz
  
  ifdef HAVE_MACOSX
-@@ -28,16 +28,16 @@
+@@ -28,17 +28,17 @@
  	$(APPLY) $(SRC)/qt4/chroot.patch
  	$(APPLY) $(SRC)/qt4/imageformats.patch
  	# only fo 4.8.5
 -	#$(APPLY) $(SRC)/qt4/win64.patch
 +	$(APPLY) $(SRC)/qt4/win64.patch
+ 	$(APPLY) $(SRC)/qt4/itemviews.patch
  	$(APPLY) $(SRC)/qt4/webkit_3rdparty.patch
  	$(APPLY) $(SRC)/qt4/4.8.2-javascriptcore-x32.patch
  	# only fo 4.8.5

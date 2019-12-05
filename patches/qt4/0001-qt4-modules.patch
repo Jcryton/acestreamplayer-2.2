@@ -1,6 +1,6 @@
 --- vlc-2.1.2.orig/modules/gui/qt4/actions_manager.cpp	2013-12-03 11:12:34.000000000 +0200
 +++ vlc-2.1.2/modules/gui/qt4/actions_manager.cpp	2014-01-17 16:55:14.874992774 +0200
-@@ -35,6 +35,9 @@
+@@ -35,7 +35,10 @@
  #include "components/controller.hpp" /* Toggle FSC controller width */
  #include "components/extended_panels.hpp"
  
